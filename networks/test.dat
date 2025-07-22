@@ -1,0 +1,29 @@
+VARIABLES{
+    invt = 1d0 / Tgas
+    t32 = Tgas / 3d2
+}
+
+# reactions with temperature uses Tgas
+H+ + E -> H                    [0, 300]   3.61e-12*t32**(-0.75)
+
+# some reaction with cosmic rays (user_cflux)
+H -> H+ + E                    [0, 300]   4.60e-01*user_crflux
+
+# reaction with visual extinction (user_av)
+C -> C+ + E                    [0, 300]   3.39e-10 * exp(-3.761 * user_av)
+
+# temperature limits can be empty
+C+ + E -> C                    []         4.40e-12*(Tgas/3e2)**(-0.61)
+
+CO+ + E -> CO                  []         2e-14
+C + O -> CO                    []         1e-20
+CO -> C + O                    []         1e-33
+CO -> CO+ + E                  []         1.3e-12
+
+N2         CR                     N          N                                             5.000e+00  0.000e+00  0.000e+00 1.25e+00 0.00e+00 logn  1  -9999   9999  1     1 1  1
+
+N + N -> N2 [] 1.22e-12
+
+326:CE:CO:N2+:N2:CO+:::1:7.40e-11:0.00:0.0:10:41000:M:A:"10.1063/1.438893"::
+
+N2 + E -> N2+ + E + E [] 1e-12*tgas**2 * exp(-1e4/tgas)
