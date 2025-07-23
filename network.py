@@ -2,13 +2,14 @@ from reaction import Reaction
 from species import Species
 import numpy as np
 import sys
+from tqdm import tqdm
 from sympy import parse_expr, symbols
 from parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome
 
 class Network:
 
     # ****************
-    def __init__(self, fname, errors=False):
+    def __init__(self, fname, errors=False, label=None):
         self.mass_dict = self.load_mass_dict("data/atom_mass.dat")
         self.species = []
         self.species_dict = {}
@@ -16,6 +17,11 @@ class Network:
         self.reactions = []
         self.rlist = self.plist = None
         self.variables_f90 = None
+        self.file_name = fname
+        self.label = label if label else fname.split("/")[-1].split(".")[0]
+
+        print("Loading network from %s" % fname)
+        print("Network label = %s" % self.label)
 
         self.load_network(fname)
 
@@ -58,7 +64,7 @@ class Network:
         # default krome format
         krome_format = "@format:idx,R,R,R,P,P,P,P,tmin,tmax,rate"
 
-        for row in open(fname):
+        for row in tqdm(open(fname).readlines()):
             srow = row.strip()
             if srow == "":
                 continue
@@ -113,6 +119,20 @@ class Network:
         self.variables_f90 = variables
 
         print("Loaded %d reactions" % len(self.reactions))
+
+    # ****************
+    def compare(self, other):
+        print("Comparing networks %s and %s..." % (self.label, other.label))
+        nsame = 0
+        ndifferent = 0
+        for rea1 in self.reactions:
+            for rea2 in other.reactions:
+                if rea1.is_same(rea2):
+                    print("Found same reaction: %s" % rea1.get_verbatim())
+                    nsame += 1
+                else:
+                    ndifferent += 1
+        print("Found %d same reactions and %d different reactions." % (nsame, ndifferent))
 
     # ****************
     def check_sink_sources(self, errors):
