@@ -4,13 +4,15 @@ import sympy
 
 class Reaction:
 
-    def __init__(self, reactants, products, rate, tmin, tmax):
+    def __init__(self, reactants, products, rate, tmin, tmax, original_string):
         self.reactants = reactants
         self.products = products
         self.rate = rate
         self.tmin = tmin
         self.tmax = tmax
         self.reaction = None
+        self.original_string = original_string
+
         self.check()
         self.serialize()
 

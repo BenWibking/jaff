@@ -22,6 +22,7 @@ class Network:
         self.check_sink_sources(errors)
         self.check_recombinations(errors)
         self.check_isomers(errors)
+        self.check_unique_reactions(errors)
 
         self.generate_ode()
         self.generate_reactions_dict()
@@ -54,6 +55,9 @@ class Network:
 
         in_variables = False
 
+        # default krome format
+        krome_format = "@format:idx,R,R,R,P,P,P,P,tmin,tmax,rate"
+
         for row in open(fname):
             srow = row.strip()
             if srow == "":
@@ -74,13 +78,19 @@ class Network:
                 variables += srow + ";"
                 continue
 
+            # check for krome format
+            if srow.startswith("@format:"):
+                print("KROME format detected: %s" % srow)
+                krome_format = srow.strip()
+                continue
+
             # determine the type of reaction line and parse it
             if "->" in srow:
                 rr, pp, tmin, tmax, rate = parse_prizmo(srow)
             elif ":" in srow:
                 rr, pp, tmin, tmax, rate = parse_udfa(srow)
-            elif srow.count(",") > 4:
-                rr, pp, tmin, tmax, rate = parse_krome(srow)
+            elif srow.count(",") > 3:
+                rr, pp, tmin, tmax, rate = parse_krome(srow, krome_format)
             else:
                 rr, pp, tmin, tmax, rate = parse_kida(srow)
 
@@ -96,7 +106,7 @@ class Network:
             rr = [self.species[species_names.index(x)] for x in rr]
             pp = [self.species[species_names.index(x)] for x in pp]
 
-            rea = Reaction(rr, pp, rate, tmin, tmax)
+            rea = Reaction(rr, pp, rate, tmin, tmax, srow)
             self.reactions.append(rea)
 
         # store rate variables for the f90 preprocessor
@@ -174,6 +184,19 @@ class Network:
 
         if has_errors and errors:
             print("WARNING: isomer errors found")
+            sys.exit(1)
+
+    # ****************
+    def check_unique_reactions(self, errors):
+        has_duplicates = False
+        for i, rea1 in enumerate(self.reactions):
+            for rea2 in self.reactions[i+1:]:
+                if rea1.is_same(rea2):
+                    print("WARNING: duplicate reaction found: %s" % rea1.get_verbatim())
+                    has_duplicates = True
+
+        if has_duplicates and errors:
+            print("ERROR: duplicate reactions found")
             sys.exit(1)
 
     # ****************

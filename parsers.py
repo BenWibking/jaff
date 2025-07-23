@@ -1,5 +1,7 @@
 import sys
 
+
+
 # ****************
 def parse_prizmo(line):
 
@@ -114,9 +116,7 @@ def parse_kida(line):
 
 
 # ****************
-def parse_krome(line):
-
-    fmt = "@format:idx,R,R,R,P,P,P,P,tmin,tmax,rate"
+def parse_krome(line, fmt):
 
     line = line.replace(" ", "")
     line = line.replace(",e,", ",e-,").replace(",E,", ",e-,")
