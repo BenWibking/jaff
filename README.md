@@ -10,3 +10,6 @@
 `ntot`: total number density, 1/cm3      
 `hnuclei`: H nuclei number density, 1/cm3     
 `d2g`: dust-to-gas mass ratio     
+
+
+![plot](./assets/xkcd.png)
