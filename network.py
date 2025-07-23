@@ -100,6 +100,8 @@ class Network:
             else:
                 rr, pp, tmin, tmax, rate = parse_kida(srow)
 
+            rate = rate.lower().strip()
+
             # parse with sympy
             rate = parse_expr(rate, evaluate=False)
 
@@ -121,23 +123,34 @@ class Network:
         print("Loaded %d reactions" % len(self.reactions))
 
     # ****************
-    def compare(self, other):
+    def compare(self, other, verbosity=1):
         print("Comparing networks \"%s\" and \"%s\"..." % (self.label, other.label))
 
         net1 = [x.serialized for x in self.reactions]
         net2 = [x.serialized for x in other.reactions]
 
         nsame = 0
+        nmissing1 = 0
+        nmissing2 = 0
         for ref in np.unique(net1 + net2):
             if ref in net1 and ref not in net2:
                 rea = self.get_reaction_by_serialized(ref)
-                print("Found in \"%s\" but not in \"%s\": %s" % (self.label, other.label, rea.get_verbatim()))
+                nmissing2 += 1
+                if verbosity > 0:
+                    print("Found in \"%s\" but not in \"%s\": %s" % (self.label, other.label, rea.get_verbatim()))
+
             elif ref in net2 and ref not in net1:
                 rea = other.get_reaction_by_serialized(ref)
-                print("Found in \"%s\" but not in \"%s\": %s" % (other.label, self.label, rea.get_verbatim()))
+                nmissing1 += 1
+                if verbosity > 0:
+                    print("Found in \"%s\" but not in \"%s\": %s" % (other.label, self.label, rea.get_verbatim()))
             else:
+                if verbosity > 1:
+                    print("Found in both networks: %s" % ref)
                 nsame += 1
         print("Found %d reactions in common" % nsame)
+        print("%d reactions missing in \"%s\"" % (nmissing1, self.label))
+        print("%d reactions missing in \"%s\"" % (nmissing2, other.label))
 
     # ****************
     def check_sink_sources(self, errors):
