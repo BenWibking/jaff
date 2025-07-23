@@ -122,17 +122,22 @@ class Network:
 
     # ****************
     def compare(self, other):
-        print("Comparing networks %s and %s..." % (self.label, other.label))
+        print("Comparing networks \"%s\" and \"%s\"..." % (self.label, other.label))
+
+        net1 = [x.serialized for x in self.reactions]
+        net2 = [x.serialized for x in other.reactions]
+
         nsame = 0
-        ndifferent = 0
-        for rea1 in self.reactions:
-            for rea2 in other.reactions:
-                if rea1.is_same(rea2):
-                    print("Found same reaction: %s" % rea1.get_verbatim())
-                    nsame += 1
-                else:
-                    ndifferent += 1
-        print("Found %d same reactions and %d different reactions." % (nsame, ndifferent))
+        for ref in np.unique(net1 + net2):
+            if ref in net1 and ref not in net2:
+                rea = self.get_reaction_by_serialized(ref)
+                print("Found in \"%s\" but not in \"%s\": %s" % (self.label, other.label, rea.get_verbatim()))
+            elif ref in net2 and ref not in net1:
+                rea = other.get_reaction_by_serialized(ref)
+                print("Found in \"%s\" but not in \"%s\": %s" % (other.label, self.label, rea.get_verbatim()))
+            else:
+                nsame += 1
+        print("Found %d reactions in common" % nsame)
 
     # ****************
     def check_sink_sources(self, errors):
@@ -272,4 +277,12 @@ class Network:
                     return sp.latex
 
         print("ERROR: species %s latex not found" % name)
+        sys.exit(1)
+
+    # *****************
+    def get_reaction_by_serialized(self, serialized):
+        for sp in self.reactions:
+            if sp.serialized == serialized:
+                return sp
+        print("ERROR: reaction with serialized %s not found" % serialized)
         sys.exit(1)
