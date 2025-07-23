@@ -208,49 +208,6 @@ class Network:
         return len(self.species)
 
     # *****************
-    def get_kall(self, tgas, av, crate):
-        kall = np.zeros(len(self.reactions))
-        for i, rea in enumerate(self.reactions):
-            try:
-                kall[i] = rea.reaction(tgas, av, crate)
-            except FloatingPointError:
-                print(i, rea.lambda_verbatim)
-                exit("ERORR: FloatingPointError in reaction rate!")
-        return kall
-
-    # *****************
-    def prepare_variables_f90(self):
-
-        # if there are no variables, return empty string
-        if self.variables_f90 is None or self.variables_f90 == "":
-            return ""
-
-        # use the semi-colon to split the variables
-        vv = self.variables_f90.replace("\n", "").split(";")
-        vv = [x.strip() for x in vv if x.strip() != ""]
-
-        # get the variable names
-        names = [x.split("=")[0].strip() for x in vv]
-
-        # check that the variable names does not contain "tgas" since it will be replaced with min(max(tgas, tmin), tmax)
-        for x in names:
-            if "tgas" in x.lower():
-                print("ERROR: the variable '%s' contains the string 'tgas'" % x)
-                print("This is not allowed since tgas is a reserved variable!")
-                sys.exit(1)
-
-        # definitions are just all real*8
-        defs = ["real*8::" + x for x in names]
-
-        # top of the string is the definitions (e.g. real*8:: tgas32)
-        sv = "\n".join(defs) + "\n\n"
-
-        # these are the assignments (e.g. tgas32 = tgas / 3d2)
-        sv += "\n".join(vv) + "\n"
-
-        return sv
-
-    # *****************
     def get_species_index(self, name):
         return self.species_dict[name]
 
