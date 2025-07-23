@@ -52,15 +52,15 @@ def parse_udfa(line):
 
     rate = None
     if rtype == "CR":
-        rate = "%.2e * user_crate" % kc
+        rate = "%.2e * crate" % kc
     elif rtype == "PH":
-        rate = "%.2e * exp(-%.2f * user_av)" % (ka, kc)
+        rate = "%.2e * exp(-%.2f * av)" % (ka, kc)
     else:
         rate = "%.2e" % ka
         if kb != 0e0:
-            rate += " * (Tgas / 3e2)**(%.2f)" % kb
+            rate += " * (tgas / 3e2)**(%.2f)" % kb
         if kc != 0e0:
-            rate += " * exp(-%.2f / Tgas)" % kc
+            rate += " * exp(-%.2f / tgas)" % kc
 
     rr = [x.strip() for x in rr if x.strip() != ""]
     pp = [x.strip() for x in pp if x.strip() != ""]

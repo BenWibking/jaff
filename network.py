@@ -81,7 +81,7 @@ class Network:
 
             # store variables as a single string, it will be processed later
             if in_variables:
-                variables += srow + ";"
+                variables += srow.lower() + ";"
                 continue
 
             # check for krome format
@@ -100,6 +100,7 @@ class Network:
             else:
                 rr, pp, tmin, tmax, rate = parse_kida(srow)
 
+            # use lowercase for rate
             rate = rate.lower().strip()
 
             # parse with sympy
@@ -123,7 +124,7 @@ class Network:
         print("Loaded %d reactions" % len(self.reactions))
 
     # ****************
-    def compare(self, other, verbosity=1):
+    def compare_reactions(self, other, verbosity=1):
         print("Comparing networks \"%s\" and \"%s\"..." % (self.label, other.label))
 
         net1 = [x.serialized for x in self.reactions]
