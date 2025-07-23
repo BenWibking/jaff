@@ -8,7 +8,7 @@ from sympy import parse_expr, symbols
 class Network:
 
     # ****************
-    def __init__(self, fname):
+    def __init__(self, fname, errors=False):
         self.mass_dict = self.load_mass_dict("data/atom_mass.dat")
         self.species = []
         self.species_dict = {}
@@ -19,9 +19,9 @@ class Network:
 
         self.load_network(fname)
 
-        self.check_sink_sources()
-        self.check_recombinations()
-        self.check_isomers()
+        self.check_sink_sources(errors)
+        self.check_recombinations(errors)
+        self.check_isomers(errors)
 
         self.generate_ode()
         self.generate_reactions_dict()
@@ -79,6 +79,8 @@ class Network:
                 rr, pp, tmin, tmax, rate = self.line_prizmo(srow)
             elif ":" in srow:
                 rr, pp, tmin, tmax, rate = self.line_udfa(srow)
+            elif srow.count(",") > 4:
+                rr, pp, tmin, tmax, rate = self.line_krome(srow)
             else:
                 rr, pp, tmin, tmax, rate = self.line_kida(srow)
 
@@ -214,8 +216,54 @@ class Network:
 
         return rr, pp, tmin, tmax, rate
 
+
     # ****************
-    def check_sink_sources(self):
+    def line_krome(self, line):
+
+        fmt = "@format:idx,R,R,R,P,P,P,P,tmin,tmax,rate"
+
+
+        line = line.replace(" ", "")
+        line = line.replace(",e,", ",e-,").replace(",E,", ",e-,")
+
+        afmt = [x.strip() for x in fmt.lower().strip().split(":")[1].split(",")]
+
+        arow = [x.strip() for x in line.strip().split(",")]
+
+        tmin = 3e0
+        tmax = 1e6
+
+        rr = []
+        pp = []
+        for i, x in enumerate(afmt):
+            if x == "r":
+                rr.append(arow[i])
+            elif x == "p":
+                pp.append(arow[i])
+            elif x == "tmin":
+                if arow[i].strip().lower() != "none":
+                    tmin = float(arow[i])
+            elif x == "tmax":
+                if arow[i].strip().lower() != "none":
+                    tmax = float(arow[i])
+            elif x == "rate":
+                rate = arow[i].strip()
+            elif x == "idx":
+                pass
+            else:
+                print("ERROR: unknown KROME format %s in line '%s'" % (x, line))
+                sys.exit(1)
+
+        rr = [x.strip() for x in rr if x.strip() != ""]
+        pp = [x.strip() for x in pp if x.strip() != ""]
+
+
+
+        return rr, pp, tmin, tmax, rate
+
+
+    # ****************
+    def check_sink_sources(self, errors):
         pps = []
         rrs = []
         for rea in self.reactions:
@@ -236,18 +284,21 @@ class Network:
                 has_source = True
 
         if has_sink:
-            print("ERROR: sink detected")
+            print("WARNING: sink detected")
         if has_source:
-            print("ERROR: source detected")
+            print("WARNING: source detected")
 
-        if has_sink or has_source:
+        if (has_sink or has_source) and errors:
             sys.exit()
 
     # ****************
-    def check_recombinations(self):
+    def check_recombinations(self, errors):
+
+        has_errors = False
         for sp in self.species:
             if sp.charge == 0:
                 continue
+
             if sp.charge > 0:
                 electron_recombination_found = False
                 # grain_recombination_found = False
@@ -261,17 +312,27 @@ class Network:
                         break
 
                 if not electron_recombination_found:
+                    has_errors = True
                     print("WARNING: electron recombination not found for %s" % sp.name)
                 # if not grain_recombination_found:
                 #     print("WARNING: grain recombination not found for %s" % sp.name)
 
+        if has_errors and errors:
+            print("WARNING: recombination errors found")
+            sys.exit(1)
+
     # ****************
-    def check_isomers(self):
+    def check_isomers(self, errors):
+        has_errors = False
         for i, sp1 in enumerate(self.species):
             for sp2 in self.species[i+1:]:
                 if sp1.exploded == sp2.exploded:
                     print("WARNING: isomer detected: %s %s" % (sp1.name, sp2.name))
+                    has_errors = True
 
+        if has_errors and errors:
+            print("WARNING: isomer errors found")
+            sys.exit(1)
 
     # ****************
     def generate_reactions_dict(self):

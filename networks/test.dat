@@ -29,5 +29,5 @@ N + N -> N2 [] 1.22e-12
 # UMIST format
 326:CE:CO:N2+:N2:CO+:::1:7.40e-11:0.00:0.0:10:41000:M:A:"10.1063/1.438893"::
 
-# PRIZMO format again
-N2 + E -> N2+ + E + E [] 1e-12*tgas**2 * exp(-1e4/tgas)
+# KROME format
+16,H2,E,,H,H,E,,NONE,NONE,5.6e-11*exp(-102124e0*invT)*Tgas**0.5
