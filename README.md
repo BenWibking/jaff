@@ -1,7 +1,7 @@
-# jaff
+# JAFF
 (just another fancy format)
 
-
+-----------------------------
 ### Primitive variables
 (small caps)       
 `tgas`: gas temperature, K      
@@ -12,4 +12,6 @@
 `d2g`: dust-to-gas mass ratio     
 
 
-![plot](./assets/xkcd.png)
+-----------------------------
+![xkcd:927](./assets/xkcd.png)               
+![https://xkcd.com/927/](https://xkcd.com/927/)
