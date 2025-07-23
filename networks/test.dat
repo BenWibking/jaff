@@ -20,10 +20,14 @@ C + O -> CO                    []         1e-20
 CO -> C + O                    []         1e-33
 CO -> CO+ + E                  []         1.3e-12
 
+# KIDA format
 N2         CR                     N          N                                             5.000e+00  0.000e+00  0.000e+00 1.25e+00 0.00e+00 logn  1  -9999   9999  1     1 1  1
 
+# PRIZMO format again
 N + N -> N2 [] 1.22e-12
 
+# UMIST format
 326:CE:CO:N2+:N2:CO+:::1:7.40e-11:0.00:0.0:10:41000:M:A:"10.1063/1.438893"::
 
+# PRIZMO format again
 N2 + E -> N2+ + E + E [] 1e-12*tgas**2 * exp(-1e4/tgas)
