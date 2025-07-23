@@ -17,7 +17,16 @@ class Species:
         self.charge = None
         self.index = index
         self.fidx = "idx_" + name.replace("+", "j").replace("-", "k").strip()
+        self.serialized = None
+
         self.parse(mass_dict)
+        self.serialize()
+
+
+    # ********************
+    def serialize(self):
+        self.serialized = "/".join(sorted(self.exploded))
+        return self.serialized
 
     # ********************
     def parse(self, mass_dict):

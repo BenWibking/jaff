@@ -1,5 +1,6 @@
 import numpy as np
 import sys
+import sympy
 
 class Reaction:
 
@@ -9,9 +10,18 @@ class Reaction:
         self.rate = rate
         self.tmin = tmin
         self.tmax = tmax
-        self.lamda_verbatim = None
         self.reaction = None
         self.check()
+        self.serialize()
+
+    def is_same(self, other):
+        return self.serialized == other.serialized
+
+    def serialize(self):
+        sr = "_".join(sorted([x.serialized for x in self.reactants]))
+        sp = "_".join(sorted([x.serialized for x in self.products]))
+        self.serialized = sr + "__" + sp
+        return self.serialized
 
     def check(self):
         if not self.check_mass():
@@ -26,9 +36,6 @@ class Reaction:
 
     def check_charge(self):
         return (np.sum([x.charge for x in self.reactants]) - np.sum([x.charge for x in self.products])) == 0
-
-    def get_flux(self, n, k):
-        return k * np.prod([n[x.index] for x in self.reactants])
 
     def get_verbatim(self):
         return " + ".join([x.name for x in self.reactants]) + " -> " + \
@@ -58,9 +65,7 @@ class Reaction:
         return str(self.rate)
 
     def get_c(self):
-        import sympy as ccode
-        return ccode.ccode(self.rate)
+        return sympy.ccode(self.rate)
 
-    def get_cpp(self):
-        import sympy as cppcode
-        return cppcode.ccode(self.rate)
+    def get_f90(self):
+        return sympy.fcode(self.rate)
