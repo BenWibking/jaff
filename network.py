@@ -56,20 +56,44 @@ class Network:
         self.species_dict = {s.name: s.index for s in self.species}
         species_names = [x for x in default_species]
 
-        variables_sympy = {}
+        # custom variables
+        variables_sympy = []
 
+        # some of the krome shortcuts used in KROME
+        krome_shortcuts = '''
+        t32=tgas/3e2
+        te=tgas*8.617343e-5
+        invt32 = 1e0 / t32
+        invte = 1e0 / te
+        invtgas = 1e0 / tgas
+        sqrtgas = sqrt(tgas)
+        '''
+
+        # parse krome shortcuts
+        for row in krome_shortcuts.split("\n"):
+            srow = row.strip()
+            if srow == "" or srow.startswith("#"):
+                continue
+            var, val = srow.split("=")
+            variables_sympy.append([var, parse_expr(val, evaluate=False)])
+
+        # all variables found in the rate expressions (not in the custom variables)
+        free_symbols_all = []
+
+        # flag to check if we are in PRIZMO variables section
         in_variables = False
 
         # default krome format
         krome_format = "@format:idx,R,R,R,P,P,P,P,tmin,tmax,rate"
 
-        # covert all the lines to a file
+        # read the file into a list of lines
         lines = open(fname).readlines()
 
         # remove empty lines and comments
         lines = [x.strip() for x in lines if x.strip() != ""]
         lines = [x for x in lines if not x.startswith("#")]
 
+        # loop through the lines and parse them
         for srow in tqdm(lines):
 
             # -------------------- PRIZMO --------------------
@@ -86,11 +110,15 @@ class Network:
             # store variables as a single string, it will be processed later
             # format will be var1=value1;var2=value2;...
             if in_variables:
+                print("PRIZMO variable detected: %s" % srow)
                 srow = srow.replace(" ", "").strip().lower()
                 srow = f90_convert(srow)
-                print("PRIZMO variable detected: %s" % srow)
                 var, val = srow.split("=")
-                variables_sympy[var] = parse_expr(val, evaluate=False)
+                try:
+                    variables_sympy.append((var, parse_expr(val, evaluate=False)))
+                except Exception as e:
+                    print("WARNING: could not parse variable (%s), using string instead" % e)
+                    variables_sympy.append((var, val.strip()))
                 continue
 
             # -------------------- KROME --------------------
@@ -101,11 +129,15 @@ class Network:
                 continue
 
             if srow.startswith("@var:"):
+                print("KROME variable detected: %s" % srow)
                 srow = srow.replace("@var:", "").lower().strip()
                 srow = f90_convert(srow)
-                print("KROME variable converted to F90: %s" % srow)
                 var, val = srow.split("=")
-                variables_sympy[var] = parse_expr(val, evaluate=False)
+                try:
+                    variables_sympy.append((var, parse_expr(val, evaluate=False)))
+                except Exception as e:
+                    print("WARNING: could not parse variable (%s), using string instead" % e)
+                    variables_sympy.append((var, val.strip()))
                 continue
 
             # skip KROME special lines
@@ -126,24 +158,39 @@ class Network:
             # use lowercase for rate
             rate = rate.lower().strip()
 
-            # parse with sympy
+            # parse rate with sympy
             rate = parse_expr(rate, evaluate=False)
 
-            for var, val in variables_sympy.items():
-                rate = rate.subs(symbols(var), val)
+            # use sympy to replace custom variables into the rate expression
+            for vv in variables_sympy[::-1]:
+                var, val = vv
+                if isinstance(val, str):
+                    print("WARNING: variable %s not replaced because it is a string, not a sympy expression" % var)
+                else:
+                    rate = rate.subs(symbols(var), val)
 
+            # add variables to the list of all variables
+            free_symbols_all += rate.free_symbols
+
+            # convert reactants and products to Species objects
             for s in rr + pp:
                 if s not in species_names:
                     species_names.append(s)
                     self.species.append(Species(s, self.mass_dict, len(species_names)-1))
                     self.species_dict[s] = self.species[-1].index
 
+            # reactants and products are now Species objects
             rr = [self.species[species_names.index(x)] for x in rr]
             pp = [self.species[species_names.index(x)] for x in pp]
 
+            # create a Reaction object
             rea = Reaction(rr, pp, rate, tmin, tmax, srow)
             self.reactions.append(rea)
 
+        # unique list of variables names found in the rate expressions
+        free_symbols_all = sorted([x.name for x in list(set(free_symbols_all))])
+
+        print("Variables found:", free_symbols_all)
         print("Loaded %d reactions" % len(self.reactions))
 
     # ****************

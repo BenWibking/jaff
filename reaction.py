@@ -100,19 +100,19 @@ class Reaction:
         import matplotlib.pyplot as plt
         import numpy as np
 
-        t = np.linspace(self.tmin, self.tmax, 100)
-        r = sympy.lambdify('t', self.rate, 'numpy')
-        y = r(t)
+        tgas = np.linspace(self.tmin, self.tmax, 100)
+        r = sympy.lambdify('tgas', self.rate, 'numpy')
+        y = r(tgas)
 
         if ax is None:
             _, ax = plt.subplots()
 
-        ax.plot(t, y)
+        ax.plot(tgas, y)
         ax.set_xlabel('Temperature (K)')
         ax.set_ylabel('Rate')
         ax.set_xscale('log')
         ax.set_yscale('log')
-        ax.set_title(self.get_verbatim())
+        ax.set_title(self.get_latex())
         ax.grid()
 
         if ax is None:
