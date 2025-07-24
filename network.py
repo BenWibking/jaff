@@ -4,8 +4,7 @@ import numpy as np
 import sys
 from tqdm import tqdm
 from sympy import parse_expr, symbols
-from parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome
-from utils import f90_convert
+from parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, f90_convert
 
 class Network:
 
@@ -131,7 +130,7 @@ class Network:
             rate = parse_expr(rate, evaluate=False)
 
             for var, val in variables_sympy.items():
-                rate.subs(symbols(var), val)
+                rate = rate.subs(symbols(var), val)
 
             for s in rr + pp:
                 if s not in species_names:

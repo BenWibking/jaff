@@ -115,7 +115,6 @@ def parse_kida(line):
 
 # ****************
 def parse_krome(line, fmt):
-    from utils import f90_convert
 
     line = line.replace(" ", "")
 
