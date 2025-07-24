@@ -10,8 +10,8 @@ def parse_prizmo(line):
     reaction, tlims, rate = [x.strip() for x in arow]
 
     if tlims.replace(" ", "") == "":
-        tmin = None
-        tmax = None
+        tmin = 3e0
+        tmax = 1e6
     else:
         tmin = float(tlims.split(",")[0].replace("d", "e"))
         tmax = float(tlims.split(",")[1].replace("d", "e"))
@@ -23,14 +23,11 @@ def parse_prizmo(line):
 
     rate = rate.replace("user_crflux", "crate")
     rate = rate.replace("user_av", "av")
-    if "user_" in rate:
-        print(srow)
-        print("ERROR: user_* variable still in rate! It should be replaced by a local variable")
-        sys.exit(1)
-    if tmin is not None:
-        rate = rate.lower().replace("tgas", "max(tgas, %f)" % tmin)
-    if tmax is not None:
-        rate = rate.lower().replace("tgas", "min(tgas, %f)" % tmax)
+
+    # if tmin is not None:
+    #     rate = rate.lower().replace("tgas", "max(tgas, %f)" % tmin)
+    # if tmax is not None:
+    #     rate = rate.lower().replace("tgas", "min(tgas, %f)" % tmax)
 
     rr, pp = reaction.split("->")
     rr = [x.strip() for x in rr.split(" + ")]
@@ -192,7 +189,7 @@ def parse_krome(line, fmt):
 
     return rr, pp, tmin, tmax, rate
 
-
+# ****************
 def f90_convert(line):
     import re
     # dexp -> exp
