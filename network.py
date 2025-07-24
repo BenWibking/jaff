@@ -155,13 +155,15 @@ class Network:
         print("%d reactions missing in \"%s\"" % (nmissing2, other.label))
 
     # ****************
-    def compare_species(self, other, verbosity=1):
+    def compare_species(self, other, verbosity=0):
         print("Comparing species in networks \"%s\" and \"%s\"..." % (self.label, other.label))
 
         net1 = [x.serialized for x in self.species]
         net2 = [x.serialized for x in other.species]
 
         same_species = []
+        only_in_self = []
+        only_in_other = []
         nmissing1 = 0
         nmissing2 = 0
         for ref in np.unique(net1 + net2):
@@ -170,21 +172,23 @@ class Network:
                 nmissing2 += 1
                 if verbosity > 0:
                     print("Found in \"%s\" but not in \"%s\": %s" % (self.label, other.label, sp.name))
+                only_in_self.append(sp)
 
             elif ref in net2 and ref not in net1:
                 sp = other.get_species_object(ref)
                 nmissing1 += 1
                 if verbosity > 0:
                     print("Found in \"%s\" but not in \"%s\": %s" % (other.label, self.label, sp.name))
+                only_in_other.append(sp)
             else:
                 sp = self.get_species_by_serialized(ref)
                 if verbosity > 1:
                     print("Found in both networks: %s" % ref)
                 same_species.append(sp)
 
-        print("Found %d species in common" % len(same_species), [x.name for x in same_species])
-        print("%d species missing in \"%s\"" % (nmissing1, self.label))
-        print("%d species missing in \"%s\"" % (nmissing2, other.label))
+        print("Found %d species in common:" % len(same_species), sorted([x.name for x in same_species]))
+        print("Found %d species in \"%s\" but not in \"%s\":" % (len(only_in_self), self.label, other.label), sorted([x.name for x in only_in_self]))
+        print("Found %d species in \"%s\" but not in \"%s\":" % (len(only_in_other), other.label, self.label), sorted([x.name for x in only_in_other]))
 
     # ****************
     def check_sink_sources(self, errors):
