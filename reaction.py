@@ -16,8 +16,32 @@ class Reaction:
         self.check()
         self.serialize()
 
+    def guess_type(self):
+        from sympy import symbols
+
+        rtype = "unknown"
+        if self.rate.has(symbols('crate')):
+            rtype = "cosmic_ray"
+        elif self.rate.has(symbols('av')):
+            rtype = "photo_av"
+        elif self.rate.has(symbols('ntot')):
+            rtype = "3_body"
+
+        return rtype
+
     def is_same(self, other):
         return self.serialized == other.serialized
+
+    def is_isomer_version(self, other):
+        # compare serialized forms (ignore isomers)
+        is_same_serialized = self.serialized == other.serialized
+
+        # compare actual species names (consider isomers)
+        rp1 = sorted([x.name for x in self.reactants + self.products])
+        rp2 = sorted([x.name for x in other.reactants + other.products])
+        has_different_species_names = rp1 != rp2
+
+        return is_same_serialized and has_different_species_names
 
     def serialize(self):
         sr = "_".join(sorted([x.serialized for x in self.reactants]))
@@ -71,3 +95,25 @@ class Reaction:
 
     def get_f90(self):
         return sympy.fcode(self.rate)
+
+    def plot(self, ax=None):
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        t = np.linspace(self.tmin, self.tmax, 100)
+        r = sympy.lambdify('t', self.rate, 'numpy')
+        y = r(t)
+
+        if ax is None:
+            _, ax = plt.subplots()
+
+        ax.plot(t, y)
+        ax.set_xlabel('Temperature (K)')
+        ax.set_ylabel('Rate')
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+        ax.set_title(self.get_verbatim())
+        ax.grid()
+
+        if ax is None:
+            plt.show()

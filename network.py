@@ -5,6 +5,7 @@ import sys
 from tqdm import tqdm
 from sympy import parse_expr, symbols
 from parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome
+from utils import f90_convert
 
 class Network:
 
@@ -16,7 +17,6 @@ class Network:
         self.reactions_dict = {}
         self.reactions = []
         self.rlist = self.plist = None
-        self.variables_f90 = None
         self.file_name = fname
         self.label = label if label else fname.split("/")[-1].split(".")[0]
 
@@ -57,39 +57,63 @@ class Network:
         self.species_dict = {s.name: s.index for s in self.species}
         species_names = [x for x in default_species]
 
-        variables = ""
+        variables_sympy = {}
 
         in_variables = False
 
         # default krome format
         krome_format = "@format:idx,R,R,R,P,P,P,P,tmin,tmax,rate"
 
-        for row in tqdm(open(fname).readlines()):
-            srow = row.strip()
-            if srow == "":
-                continue
-            if srow[0] == "#":
-                continue
+        # covert all the lines to a file
+        lines = open(fname).readlines()
 
-            # check for variables
+        # remove empty lines and comments
+        lines = [x.strip() for x in lines if x.strip() != ""]
+        lines = [x for x in lines if not x.startswith("#")]
+
+        for srow in tqdm(lines):
+
+            # -------------------- PRIZMO --------------------
+            # check for PRIZMO variables
             if srow.startswith("VARIABLES{"):
                 in_variables = True
                 continue
+
+            # end of PRIZMO variables
             if srow.startswith("}") and in_variables:
                 in_variables = False
                 continue
 
             # store variables as a single string, it will be processed later
+            # format will be var1=value1;var2=value2;...
             if in_variables:
-                variables += srow.lower() + ";"
+                srow = srow.replace(" ", "").strip().lower()
+                srow = f90_convert(srow)
+                print("PRIZMO variable detected: %s" % srow)
+                var, val = srow.split("=")
+                variables_sympy[var] = parse_expr(val, evaluate=False)
                 continue
 
+            # -------------------- KROME --------------------
             # check for krome format
             if srow.startswith("@format:"):
                 print("KROME format detected: %s" % srow)
                 krome_format = srow.strip()
                 continue
 
+            if srow.startswith("@var:"):
+                srow = srow.replace("@var:", "").lower().strip()
+                srow = f90_convert(srow)
+                print("KROME variable converted to F90: %s" % srow)
+                var, val = srow.split("=")
+                variables_sympy[var] = parse_expr(val, evaluate=False)
+                continue
+
+            # skip KROME special lines
+            if srow.startswith("@"):
+                continue
+
+            # -------------------- REACTIONS --------------------
             # determine the type of reaction line and parse it
             if "->" in srow:
                 rr, pp, tmin, tmax, rate = parse_prizmo(srow)
@@ -106,6 +130,9 @@ class Network:
             # parse with sympy
             rate = parse_expr(rate, evaluate=False)
 
+            for var, val in variables_sympy.items():
+                rate.subs(symbols(var), val)
+
             for s in rr + pp:
                 if s not in species_names:
                     species_names.append(s)
@@ -117,9 +144,6 @@ class Network:
 
             rea = Reaction(rr, pp, rate, tmin, tmax, srow)
             self.reactions.append(rea)
-
-        # store rate variables for the f90 preprocessor
-        self.variables_f90 = variables
 
         print("Loaded %d reactions" % len(self.reactions))
 
@@ -155,7 +179,7 @@ class Network:
         print("%d reactions missing in \"%s\"" % (nmissing2, other.label))
 
     # ****************
-    def compare_species(self, other, verbosity=0):
+    def compare_species(self, other, verbosity=1):
         print("Comparing species in networks \"%s\" and \"%s\"..." % (self.label, other.label))
 
         net1 = [x.serialized for x in self.species]
@@ -170,14 +194,14 @@ class Network:
             if ref in net1 and ref not in net2:
                 sp = self.get_species_by_serialized(ref)
                 nmissing2 += 1
-                if verbosity > 0:
+                if verbosity > 1:
                     print("Found in \"%s\" but not in \"%s\": %s" % (self.label, other.label, sp.name))
                 only_in_self.append(sp)
 
             elif ref in net2 and ref not in net1:
                 sp = other.get_species_object(ref)
                 nmissing1 += 1
-                if verbosity > 0:
+                if verbosity > 1:
                     print("Found in \"%s\" but not in \"%s\": %s" % (other.label, self.label, sp.name))
                 only_in_other.append(sp)
             else:
@@ -268,6 +292,12 @@ class Network:
         for i, rea1 in enumerate(self.reactions):
             for rea2 in self.reactions[i+1:]:
                 if rea1.is_same(rea2):
+                    if rea1.tmin != rea2.tmin or rea1.tmax != rea2.tmax:
+                        continue
+                    if rea1.is_isomer_version(rea2):
+                        continue
+                    if rea1.guess_type() != rea2.guess_type():
+                        continue
                     print("WARNING: duplicate reaction found: %s" % rea1.get_verbatim())
                     has_duplicates = True
 
