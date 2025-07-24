@@ -91,7 +91,8 @@ class Network:
 
         # remove empty lines and comments
         lines = [x.strip() for x in lines if x.strip() != ""]
-        lines = [x for x in lines if not x.startswith("#")]
+        lines = [x for x in lines if not x.startswith("#")]  # general comments
+        lines = [x for x in lines if not x.startswith("!")]  # kida comments
 
         # loop through the lines and parse them
         for srow in tqdm(lines):

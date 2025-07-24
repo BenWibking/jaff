@@ -81,4 +81,12 @@ class Species:
         if self.name == "e-":
             self.charge = -1
         else:
-            self.charge = self.name.count("+") - self.name.count("-")
+            self.charge = 0
+            name = self.name
+            while name.endswith("+") or name.endswith("-"):
+                if name.endswith("+"):
+                    self.charge += 1
+                elif name.endswith("-"):
+                    self.charge -= 1
+                name = name[:-1]
+            #self.charge = self.name.count("+") - self.name.count("-")

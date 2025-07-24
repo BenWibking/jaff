@@ -60,8 +60,10 @@ def parse_udfa(line):
         if kc != 0e0:
             rate += " * exp(-%.2f / tgas)" % kc
 
-    rr = [x.strip() for x in rr if x.strip() != ""]
-    pp = [x.strip() for x in pp if x.strip() != ""]
+    skip_species = ["CR", "CRP", "PHOTON", "CRPHOT", ""]
+
+    rr = [x.strip() for x in rr if x.strip() not in skip_species]
+    pp = [x.strip() for x in pp if x.strip() not in skip_species]
 
     return rr, pp, tmin, tmax, rate
 
@@ -88,24 +90,25 @@ def parse_kida(line):
     if formula == 1:
         rate += "%e * crate" % ka
     elif formula == 2:
-        rate += "%.2e * np.exp(-%e*av)" % (ka, kc)
+        rate += "%.2e * exp(-%e*av)" % (ka, kc)
     elif formula == 3:
         rate += "%.2e" % ka
         if kb != 0e0:
-            rate += " * (max(min(tgas, %f), %f) / 3e2)**(% .2f)" % (tmax, tmin, kb)
+            rate += " * (tgas / 3e2)**(% .2f)" % kb
         if kc != 0e0:
-            rate += " * np.exp(-% .2f / max(min(tgas, %f), %f))" % (kc, tmax, tmin)
+            rate += " * exp(-% .2f / tgas)" % kc
     elif formula == 4:
         rate += "%.2e" % (ka * kb)
         if kc != 0e0:
-            rate += " * (0.62 + 0.4767 * %.2e * np.sqrt(3e2 / max(min(tgas, %f), %f)))" % (kc, tmax, tmin)
+            rate += " * (0.62 + 0.4767 * %.2e * sqrt(3e2 / tgas))" % kc
     elif formula == 5:
         rate += "%.2e" % (ka * kb)
         if kc != 0e0:
-            rate += " * (1e0 + 0.0967 * %.2e * np.sqrt(3e2 / max(min(tgas, %f), %f)) + %e * 3e2 / 10.526 / max(min(tgas, %f), %f))" % (kc, tmax, tmin, kc ** 2, tmax, tmin)
+            rate += " * (1e0 + 0.0967 * %.2e * sqrt(3e2 / tgas + %e * 3e2 / 10.526 / tgas))" % (kc, kc**2)
     else:
-        print("ERROR: KIDA formula %d not implemented" % formula)
-        sys.exit(1)
+        print("WARNING: KIDA formula %d not implemented, rate coefficient set to 0e0" % formula)
+        rate = "0e0"
+        #sys.exit(1)
 
     rr = [x.strip() for x in rr if x.strip() not in ignore]
     pp = [x.strip() for x in pp if x.strip() not in ignore]
