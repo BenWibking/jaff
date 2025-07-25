@@ -71,3 +71,6 @@ class Reaction:
 
     def get_f90(self):
         return sympy.fcode(self.rate)
+
+    def get_sympy(self):
+        return sympy.sympify(self.rate)
