@@ -11,6 +11,9 @@ class Network:
 
     # ****************
     def __init__(self, fname, errors=False, label=None):
+
+        self.motd()
+
         self.mass_dict = self.load_mass_dict("data/atom_mass.dat")
         self.species = []
         self.species_dict = {}
@@ -34,6 +37,18 @@ class Network:
         self.generate_reactions_dict()
 
         print("All done!")
+
+    # ****************
+    @staticmethod
+    def motd():
+        try:
+            with open("assets/words.dat", "r") as f:
+                words = f.readlines()
+            words = [x.strip() for x in words if x.lower().startswith("f") and x.strip().isalpha()]
+            fword = np.random.choice(words)
+        except:
+            fword = "Fancy"
+        print("Welcome to JAFF: Just Another %s Format!" % fword.title())
 
     # ****************
     @staticmethod
@@ -154,6 +169,8 @@ class Network:
                 rr, pp, tmin, tmax, rate = parse_udfa(srow)
             elif srow.count(",") > 3:
                 rr, pp, tmin, tmax, rate = parse_krome(srow, krome_format)
+            elif ",NAN," in srow:
+                rr, pp, tmin, tmax, rate = parse_uclchem(srow)
             else:
                 rr, pp, tmin, tmax, rate = parse_kida(srow)
 
@@ -444,10 +461,10 @@ class Network:
         return st_conv
 
     # *****************
-    def get_table(self, T_min, T_max, 
+    def get_table(self, T_min, T_max,
                   nT = 64, err_tol = 0.01, rate_min = 1e-30):
         """
-        Return a tabulation of rate coefficients as a function of 
+        Return a tabulation of rate coefficients as a function of
         temperature for all reactions.
 
         Parameters
@@ -554,7 +571,7 @@ class Network:
                         rates_approx[i,:] = np.nan
                     else:
                         rates_grow[i,1::2] = f(temp_grow[1::2])
-                        rates_approx[i,:] = np.sqrt(rates_grow[i,:-1:2] * 
+                        rates_approx[i,:] = np.sqrt(rates_grow[i,:-1:2] *
                                                     rates_grow[i,2::2])
 
                 # Copy new estimates to current ones
@@ -563,7 +580,7 @@ class Network:
 
                 # Make error estimate
                 rel_err = np.abs(
-                    (rates_approx - rates[:,1::2]) / 
+                    (rates_approx - rates[:,1::2]) /
                     (rates[:,1::2] + rate_min ) )
                 max_err = np.nanmax(rel_err)
 
