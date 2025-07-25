@@ -2,8 +2,9 @@ from reaction import Reaction
 from species import Species
 import numpy as np
 import sys
+import re
 from tqdm import tqdm
-from sympy import parse_expr, symbols
+from sympy import parse_expr, symbols, sympify, lambdify
 from parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, f90_convert
 
 class Network:
@@ -414,6 +415,180 @@ class Network:
                 return sp
         print("ERROR: reaction with serialized %s not found" % serialized)
         sys.exit(1)
+
+    # *****************
+    def convert_d_e(self, st):
+        """
+        A little utility function that converts scientific notation
+        of the form N.NNNd+XX to the standard N.NNNNe+XX format that
+        sympy can understand
+
+        Parameters
+            st : string
+                string to be converted
+
+        Returns
+            st_conv : string
+                string converted to standard exponential format
+        """
+
+        st_conv = st
+        idx_d = [ pos.start() for pos in re.finditer('d', st_conv) ]
+        for idx in idx_d:
+            if idx == 0 or idx == len(st_conv)-1:
+                continue
+            if (st_conv[idx-1].isnumeric() or st_conv[idx-1] == '.') and \
+                (st_conv[idx+1].isnumeric() or st_conv[idx+1] == '+' or
+                 st_conv[idx+1] == '-'):
+                st_conv = st_conv[:idx] + 'e' + st_conv[idx+1:]
+        return st_conv
+
+    # *****************
+    def get_table(self, T_min, T_max, 
+                  nT = 64, err_tol = 0.01, rate_min = 1e-30):
+        """
+        Return a tabulation of rate coefficients as a function of 
+        temperature for all reactions.
+
+        Parameters
+            T_min : float
+                minimum temperature for the tabulation
+            T_max : float
+                maximum temperature for the tabulation
+            nT : int
+                initial guess for number of sampling temperatures
+            err_tol : float or None
+                relative error tolerance for interpolation; if set to
+                None, adaptive resampling is disabled and the table size
+                will be exactly nT
+            rate_min : float
+                adaptive error tolerance is not applied to rates below
+                rate_min
+
+        Returns
+            coeff : array, shape (nreact, nTemp)
+                tabulated reaction rate coefficients
+
+        Notes
+            1) Temperature is sampled logarithmically in the output,
+            i.e., the temperatures at which the reaction coefficients
+            are computed are the output of
+            np.logspace(np.log10(T_min), np.log10(T_max), nTemp)
+            where nTemp is the number of temperatures in the output
+            table.
+            2) For reaction rates that depend on something other than
+            tgas, the results are computed at av = 0 and crate = 1;
+            rates that depend on any other quantities are not tabulated,
+            and the table entries for such reactions will be set to NaN.
+            3) Adaptive sampling is performed by comparing the results
+            of a logarithmic interpolation between each rate
+            coefficient at each pair of sampled temperature with
+            a calculation of the exact rate coefficient at a temperature
+            halfway between the two sample points; the errors is taken
+            to be abs((interp_value - exact_value) / (exact_value + rate_min)),
+            and nTemp is increased until the error for all coefficients
+            is below tolerance.
+        """
+
+        # First step: for each reaction, create a sympy object we can
+        # use to substitute to get an expression in terms of the
+        # primitive variables
+        react_sympy = [ r.get_sympy() for r in self.reactions ]
+
+        # Second step: parse the variables_f90 structure to get
+        # substitutions in terms of primitive quantities
+        subst_str = self.variables_f90.split(';')
+        subs_lhs = []
+        subs_rhs = []
+        for ss in subst_str:
+            spl = ss.split('=')
+            if len(spl) != 2:
+                continue
+            subs_lhs.append(symbols(spl[0]))
+            # For the RHS, need to fix up the d's in place of e's
+            subs_rhs.append(sympify(self.convert_d_e(spl[1].lower())))
+
+        # Third step: make the substitutions for each reaction to get
+        # an expression in terms of primitive quantities; then set av
+        # = 0 and crate = 1
+        react_subst = []
+        for r in react_sympy:
+            for lhs, rhs in zip(subs_lhs, subs_rhs):
+                r = r.subs(lhs, rhs)
+            r = r.subs(symbols('av'), 0.0)
+            r = r.subs(symbols('crate'), 1.0)
+            react_subst.append(r)
+
+        # Fouth step: create numpy fucntions for each reaction
+        react_func = []
+        for r in react_subst:
+            sym = r.free_symbols
+            if len(sym) == 0:
+                # Reaction rates that are just constants; in this
+                # case just copy that constant to the list of functions
+                react_func.append(float(r))
+            elif len(sym) > 2 or not symbols('tgas') in r.free_symbols:
+                # For reaction rats that do not depend on temperature,
+                # or that depend on variables other than temperature,
+                # we cannot tabulate, so just store None
+                react_func.append(None)
+            else:
+                # Case of reactions that depend only on temperature
+                react_func.append(lambdify(symbols('tgas'), r, 'numpy'))
+ 
+        # Fifth step: generate rate coefficient table for initial guess
+        # table size
+        nTemp = nT
+        temp = np.logspace(np.log10(T_min), np.log10(T_max), nTemp)
+        rates = np.zeros((len(react_func), nTemp))
+        for i, f in enumerate(react_func):
+            if type(f) is float:
+                rates[i,:] = f
+            elif f is None:
+                rates[i,:] = np.nan
+            else:
+                rates[i,:] = f(temp)
+
+        # Sixth step: do adaptive growth of table
+        if err_tol is not None:
+
+            while True:
+
+                # Compute estimates at half-way points
+                nTemp = 2 * nTemp - 1
+                temp_grow = np.zeros(nTemp)
+                temp_grow[::2] = temp
+                temp_grow[1::2] = np.sqrt(temp[1:] * temp[:-1])
+                rates_grow = np.zeros((len(react_func), nTemp))
+                rates_grow[:,::2] = rates
+                rates_approx = np.zeros((len(react_func), (nTemp-1)//2))
+                for i, f in enumerate(react_func):
+                    if type(f) is float:
+                        rates_grow[i,1::2] = f
+                        rates_approx[i,:] = f
+                    elif f is None:
+                        rates_grow[i,1::2] = np.nan
+                        rates_approx[i,:] = np.nan
+                    else:
+                        rates_grow[i,1::2] = f(temp_grow[1::2])
+                        rates_approx[i,:] = np.sqrt(rates_grow[i,:-1:2] * 
+                                                    rates_grow[i,2::2])
+
+                # Copy new estimates to current ones
+                temp = temp_grow
+                rates = rates_grow
+
+                # Make error estimate
+                rel_err = np.abs(
+                    (rates_approx - rates[:,1::2]) / 
+                    (rates[:,1::2] + rate_min ) )
+                max_err = np.nanmax(rel_err)
+
+                # Check for convergence
+                if max_err < err_tol:
+                    break
+
+        return rates
 
     # *****************
     def get_species_by_serialized(self, serialized):
