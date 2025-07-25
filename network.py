@@ -495,31 +495,14 @@ class Network:
         # primitive variables
         react_sympy = [ r.get_sympy() for r in self.reactions ]
 
-        # Second step: parse the variables_f90 structure to get
-        # substitutions in terms of primitive quantities
-        subst_str = self.variables_f90.split(';')
-        subs_lhs = []
-        subs_rhs = []
-        for ss in subst_str:
-            spl = ss.split('=')
-            if len(spl) != 2:
-                continue
-            subs_lhs.append(symbols(spl[0]))
-            # For the RHS, need to fix up the d's in place of e's
-            subs_rhs.append(sympify(self.convert_d_e(spl[1].lower())))
-
-        # Third step: make the substitutions for each reaction to get
-        # an expression in terms of primitive quantities; then set av
-        # = 0 and crate = 1
+        # Second step: set av = 0 and crate = 1
         react_subst = []
         for r in react_sympy:
-            for lhs, rhs in zip(subs_lhs, subs_rhs):
-                r = r.subs(lhs, rhs)
             r = r.subs(symbols('av'), 0.0)
             r = r.subs(symbols('crate'), 1.0)
             react_subst.append(r)
 
-        # Fouth step: create numpy fucntions for each reaction
+        # Third step: create numpy fucntions for each reaction
         react_func = []
         for r in react_subst:
             sym = r.free_symbols
@@ -536,7 +519,7 @@ class Network:
                 # Case of reactions that depend only on temperature
                 react_func.append(lambdify(symbols('tgas'), r, 'numpy'))
  
-        # Fifth step: generate rate coefficient table for initial guess
+        # Fourth step: generate rate coefficient table for initial guess
         # table size
         nTemp = nT
         temp = np.logspace(np.log10(T_min), np.log10(T_max), nTemp)
@@ -549,7 +532,7 @@ class Network:
             else:
                 rates[i,:] = f(temp)
 
-        # Sixth step: do adaptive growth of table
+        # Fifth step: do adaptive growth of table
         if err_tol is not None:
 
             while True:
@@ -588,6 +571,7 @@ class Network:
                 if max_err < err_tol:
                     break
 
+        # Return final table
         return rates
 
     # *****************
