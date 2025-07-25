@@ -4,7 +4,7 @@ import numpy as np
 import sys
 import re
 from tqdm import tqdm
-from sympy import parse_expr, symbols, sympify, lambdify, srepr
+from sympy import parse_expr, symbols, sympify, lambdify, srepr, Function
 from parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, parse_uclchem, f90_convert
 
 class Network:
@@ -110,6 +110,9 @@ class Network:
         lines = [x for x in lines if (not x.startswith("#")) or (",NAN," in x)]  # general comments
         lines = [x for x in lines if not x.startswith("!")]  # kida comments
 
+        # number of photo-reactions
+        n_photo = 0
+
         # loop through the lines and parse them
         for srow in tqdm(lines):
 
@@ -178,8 +181,16 @@ class Network:
             rate = rate.lower().strip()
 
             # parse rate with sympy
-            rate = parse_expr(rate, evaluate=False)
-
+            # photo-chemistry
+            if("photo" in rate):
+                photo_args=rate.split(',')
+                if(len(photo_args)<3): photo_args.append(1e99)
+                f=Function("photorates")
+                rate = f(n_photo,photo_args[1],photo_args[2]) #f"{photo_rates({n_photo},{photo_args[1]},{photo_args[2]})"
+                n_photo+=1
+            else:
+                rate = parse_expr(rate, evaluate=False)
+            print(rate)
             # use sympy to replace custom variables into the rate expression
             for vv in variables_sympy[::-1]:
                 var, val = vv
@@ -187,6 +198,13 @@ class Network:
                     print("WARNING: variable %s not replaced because it is a string, not a sympy expression" % var)
                 else:
                     rate = rate.subs(symbols(var), val)
+
+            if tmin is not None:
+                rate = rate.subs(symbols("tgas"), "max(tgas, %f)" % tmin)
+            if tmax is not None:
+                rate = rate.subs(symbols("tgas"), "min(tgas, %f)" % tmax)
+
+
 
             # add variables to the list of all variables
             free_symbols_all += rate.free_symbols

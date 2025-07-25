@@ -3,6 +3,9 @@ VARIABLES{
     t32 = Tgas / 3d2
 }
 
+# PHOTOIONIZATION / DISSOCIATION
+H -> H+ + E                    []         PHOTO, 13.60
+
 # reactions with temperature uses Tgas
 H+ + E -> H                    [0, 300]   3.61e-12*t32**(-0.75)
 

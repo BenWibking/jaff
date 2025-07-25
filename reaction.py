@@ -26,7 +26,6 @@ class Reaction:
             rtype = "photo_av"
         elif self.rate.has(symbols('ntot')):
             rtype = "3_body"
-
         return rtype
 
     def is_same(self, other):
@@ -93,10 +92,10 @@ class Reaction:
         return str(self.rate)
 
     def get_c(self):
-        return sympy.ccode(self.rate)
+        return sympy.ccode(self.rate,strict=False)
 
     def get_f90(self):
-        return sympy.fcode(self.rate)
+        return sympy.fcode(self.rate,strict=False)
 
     def get_sympy(self):
         return sympy.sympify(self.rate)

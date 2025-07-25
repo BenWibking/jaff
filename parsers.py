@@ -24,10 +24,8 @@ def parse_prizmo(line):
     rate = rate.replace("user_crflux", "crate")
     rate = rate.replace("user_av", "av")
 
-    # if tmin is not None:
-    #     rate = rate.lower().replace("tgas", "max(tgas, %f)" % tmin)
-    # if tmax is not None:
-    #     rate = rate.lower().replace("tgas", "min(tgas, %f)" % tmax)
+    if("PHOTO" in rate):
+       rate+=",1e10"
 
     rr, pp = reaction.split("->")
     rr = [x.strip() for x in rr.split(" + ")]
@@ -170,6 +168,9 @@ def parse_krome(line, fmt):
         rate = rate.replace(k, v)
 
     rate = f90_convert(rate)
+
+    if("auto" in rate):
+        rate = rate.replace("auto","PHOTO,0.0,1e10")
 
     sp_reps = {"E": "e-",
                 "e": "e-",
