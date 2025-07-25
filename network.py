@@ -5,7 +5,7 @@ import sys
 import re
 from tqdm import tqdm
 from sympy import parse_expr, symbols, sympify, lambdify
-from parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, f90_convert
+from parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, parse_uclchem, f90_convert
 
 class Network:
 
@@ -107,7 +107,7 @@ class Network:
 
         # remove empty lines and comments
         lines = [x.strip() for x in lines if x.strip() != ""]
-        lines = [x for x in lines if not x.startswith("#")]  # general comments
+        lines = [x for x in lines if (not x.startswith("#")) or (",NAN," in x)]  # general comments
         lines = [x for x in lines if not x.startswith("!")]  # kida comments
 
         # loop through the lines and parse them
@@ -167,7 +167,7 @@ class Network:
                 rr, pp, tmin, tmax, rate = parse_prizmo(srow)
             elif ":" in srow:
                 rr, pp, tmin, tmax, rate = parse_udfa(srow)
-            elif srow.count(",") > 3:
+            elif srow.count(",") > 3 and not ",NAN," in srow:
                 rr, pp, tmin, tmax, rate = parse_krome(srow, krome_format)
             elif ",NAN," in srow:
                 rr, pp, tmin, tmax, rate = parse_uclchem(srow)
@@ -535,7 +535,7 @@ class Network:
             else:
                 # Case of reactions that depend only on temperature
                 react_func.append(lambdify(symbols('tgas'), r, 'numpy'))
- 
+
         # Fourth step: generate rate coefficient table for initial guess
         # table size
         nTemp = nT

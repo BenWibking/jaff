@@ -4,7 +4,7 @@ import sympy
 
 class Reaction:
 
-    def __init__(self, reactants, products, rate, tmin, tmax, original_string):
+    def __init__(self, reactants, products, rate, tmin, tmax, original_string, errors=False):
         self.reactants = reactants
         self.products = products
         self.rate = rate
@@ -13,7 +13,7 @@ class Reaction:
         self.reaction = None
         self.original_string = original_string
 
-        self.check()
+        self.check(errors)
         self.serialize()
 
     def guess_type(self):
@@ -49,13 +49,15 @@ class Reaction:
         self.serialized = sr + "__" + sp
         return self.serialized
 
-    def check(self):
+    def check(self, errors):
         if not self.check_mass():
-            print("Mass not conserved in reaction: " + self.get_verbatim())
-            sys.exit(1)
+            print("WARNING: Mass not conserved in reaction: " + self.get_verbatim())
+            if errors:
+                sys.exit(1)
         if not self.check_charge():
-            print("Charge not conserved in reaction: " + self.get_verbatim())
-            sys.exit(1)
+            print("WARNING: Charge not conserved in reaction: " + self.get_verbatim())
+            if errors:
+                sys.exit(1)
 
     def check_mass(self):
         return (np.sum([x.mass for x in self.reactants]) - np.sum([x.mass for x in self.products])) < 9.1093837e-28
@@ -98,7 +100,7 @@ class Reaction:
 
     def get_sympy(self):
         return sympy.sympify(self.rate)
-      
+
     def plot(self, ax=None):
         import matplotlib.pyplot as plt
         import numpy as np

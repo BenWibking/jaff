@@ -191,9 +191,69 @@ def parse_krome(line, fmt):
 
 # ****************
 def parse_uclchem(line):
-    # not implemented yet
-    print("ERROR: UCLCHEM parser not implemented yet")
-    sys.exit(1)
+
+    srow = line.strip()
+
+    print("WARNING: UCLCHEM reaction format detected, but not implemented yet. Rate set to 0e0.")
+
+    arow = [x.strip() for x in srow.strip().split(",")]
+    # !Reactant 1,Reactant 2,Reactant 3,Product 1,Product 2,Product 3,Product 4,Alpha,Beta,Gamma,T_min,T_max,extrapolate
+    rr = [x.strip() for x in arow[:3]]
+    pp = [x.strip() for x in arow[3:7]]
+    ka = arow[7].strip()
+    kb = arow[8].strip()
+    kc = arow[9].strip()
+    extrapolate = arow[12].strip().lower() == "true"
+
+    if extrapolate:
+        tmin = 3e0
+        tmax = 1e6
+    else:
+        tmin = float(arow[10])
+        tmax = float(arow[11])
+
+    if ",CRP," in srow:
+        rate = "%.2e * crate" % float(ka)
+    elif ",CRPHOT," in srow:
+        rate = "%.2e * (tgas/3e2)**(%.2f) * crate" % (float(ka), float(kb))
+    elif ",PHOTON," in srow:
+        rate = "%.2e * fuv * exp(-%.2f * av)" % (float(ka), float(kc))
+    elif ",FREEZE," in srow:
+        rate = "(1e0 + %.2e * 1.671e-3/tgas/asize)*nuth*sigmah*sqrt(tgas/m)" % float(kb)
+    else:
+        rate = "0e0"
+
+    # FIXME: this is because the parser needs to be finished
+    rate = "0e0"
+
+
+    def convert(sp):
+
+        if sp.startswith("#"):
+            sp = sp[1:] + "_DUST"
+        if sp.startswith("@"):
+            sp = sp[1:] + "_BULK"
+        if sp == "E-":
+            sp = "e-"
+
+        reps ={"HE": "He",
+               "SI": "Si",
+               "CL": "Cl",
+               "MG": "Mg"}
+
+        for k, v in reps.items():
+            sp = sp.replace(k, v)
+
+        return sp
+
+    ignore = ["CR", "CRP", "CRPHOT", "PHOTON", "NAN", ""]
+    ignore += ["ER", "ERDES", "FREEZE", "H2FORM", "BULKSWAP", "DESCR",
+               "DESOH2", "DEUVCR", "LH", "LHDES", "SURFSWAP", "THERM"]
+
+    rr = [convert(x.strip()) for x in rr if x.strip() not in ignore]
+    pp = [convert(x.strip()) for x in pp if x.strip() not in ignore]
+
+    return rr, pp, tmin, tmax, rate
 
 # ****************
 def f90_convert(line):
