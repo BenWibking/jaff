@@ -7,7 +7,7 @@ class Species:
     # ********************
     def __init__(self, name, mass_dict, index):
 
-        if name.lower() in ["e", "eletron", "electrons", "el", "els"]:
+        if name.lower() in ["e", "eletron", "electrons", "el", "els"] or name in ["E", "E-"]:
             sys.exit("ERROR: electrons found with name: " + name + ". Use e- instead.")
 
         self.name = name
@@ -21,7 +21,6 @@ class Species:
 
         self.parse(mass_dict)
         self.serialize()
-
 
     # ********************
     def serialize(self):
@@ -83,6 +82,7 @@ class Species:
         else:
             self.charge = 0
             name = self.name
+            # charge symbol only at the end of the name
             while name.endswith("+") or name.endswith("-"):
                 if name.endswith("+"):
                     self.charge += 1

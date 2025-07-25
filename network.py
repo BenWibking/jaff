@@ -433,32 +433,33 @@ class Network:
         print("ERROR: reaction with serialized %s not found" % serialized)
         sys.exit(1)
 
-    # *****************
-    def convert_d_e(self, st):
-        """
-        A little utility function that converts scientific notation
-        of the form N.NNNd+XX to the standard N.NNNNe+XX format that
-        sympy can understand
+    # # *****************
+    # already implemented in parsers.py as f90_convert
+    # def convert_d_e(self, st):
+    #     """
+    #     A little utility function that converts scientific notation
+    #     of the form N.NNNd+XX to the standard N.NNNNe+XX format that
+    #     sympy can understand
 
-        Parameters
-            st : string
-                string to be converted
+    #     Parameters
+    #         st : string
+    #             string to be converted
 
-        Returns
-            st_conv : string
-                string converted to standard exponential format
-        """
+    #     Returns
+    #         st_conv : string
+    #             string converted to standard exponential format
+    #     """
 
-        st_conv = st
-        idx_d = [ pos.start() for pos in re.finditer('d', st_conv) ]
-        for idx in idx_d:
-            if idx == 0 or idx == len(st_conv)-1:
-                continue
-            if (st_conv[idx-1].isnumeric() or st_conv[idx-1] == '.') and \
-                (st_conv[idx+1].isnumeric() or st_conv[idx+1] == '+' or
-                 st_conv[idx+1] == '-'):
-                st_conv = st_conv[:idx] + 'e' + st_conv[idx+1:]
-        return st_conv
+    #     st_conv = st
+    #     idx_d = [ pos.start() for pos in re.finditer('d', st_conv) ]
+    #     for idx in idx_d:
+    #         if idx == 0 or idx == len(st_conv)-1:
+    #             continue
+    #         if (st_conv[idx-1].isnumeric() or st_conv[idx-1] == '.') and \
+    #             (st_conv[idx+1].isnumeric() or st_conv[idx+1] == '+' or
+    #              st_conv[idx+1] == '-'):
+    #             st_conv = st_conv[:idx] + 'e' + st_conv[idx+1:]
+    #     return st_conv
 
     # *****************
     def get_table(self, T_min, T_max,
