@@ -4,7 +4,7 @@ import numpy as np
 import sys
 import re
 from tqdm import tqdm
-from sympy import parse_expr, symbols, sympify, lambdify
+from sympy import parse_expr, symbols, sympify, lambdify, srepr
 from parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, parse_uclchem, f90_convert
 
 class Network:
@@ -435,7 +435,9 @@ class Network:
 
     # *****************
     def get_table(self, T_min, T_max,
-                  nT = 64, err_tol = 0.01, rate_min = 1e-30):
+                  nT = 64, err_tol = 0.01, 
+                  rate_min = 1e-30, rate_max = 1e100,
+                  verbose = False):
         """
         Return a tabulation of rate coefficients as a function of
         temperature for all reactions.
@@ -454,6 +456,11 @@ class Network:
             rate_min : float
                 adaptive error tolerance is not applied to rates below
                 rate_min
+            rate_max : float
+                rataes above rate_max are clipped to rate_max to prevent
+                overflow
+            verbose : bool
+                if True, produce verbose output while adaptively refining
 
         Returns
             coeff : array, shape (nreact, nTemp)
@@ -494,16 +501,18 @@ class Network:
 
         # Third step: create numpy fucntions for each reaction
         react_func = []
-        for r in react_subst:
-            sym = r.free_symbols
-            if len(sym) == 0:
+        for i, r in enumerate(react_subst):
+            if len(r.free_symbols) == 0:
                 # Reaction rates that are just constants; in this
                 # case just copy that constant to the list of functions
                 react_func.append(float(r))
-            elif len(sym) > 2 or not symbols('tgas') in r.free_symbols:
-                # For reaction rats that do not depend on temperature,
-                # or that depend on variables other than temperature,
-                # we cannot tabulate, so just store None
+            elif (len(r.free_symbols) > 1) or \
+                (symbols('tgas') not in r.free_symbols) or \
+                ('Function' in srepr(r)):
+                # For reaction rates that do not depend on temperature,
+                # that depend on variables other than temperature,
+                # or that contain arbitrary functions, we cannot
+                # tabulate, so just store None
                 react_func.append(None)
             else:
                 # Case of reactions that depend only on temperature
@@ -520,7 +529,8 @@ class Network:
             elif f is None:
                 rates[i,:] = np.nan
             else:
-                rates[i,:] = f(temp)
+                rates[i,:] = np.clip(f(temp), 
+                                     a_min = None, a_max = rate_max)
 
         # Fifth step: do adaptive growth of table
         if err_tol is not None:
@@ -543,7 +553,9 @@ class Network:
                         rates_grow[i,1::2] = np.nan
                         rates_approx[i,:] = np.nan
                     else:
-                        rates_grow[i,1::2] = f(temp_grow[1::2])
+                        rates_grow[i,1::2] = np.clip(f(temp_grow[1::2]),
+                                                     a_min = None,
+                                                     a_max = rate_max)
                         rates_approx[i,:] = np.sqrt(rates_grow[i,:-1:2] *
                                                     rates_grow[i,2::2])
 
@@ -556,6 +568,15 @@ class Network:
                     (rates_approx - rates[:,1::2]) /
                     (rates[:,1::2] + rate_min ) )
                 max_err = np.nanmax(rel_err)
+
+                # Print output if verbose
+                if verbose:
+                    idx_max = np.unravel_index(np.nanargmax(rel_err),
+                                               rel_err.shape)
+                    print("nTemp = {:d}, max_err = {:f} in reaction {:s} at T = {:e}".
+                          format(nTemp, max_err, 
+                                 self.reactions[idx_max[0]].get_verbatim(), 
+                                 temp[idx_max[1]]))
 
                 # Check for convergence
                 if max_err < err_tol:
