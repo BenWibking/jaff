@@ -190,6 +190,12 @@ def parse_krome(line, fmt):
     return rr, pp, tmin, tmax, rate
 
 # ****************
+def parse_uclchem(line):
+    # not implemented yet
+    print("ERROR: UCLCHEM parser not implemented yet")
+    sys.exit(1)
+
+# ****************
 def f90_convert(line):
     import re
     # dexp -> exp

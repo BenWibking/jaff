@@ -4,12 +4,15 @@ import numpy as np
 import sys
 from tqdm import tqdm
 from sympy import parse_expr, symbols
-from parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, f90_convert
+from parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, f90_convert, parse_uclchem
 
 class Network:
 
     # ****************
     def __init__(self, fname, errors=False, label=None):
+
+        self.motd()
+
         self.mass_dict = self.load_mass_dict("data/atom_mass.dat")
         self.species = []
         self.species_dict = {}
@@ -33,6 +36,18 @@ class Network:
         self.generate_reactions_dict()
 
         print("All done!")
+
+    # ****************
+    @staticmethod
+    def motd():
+        try:
+            with open("assets/words.dat", "r") as f:
+                words = f.readlines()
+            words = [x.strip() for x in words if x.lower().startswith("f") and x.strip().isalpha()]
+            fword = np.random.choice(words)
+        except:
+            fword = "Fancy"
+        print("Welcome to JAFF: Just Another %s Format!" % fword.title())
 
     # ****************
     @staticmethod
@@ -153,6 +168,8 @@ class Network:
                 rr, pp, tmin, tmax, rate = parse_udfa(srow)
             elif srow.count(",") > 3:
                 rr, pp, tmin, tmax, rate = parse_krome(srow, krome_format)
+            elif ",NAN," in srow:
+                rr, pp, tmin, tmax, rate = parse_uclchem(srow)
             else:
                 rr, pp, tmin, tmax, rate = parse_kida(srow)
 
