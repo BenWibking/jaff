@@ -4,4 +4,8 @@ version = "0.1.0"
 description = "An astrochemical network parser"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "numpy>=2.3.2",
+    "sympy>=1.14.0",
+    "tqdm>=4.67.1",
+]
