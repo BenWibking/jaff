@@ -77,7 +77,7 @@ odes = network.get_odes()
 - **UDFA**: UMIST Database for Astrochemistry format  
 - **PRIZMO**: Uses `->` separator with `VARIABLES{}` blocks
 - **KROME**: Comma-separated values with `@format:` header
-- **UCLCHEM**: Comma-separated with `,NAN,` marker
+- **UCLCHEM**: Comma-separated with `,NAN,` marker (UNDER CONSTRUCTION)     
 
 ## Primitive Variables
 
