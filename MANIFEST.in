@@ -1,0 +1,6 @@
+# ABOUTME: Manifest file to include non-Python files in package distribution
+# ABOUTME: Ensures data files are included when building the package
+
+include README.md
+include LICENSE
+recursive-include src/jaff/data *.dat
