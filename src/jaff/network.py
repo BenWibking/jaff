@@ -1,11 +1,12 @@
-from reaction import Reaction
-from species import Species
+from .reaction import Reaction
+from .species import Species
 import numpy as np
 import sys
 import re
+import os
 from tqdm import tqdm
 from sympy import parse_expr, symbols, sympify, lambdify, srepr, Function
-from parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, parse_uclchem, f90_convert
+from .parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, parse_uclchem, f90_convert
 
 class Network:
 
@@ -14,7 +15,9 @@ class Network:
 
         self.motd()
 
-        self.mass_dict = self.load_mass_dict("data/atom_mass.dat")
+        # Get the path to the data file relative to this module
+        data_path = os.path.join(os.path.dirname(__file__), "data", "atom_mass.dat")
+        self.mass_dict = self.load_mass_dict(data_path)
         self.species = []
         self.species_dict = {}
         self.reactions_dict = {}
