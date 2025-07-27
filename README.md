@@ -7,14 +7,14 @@ An astrochemical network parser that supports multiple reaction network formats 
 
 ### From source
 ```bash
-git clone https://github.com/yourusername/jaff.git
+git clone https://github.com/tgrassi/jaff.git
 cd jaff
 pip install .
 ```
 
 ### For development
 ```bash
-git clone https://github.com/yourusername/jaff.git
+git clone https://github.com/tgrassi/jaff.git
 cd jaff
 pip install -e .  # Editable install
 ```
