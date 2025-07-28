@@ -1,19 +1,18 @@
+# custom variables can be defined this way
+# they will be replaced in the parsed expression
 VARIABLES{
     invt = 1d0 / Tgas
     t32 = Tgas / 3d2
 }
 
-# PHOTOIONIZATION / DISSOCIATION
-H -> H+ + E                    []         PHOTO, 13.60
-
-# reactions with temperature uses Tgas
+# reactions with temperature uses Tgas, PRIZMO format
 H+ + E -> H                    [0, 300]   3.61e-12*t32**(-0.75)
 
-# some reaction with cosmic rays (user_cflux)
-H -> H+ + E                    [0, 300]   4.60e-01*user_crflux
+# some reaction with cosmic rays (primitive variable crate), PRIZMO format
+H -> H+ + E                    [0, 300]   4.60e-01*crate
 
-# reaction with visual extinction (user_av)
-C -> C+ + E                    [0, 300]   3.39e-10 * exp(-3.761 * user_av)
+# reaction with visual extinction (primitive variable av), PRIZMO format
+C -> C+ + E                    [0, 300]   3.39e-10 * exp(-3.761 * av)
 
 # temperature limits can be empty
 C+ + E -> C                    []         4.40e-12*(Tgas/3e2)**(-0.61)
@@ -22,6 +21,9 @@ CO+ + E -> CO                  []         2e-14
 C + O -> CO                    []         1e-20
 CO -> C + O                    []         1e-33
 CO -> CO+ + E                  []         1.3e-12
+
+# PHOTOIONIZATION / DISSOCIATION PRIZMO format
+H -> H+ + E                    []         PHOTO, 13.60
 
 # KIDA format
 N2         CR                     N          N                                             5.000e+00  0.000e+00  0.000e+00 1.25e+00 0.00e+00 logn  1  -9999   9999  1     1 1  1
