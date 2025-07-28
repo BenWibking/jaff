@@ -151,6 +151,7 @@ class Network:
                 krome_format = srow.strip()
                 continue
 
+            # check for KROME variables
             if srow.startswith("@var:"):
                 print("KROME variable detected: %s" % srow)
                 srow = srow.replace("@var:", "").lower().strip()
@@ -183,18 +184,21 @@ class Network:
             # use lowercase for rate
             rate = rate.lower().strip()
 
-            # parse rate with sympy
-            # photo-chemistry
-            if("photo" in rate):
-                photo_args=rate.split(',')
-                if(len(photo_args)<3): photo_args.append(1e99)
-                f=Function("photorates")
-                rate = f(n_photo,photo_args[1],photo_args[2]) #f"{photo_rates({n_photo},{photo_args[1]},{photo_args[2]})"
-                n_photo+=1
+            # parse the rate expression with sympy
+            if "photo" in rate:
+                # parse photo-chemistry
+                photo_args = rate.split(',')
+                if len(photo_args) < 2:
+                    photo_args.append(1e99)
+                f = Function("photorates")
+                rate = f(n_photo, photo_args[1]) #f"{photo_rates({n_photo},{photo_args[1]},{photo_args[2]})"
+                n_photo += 1
             else:
+                # parse non-photo-chemistry rates
                 rate = parse_expr(rate, evaluate=False)
-            print(rate)
+
             # use sympy to replace custom variables into the rate expression
+            # note: reverse order to allow for nested variable replacement
             for vv in variables_sympy[::-1]:
                 var, val = vv
                 if isinstance(val, str):
@@ -206,8 +210,6 @@ class Network:
                 rate = rate.subs(symbols("tgas"), "max(tgas, %f)" % tmin)
             if tmax is not None:
                 rate = rate.subs(symbols("tgas"), "min(tgas, %f)" % tmax)
-
-
 
             # add variables to the list of all variables
             free_symbols_all += rate.free_symbols
@@ -232,6 +234,7 @@ class Network:
 
         print("Variables found:", free_symbols_all)
         print("Loaded %d reactions" % len(self.reactions))
+        print("Lodaded %d photo-chemistry reactions" % n_photo)
 
     # ****************
     def compare_reactions(self, other, verbosity=1):
@@ -456,7 +459,7 @@ class Network:
 
     # *****************
     def get_table(self, T_min, T_max,
-                  nT = 64, err_tol = 0.01, 
+                  nT = 64, err_tol = 0.01,
                   rate_min = 1e-30, rate_max = 1e100,
                   verbose = False):
         """
@@ -550,7 +553,7 @@ class Network:
             elif f is None:
                 rates[i,:] = np.nan
             else:
-                rates[i,:] = np.clip(f(temp), 
+                rates[i,:] = np.clip(f(temp),
                                      a_min = None, a_max = rate_max)
 
         # Fifth step: do adaptive growth of table
@@ -595,8 +598,8 @@ class Network:
                     idx_max = np.unravel_index(np.nanargmax(rel_err),
                                                rel_err.shape)
                     print("nTemp = {:d}, max_err = {:f} in reaction {:s} at T = {:e}".
-                          format(nTemp, max_err, 
-                                 self.reactions[idx_max[0]].get_verbatim(), 
+                          format(nTemp, max_err,
+                                 self.reactions[idx_max[0]].get_verbatim(),
                                  temp[idx_max[1]]))
 
                 # Check for convergence
