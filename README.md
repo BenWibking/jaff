@@ -92,7 +92,7 @@ The following variables are recognized in rate expressions:
 
 ## Examples
 
-Example network files can be found in the `examples/example_networks/` directory.
+Example network files can be found in the `networks/` directory.
 
 ## Development
 
