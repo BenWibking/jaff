@@ -7,6 +7,7 @@ import os
 from tqdm import tqdm
 from sympy import parse_expr, symbols, sympify, lambdify, srepr, Function
 from .parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, parse_uclchem, f90_convert
+from .fastlog import fast_log2, inverse_fast_log2
 
 class Network:
 
@@ -461,12 +462,13 @@ class Network:
     def get_table(self, T_min, T_max,
                   nT = 64, err_tol = 0.01,
                   rate_min = 1e-30, rate_max = 1e100,
-                  verbose = False):
+                  fast_log = False, verbose = False):
         """
         Return a tabulation of rate coefficients as a function of
         temperature for all reactions.
 
         Parameters
+        ----------
             T_min : float
                 minimum temperature for the tabulation
             T_max : float
@@ -483,20 +485,28 @@ class Network:
             rate_max : float
                 rataes above rate_max are clipped to rate_max to prevent
                 overflow
+            fast_log : bool
+                if True, sample points are equally spaced in fast_log2(T)
+                rather than log(T)
             verbose : bool
                 if True, produce verbose output while adaptively refining
 
         Returns
+        -------
+            temp : array, shape (nTemp)
+                gas temperatures at which rates are sampled
             coeff : array, shape (nreact, nTemp)
-                tabulated reaction rate coefficients
+                tabulated reaction rate coefficients at temperatures temp
 
         Notes
-            1) Temperature is sampled logarithmically in the output,
-            i.e., the temperatures at which the reaction coefficients
-            are computed are the output of
+        -----
+            1) By default temperature is sampled logarithmically in the
+            output, i.e., temp = 
             np.logspace(np.log10(T_min), np.log10(T_max), nTemp)
             where nTemp is the number of temperatures in the output
-            table.
+            table. If fast_log is set to True, then the outputs are
+            instead uniformly spaced in fast_log2 rather than the
+            true logarithm.
             2) For reaction rates that depend on something other than
             tgas, the results are computed at av = 0 and crate = 1;
             rates that depend on any other quantities are not tabulated,
@@ -545,7 +555,14 @@ class Network:
         # Fourth step: generate rate coefficient table for initial guess
         # table size
         nTemp = nT
-        temp = np.logspace(np.log10(T_min), np.log10(T_max), nTemp)
+        if not fast_log:
+            temp = np.logspace(np.log10(T_min), np.log10(T_max), nTemp)
+        else:
+            # Generate sample points that are uniformly sampled in fast_log2
+            log_temp_min = fast_log2(T_min)
+            log_temp_max = fast_log2(T_max)
+            log_temp = np.linspace(log_temp_min, log_temp_max, nTemp)
+            temp = inverse_fast_log2(log_temp)
         rates = np.zeros((len(react_func), nTemp))
         for i, f in enumerate(react_func):
             if type(f) is float:
@@ -565,7 +582,12 @@ class Network:
                 nTemp = 2 * nTemp - 1
                 temp_grow = np.zeros(nTemp)
                 temp_grow[::2] = temp
-                temp_grow[1::2] = np.sqrt(temp[1:] * temp[:-1])
+                if not fast_log:
+                    temp_grow[1::2] = np.sqrt(temp[1:] * temp[:-1])
+                else:
+                    log_temp_lo = fast_log2(temp[:-1])
+                    log_temp_hi = fast_log2(temp[1:])
+                    temp_grow[1::2] = inverse_fast_log2(0.5 * (log_temp_lo + log_temp_hi))
                 rates_grow = np.zeros((len(react_func), nTemp))
                 rates_grow[:,::2] = rates
                 rates_approx = np.zeros((len(react_func), (nTemp-1)//2))
@@ -607,7 +629,7 @@ class Network:
                     break
 
         # Return final table
-        return rates
+        return temp, rates
 
     # *****************
     def get_species_by_serialized(self, serialized):
