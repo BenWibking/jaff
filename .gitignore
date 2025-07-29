@@ -30,6 +30,9 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# build folder not needed
+builds/
+
 # PyInstaller
 *.manifest
 *.spec

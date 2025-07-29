@@ -39,7 +39,6 @@ class Network:
         self.check_isomers(errors)
         self.check_unique_reactions(errors)
 
-        self.generate_ode()
         self.generate_reactions_dict()
 
         print("All done!")
@@ -195,6 +194,7 @@ class Network:
                 #     photo_args.append(1e99)
                 # f = Function("photorates")
                 # rate = f(n_photo, photo_args[1]) #f"{photo_rates({n_photo},{photo_args[1]},{photo_args[2]})"
+                rate = "kphoto[#IDX#]"
                 n_photo += 1
             else:
                 # parse non-photo-chemistry rates
@@ -412,23 +412,71 @@ class Network:
         return self.reactions[idx].get_verbatim()
 
     # ****************
-    def generate_ode(self):
-        print("generating ode...")
-        rmax = pmax = 0
-        for rea in self.reactions:
-            rmax = max(rmax, len(rea.reactants))
-            pmax = max(pmax, len(rea.products))
-        rlist = np.zeros((len(self.reactions), rmax), dtype=int)
-        plist = np.zeros((len(self.reactions), pmax), dtype=int)
+    def get_commons(self, idx_offset=0, idx_prefix=""):
 
+        scommons = ""
+        for i, sp in enumerate(self.species):
+            scommons += f"{idx_prefix}{sp.fidx} = {idx_offset + i}\n"
+
+        scommons += f"nspecs = {len(self.species)}\n"
+        scommons += f"nreactions = {len(self.reactions)}\n"
+
+        return scommons
+
+    # ****************
+    def get_rates(self, idx_offset=0, rate_variable="k", language="python"):
+
+        if language in ["fortran", "f90"]:
+            brackets = "()"
+        else:
+            brackets = "[]"
+
+        lb, rb = brackets[0], brackets[1]
+
+        rates = ""
         for i, rea in enumerate(self.reactions):
-            ridx = [x.index for x in rea.reactants]
-            rlist[i, :len(ridx)] = ridx
-            pidx = [x.index for x in rea.products]
-            plist[i, :len(pidx)] = pidx
+            if language in ["python", "py"]:
+                rate = rea.get_python()
+            if rea.guess_type() == "photo":
+                rate = rate.replace("#IDX#", str(idx_offset + i))
+            rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate}\n"
 
-        self.rlist = rlist
-        self.plist = plist
+        return rates
+
+    # ****************
+    def get_fluxes(self, idx_offset=0, rate_variable="k", species_variable="y", brackets="[]", idx_prefix=""):
+        lb, rb = brackets[0], brackets[1]
+
+        fluxes = ""
+        for i, rea in enumerate(self.reactions):
+            flux = rea.get_flux(idx=idx_offset+i, rate_variable=rate_variable, species_variable=species_variable, brackets=brackets, idx_prefix=idx_prefix)
+            fluxes += f"flux{lb}{idx_offset+i}{rb} = {flux}\n"
+
+        return fluxes
+
+    # ****************
+    def get_ode(self, idx_offset=0, flux_variable="flux", brackets="[]", species_variable="y", idx_prefix=""):
+
+        lb, rb = brackets[0], brackets[1]
+
+        ode = {}
+        for i, rea in enumerate(self.reactions):
+            for rr in rea.reactants:
+                rrfidx = idx_prefix + rr.fidx
+                if rrfidx not in ode:
+                    ode[rrfidx] = ""
+                ode[rrfidx] += f"- {flux_variable}{lb}{idx_offset+i}{rb}"
+            for pp in rea.products:
+                ppfidx = idx_prefix + pp.fidx
+                if ppfidx not in ode:
+                    ode[ppfidx] = ""
+                ode[ppfidx] += f"+ {flux_variable}{lb}{idx_offset+i}{rb}"
+
+        sode = ""
+        for name, expr in ode.items():
+            sode += f"d{species_variable}{lb}{name}{rb} = {expr}\n"
+
+        return sode
 
     # *****************
     def get_number_of_species(self):
