@@ -9,11 +9,23 @@ def parse_prizmo(line):
     arow = srow.replace("[", "]").split("]")
     reaction, tlims, rate = [x.strip() for x in arow]
 
-    if tlims.replace(" ", "") == "":
-        tmin = tmax = None
+    tmin = tmax = ""
+    if "," in tlims:
+        tmin, tmax = [x.strip() for x in tlims.split(",")]
+
+    if tmin == "":
+        tmin = None
     else:
-        tmin = float(tlims.split(",")[0].replace("d", "e"))
-        tmax = float(tlims.split(",")[1].replace("d", "e"))
+        tmin = float(tmin.replace("d", "e"))
+        if tmin <= 0e0:
+            tmin = None
+
+    if tmax == "":
+        tmax = None
+    else:
+        tmax = float(tmax.replace("d", "e"))
+        if tmax >= 1e8:
+            tmax = None
 
     reaction = reaction.replace("HE", "He")
     reaction = reaction.replace(" E", " e-")

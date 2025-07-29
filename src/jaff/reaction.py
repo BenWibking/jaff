@@ -92,6 +92,16 @@ class Reaction:
                " + ".join([x.latex for x in self.products])
         return "$" + latex + "$"
 
+    def get_flux(self, idx=0, rate_variable="k", species_variable="y", brackets="[]", idx_prefix=""):
+        if len(brackets) != 2:
+            print("ERROR: brackets must be a string of length 2, e.g. '[]'")
+            sys.exit(1)
+
+        lb, rb = brackets[0], brackets[1]
+
+        flux = f"{rate_variable}{lb}{idx}{rb} * " + " * ".join([f"{species_variable}{lb}{idx_prefix+x.fidx}{rb}" for x in self.reactants])
+        return flux
+
     def has_any_species(self, species):
         if type(species) is str:
             species = [species]
@@ -108,7 +118,10 @@ class Reaction:
         return any([x.name in species for x in self.products])
 
     def get_python(self):
-        return str(self.rate)
+        from sympy.printing.numpy import NumPyPrinter
+        if type(self.rate) is str:
+            return self.rate
+        return NumPyPrinter().doprint(self.rate).replace("numpy.", "np.")
 
     def get_c(self):
         return sympy.ccode(self.rate,strict=False)
