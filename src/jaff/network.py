@@ -8,6 +8,7 @@ from tqdm import tqdm
 from sympy import parse_expr, symbols, sympify, lambdify, srepr, Function
 from .parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, parse_uclchem, f90_convert
 from .fastlog import fast_log2, inverse_fast_log2
+from .photochemistry import Photochemistry
 
 class Network:
 
@@ -29,6 +30,8 @@ class Network:
 
         print("Loading network from %s" % fname)
         print("Network label = %s" % self.label)
+
+        self.photochemistry = Photochemistry()
 
         self.load_network(fname)
 
@@ -187,12 +190,12 @@ class Network:
 
             # parse the rate expression with sympy
             if "photo" in rate:
-                # parse photo-chemistry
-                photo_args = rate.split(',')
-                if len(photo_args) < 2:
-                    photo_args.append(1e99)
-                f = Function("photorates")
-                rate = f(n_photo, photo_args[1]) #f"{photo_rates({n_photo},{photo_args[1]},{photo_args[2]})"
+                # # parse photo-chemistry
+                # photo_args = rate.split(',')
+                # if len(photo_args) < 2:
+                #     photo_args.append(1e99)
+                # f = Function("photorates")
+                # rate = f(n_photo, photo_args[1]) #f"{photo_rates({n_photo},{photo_args[1]},{photo_args[2]})"
                 n_photo += 1
             else:
                 # parse non-photo-chemistry rates
@@ -202,18 +205,20 @@ class Network:
             # note: reverse order to allow for nested variable replacement
             for vv in variables_sympy[::-1]:
                 var, val = vv
-                if isinstance(val, str):
+                if type(val) is str:
                     print("WARNING: variable %s not replaced because it is a string, not a sympy expression" % var)
                 else:
-                    rate = rate.subs(symbols(var), val)
+                    if type(rate) is not str:
+                        rate = rate.subs(symbols(var), val)
 
             if tmin is not None:
                 rate = rate.subs(symbols("tgas"), "max(tgas, %f)" % tmin)
             if tmax is not None:
                 rate = rate.subs(symbols("tgas"), "min(tgas, %f)" % tmax)
 
-            # add variables to the list of all variables
-            free_symbols_all += rate.free_symbols
+            if type(rate) is not str:
+                # add variables to the list of all variables
+                free_symbols_all += rate.free_symbols
 
             # convert reactants and products to Species objects
             for s in rr + pp:
@@ -228,6 +233,10 @@ class Network:
 
             # create a Reaction object
             rea = Reaction(rr, pp, rate, tmin, tmax, srow)
+
+            if rea.guess_type() == "photo":
+                rea.xsecs = self.photochemistry.get_xsec(rea)
+
             self.reactions.append(rea)
 
         # unique list of variables names found in the rate expressions
@@ -451,14 +460,6 @@ class Network:
         sys.exit(1)
 
     # *****************
-    def get_reaction_by_serialized(self, serialized):
-        for sp in self.reactions:
-            if sp.serialized == serialized:
-                return sp
-        print("ERROR: reaction with serialized %s not found" % serialized)
-        sys.exit(1)
-
-    # *****************
     def get_table(self, T_min, T_max,
                   nT = 64, err_tol = 0.01,
                   rate_min = 1e-30, rate_max = 1e100,
@@ -637,4 +638,22 @@ class Network:
             if sp.serialized == serialized:
                 return sp
         print("ERROR: species with serialized %s not found" % serialized)
+        sys.exit(1)
+
+    # *****************
+    def get_reaction_by_serialized(self, serialized):
+        for sp in self.reactions:
+            if sp.serialized == serialized:
+                return sp
+        print("ERROR: reaction with serialized %s not found" % serialized)
+        sys.exit(1)
+
+    # *****************
+    def get_reaction_by_verbatim(self, verbatim, rtype=None):
+
+        for rea in self.reactions:
+            if rea.get_verbatim() == verbatim:
+                if rtype is None or rea.guess_type() == rtype:
+                    return rea
+        print("ERROR: reaction with verbatim '%s' not found" % verbatim)
         sys.exit(1)

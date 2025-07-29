@@ -22,8 +22,11 @@ C + O -> CO                    []         1e-20
 CO -> C + O                    []         1e-33
 CO -> CO+ + E                  []         1.3e-12
 
-# PHOTOIONIZATION / DISSOCIATION PRIZMO format
+# PHOTOIONIZATION PRIZMO format, energy thresohold in eV for photoheating
 H -> H+ + E                    []         PHOTO, 13.60
+
+# PHOTODISSOCIATION PRIZMO format, 1e99 means no need to compute photoheating
+CH2 -> CH + H                  []         PHOTO, 1e99
 
 # KIDA format
 N2         CR                     N          N                                             5.000e+00  0.000e+00  0.000e+00 1.25e+00 0.00e+00 logn  1  -9999   9999  1     1 1  1
