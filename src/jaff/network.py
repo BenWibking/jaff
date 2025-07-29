@@ -413,14 +413,14 @@ class Network:
         return self.reactions[idx].get_verbatim()
 
     # ****************
-    def get_commons(self, idx_offset=0, idx_prefix=""):
+    def get_commons(self, idx_offset=0, idx_prefix="", definition_prefix=""):
 
         scommons = ""
         for i, sp in enumerate(self.species):
-            scommons += f"{idx_prefix}{sp.fidx} = {idx_offset + i}\n"
+            scommons += f"{definition_prefix}{idx_prefix}{sp.fidx} = {idx_offset + i}\n"
 
-        scommons += f"nspecs = {len(self.species)}\n"
-        scommons += f"nreactions = {len(self.reactions)}\n"
+        scommons += f"{definition_prefix}nspecs = {len(self.species)}\n"
+        scommons += f"{definition_prefix}nreactions = {len(self.reactions)}\n"
 
         return scommons
 
@@ -550,7 +550,7 @@ class Network:
         Notes
         -----
             1) By default temperature is sampled logarithmically in the
-            output, i.e., temp = 
+            output, i.e., temp =
             np.logspace(np.log10(T_min), np.log10(T_max), nTemp)
             where nTemp is the number of temperatures in the output
             table. If fast_log is set to True, then the outputs are
