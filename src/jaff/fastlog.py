@@ -10,7 +10,6 @@ from scipy.optimize import root_scalar
 def fast_log2(x):
     """
     Fast approximation of log2(x) using the not-quite-logarithmic method.
-    This implements the same algorithm as FastMath::fastlg in the C++ code.
 
     Parameters
     ----------
