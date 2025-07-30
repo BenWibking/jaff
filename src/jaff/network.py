@@ -7,6 +7,8 @@ import os
 from tqdm import tqdm
 from sympy import parse_expr, symbols, sympify, lambdify, srepr, Function
 from .parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, parse_uclchem, f90_convert
+from .fastlog import fast_log2, inverse_fast_log2
+from .photochemistry import Photochemistry
 
 class Network:
 
@@ -29,6 +31,8 @@ class Network:
         print("Loading network from %s" % fname)
         print("Network label = %s" % self.label)
 
+        self.photochemistry = Photochemistry()
+
         self.load_network(fname)
 
         self.check_sink_sources(errors)
@@ -36,7 +40,6 @@ class Network:
         self.check_isomers(errors)
         self.check_unique_reactions(errors)
 
-        self.generate_ode()
         self.generate_reactions_dict()
 
         print("All done!")
@@ -151,6 +154,7 @@ class Network:
                 krome_format = srow.strip()
                 continue
 
+            # check for KROME variables
             if srow.startswith("@var:"):
                 print("KROME variable detected: %s" % srow)
                 srow = srow.replace("@var:", "").lower().strip()
@@ -210,29 +214,32 @@ class Network:
                     rate = f(n_photo, photo_args[1], photo_args[2])
                     n_photo += 1
             else:
+                # parse non-photo-chemistry rates
                 rate = parse_expr(rate, evaluate=False)
                 # If rate is just a single variable name that got parsed as a function,
                 # convert it to a symbol
                 if hasattr(rate, '__name__') and rate.__name__ in [v[0] for v in variables_sympy]:
                     rate = symbols(rate.__name__)
             print(rate)
+
             # use sympy to replace custom variables into the rate expression
+            # note: reverse order to allow for nested variable replacement
             for vv in variables_sympy[::-1]:
                 var, val = vv
-                if isinstance(val, str):
+                if type(val) is str:
                     print("WARNING: variable %s not replaced because it is a string, not a sympy expression" % var)
                 else:
-                    rate = rate.subs(symbols(var), val)
+                    if type(rate) is not str:
+                        rate = rate.subs(symbols(var), val)
 
             if tmin is not None and tmin > 0:
                 rate = rate.subs(symbols("tgas"), "max(tgas, %f)" % tmin)
             if tmax is not None and tmax > 0:
                 rate = rate.subs(symbols("tgas"), "min(tgas, %f)" % tmax)
 
-
-
-            # add variables to the list of all variables
-            free_symbols_all += rate.free_symbols
+            if type(rate) is not str:
+                # add variables to the list of all variables
+                free_symbols_all += rate.free_symbols
 
             # convert reactants and products to Species objects
             for s in rr + pp:
@@ -247,6 +254,10 @@ class Network:
 
             # create a Reaction object
             rea = Reaction(rr, pp, rate, tmin, tmax, srow)
+
+            if rea.guess_type() == "photo":
+                rea.xsecs = self.photochemistry.get_xsec(rea)
+
             self.reactions.append(rea)
 
         # unique list of variables names found in the rate expressions
@@ -254,6 +265,7 @@ class Network:
 
         print("Variables found:", free_symbols_all)
         print("Loaded %d reactions" % len(self.reactions))
+        print("Lodaded %d photo-chemistry reactions" % n_photo)
 
     # ****************
     def compare_reactions(self, other, verbosity=1):
@@ -422,23 +434,71 @@ class Network:
         return self.reactions[idx].get_verbatim()
 
     # ****************
-    def generate_ode(self):
-        print("generating ode...")
-        rmax = pmax = 0
-        for rea in self.reactions:
-            rmax = max(rmax, len(rea.reactants))
-            pmax = max(pmax, len(rea.products))
-        rlist = np.zeros((len(self.reactions), rmax), dtype=int)
-        plist = np.zeros((len(self.reactions), pmax), dtype=int)
+    def get_commons(self, idx_offset=0, idx_prefix="", definition_prefix=""):
 
+        scommons = ""
+        for i, sp in enumerate(self.species):
+            scommons += f"{definition_prefix}{idx_prefix}{sp.fidx} = {idx_offset + i}\n"
+
+        scommons += f"{definition_prefix}nspecs = {len(self.species)}\n"
+        scommons += f"{definition_prefix}nreactions = {len(self.reactions)}\n"
+
+        return scommons
+
+    # ****************
+    def get_rates(self, idx_offset=0, rate_variable="k", language="python"):
+
+        if language in ["fortran", "f90"]:
+            brackets = "()"
+        else:
+            brackets = "[]"
+
+        lb, rb = brackets[0], brackets[1]
+
+        rates = ""
         for i, rea in enumerate(self.reactions):
-            ridx = [x.index for x in rea.reactants]
-            rlist[i, :len(ridx)] = ridx
-            pidx = [x.index for x in rea.products]
-            plist[i, :len(pidx)] = pidx
+            if language in ["python", "py"]:
+                rate = rea.get_python()
+            if rea.guess_type() == "photo":
+                rate = rate.replace("#IDX#", str(idx_offset + i))
+            rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate}\n"
 
-        self.rlist = rlist
-        self.plist = plist
+        return rates
+
+    # ****************
+    def get_fluxes(self, idx_offset=0, rate_variable="k", species_variable="y", brackets="[]", idx_prefix=""):
+        lb, rb = brackets[0], brackets[1]
+
+        fluxes = ""
+        for i, rea in enumerate(self.reactions):
+            flux = rea.get_flux(idx=idx_offset+i, rate_variable=rate_variable, species_variable=species_variable, brackets=brackets, idx_prefix=idx_prefix)
+            fluxes += f"flux{lb}{idx_offset+i}{rb} = {flux}\n"
+
+        return fluxes
+
+    # ****************
+    def get_ode(self, idx_offset=0, flux_variable="flux", brackets="[]", species_variable="y", idx_prefix=""):
+
+        lb, rb = brackets[0], brackets[1]
+
+        ode = {}
+        for i, rea in enumerate(self.reactions):
+            for rr in rea.reactants:
+                rrfidx = idx_prefix + rr.fidx
+                if rrfidx not in ode:
+                    ode[rrfidx] = ""
+                ode[rrfidx] += f"- {flux_variable}{lb}{idx_offset+i}{rb}"
+            for pp in rea.products:
+                ppfidx = idx_prefix + pp.fidx
+                if ppfidx not in ode:
+                    ode[ppfidx] = ""
+                ode[ppfidx] += f"+ {flux_variable}{lb}{idx_offset+i}{rb}"
+
+        sode = ""
+        for name, expr in ode.items():
+            sode += f"d{species_variable}{lb}{name}{rb} = {expr}\n"
+
+        return sode
 
     # *****************
     def get_number_of_species(self):
@@ -469,23 +529,16 @@ class Network:
         sys.exit(1)
 
     # *****************
-    def get_reaction_by_serialized(self, serialized):
-        for sp in self.reactions:
-            if sp.serialized == serialized:
-                return sp
-        print("ERROR: reaction with serialized %s not found" % serialized)
-        sys.exit(1)
-
-    # *****************
     def get_table(self, T_min, T_max,
-                  nT = 64, err_tol = 0.01, 
+                  nT = 64, err_tol = 0.01,
                   rate_min = 1e-30, rate_max = 1e100,
-                  verbose = False):
+                  fast_log = False, verbose = False):
         """
         Return a tabulation of rate coefficients as a function of
         temperature for all reactions.
 
         Parameters
+        ----------
             T_min : float
                 minimum temperature for the tabulation
             T_max : float
@@ -502,20 +555,28 @@ class Network:
             rate_max : float
                 rataes above rate_max are clipped to rate_max to prevent
                 overflow
+            fast_log : bool
+                if True, sample points are equally spaced in fast_log2(T)
+                rather than log(T)
             verbose : bool
                 if True, produce verbose output while adaptively refining
 
         Returns
+        -------
+            temp : array, shape (nTemp)
+                gas temperatures at which rates are sampled
             coeff : array, shape (nreact, nTemp)
-                tabulated reaction rate coefficients
+                tabulated reaction rate coefficients at temperatures temp
 
         Notes
-            1) Temperature is sampled logarithmically in the output,
-            i.e., the temperatures at which the reaction coefficients
-            are computed are the output of
+        -----
+            1) By default temperature is sampled logarithmically in the
+            output, i.e., temp =
             np.logspace(np.log10(T_min), np.log10(T_max), nTemp)
             where nTemp is the number of temperatures in the output
-            table.
+            table. If fast_log is set to True, then the outputs are
+            instead uniformly spaced in fast_log2 rather than the
+            true logarithm.
             2) For reaction rates that depend on something other than
             tgas, the results are computed at av = 0 and crate = 1;
             rates that depend on any other quantities are not tabulated,
@@ -564,7 +625,14 @@ class Network:
         # Fourth step: generate rate coefficient table for initial guess
         # table size
         nTemp = nT
-        temp = np.logspace(np.log10(T_min), np.log10(T_max), nTemp)
+        if not fast_log:
+            temp = np.logspace(np.log10(T_min), np.log10(T_max), nTemp)
+        else:
+            # Generate sample points that are uniformly sampled in fast_log2
+            log_temp_min = fast_log2(T_min)
+            log_temp_max = fast_log2(T_max)
+            log_temp = np.linspace(log_temp_min, log_temp_max, nTemp)
+            temp = inverse_fast_log2(log_temp)
         rates = np.zeros((len(react_func), nTemp))
         for i, f in enumerate(react_func):
             if type(f) is float:
@@ -572,7 +640,7 @@ class Network:
             elif f is None:
                 rates[i,:] = np.nan
             else:
-                rates[i,:] = np.clip(f(temp), 
+                rates[i,:] = np.clip(f(temp),
                                      a_min = None, a_max = rate_max)
 
         # Fifth step: do adaptive growth of table
@@ -584,7 +652,12 @@ class Network:
                 nTemp = 2 * nTemp - 1
                 temp_grow = np.zeros(nTemp)
                 temp_grow[::2] = temp
-                temp_grow[1::2] = np.sqrt(temp[1:] * temp[:-1])
+                if not fast_log:
+                    temp_grow[1::2] = np.sqrt(temp[1:] * temp[:-1])
+                else:
+                    log_temp_lo = fast_log2(temp[:-1])
+                    log_temp_hi = fast_log2(temp[1:])
+                    temp_grow[1::2] = inverse_fast_log2(0.5 * (log_temp_lo + log_temp_hi))
                 rates_grow = np.zeros((len(react_func), nTemp))
                 rates_grow[:,::2] = rates
                 rates_approx = np.zeros((len(react_func), (nTemp-1)//2))
@@ -617,8 +690,8 @@ class Network:
                     idx_max = np.unravel_index(np.nanargmax(rel_err),
                                                rel_err.shape)
                     print("nTemp = {:d}, max_err = {:f} in reaction {:s} at T = {:e}".
-                          format(nTemp, max_err, 
-                                 self.reactions[idx_max[0]].get_verbatim(), 
+                          format(nTemp, max_err,
+                                 self.reactions[idx_max[0]].get_verbatim(),
                                  temp[idx_max[1]]))
 
                 # Check for convergence
@@ -626,7 +699,7 @@ class Network:
                     break
 
         # Return final table
-        return rates
+        return temp, rates
 
     # *****************
     def get_species_by_serialized(self, serialized):
@@ -634,4 +707,22 @@ class Network:
             if sp.serialized == serialized:
                 return sp
         print("ERROR: species with serialized %s not found" % serialized)
+        sys.exit(1)
+
+    # *****************
+    def get_reaction_by_serialized(self, serialized):
+        for sp in self.reactions:
+            if sp.serialized == serialized:
+                return sp
+        print("ERROR: reaction with serialized %s not found" % serialized)
+        sys.exit(1)
+
+    # *****************
+    def get_reaction_by_verbatim(self, verbatim, rtype=None):
+
+        for rea in self.reactions:
+            if rea.get_verbatim() == verbatim:
+                if rtype is None or rea.guess_type() == rtype:
+                    return rea
+        print("ERROR: reaction with verbatim '%s' not found" % verbatim)
         sys.exit(1)

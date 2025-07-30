@@ -9,12 +9,23 @@ def parse_prizmo(line):
     arow = srow.replace("[", "]").split("]")
     reaction, tlims, rate = [x.strip() for x in arow]
 
-    if tlims.replace(" ", "") == "":
-        tmin = 3e0
-        tmax = 1e6
+    tmin = tmax = ""
+    if "," in tlims:
+        tmin, tmax = [x.strip() for x in tlims.split(",")]
+
+    if tmin == "":
+        tmin = None
     else:
-        tmin = float(tlims.split(",")[0].replace("d", "e"))
-        tmax = float(tlims.split(",")[1].replace("d", "e"))
+        tmin = float(tmin.replace("d", "e"))
+        if tmin <= 0e0:
+            tmin = None
+
+    if tmax == "":
+        tmax = None
+    else:
+        tmax = float(tmax.replace("d", "e"))
+        if tmax >= 1e8:
+            tmax = None
 
     reaction = reaction.replace("HE", "He")
     reaction = reaction.replace(" E", " e-")
@@ -23,9 +34,6 @@ def parse_prizmo(line):
 
     rate = rate.replace("user_crflux", "crate")
     rate = rate.replace("user_av", "av")
-
-    if("PHOTO" in rate):
-       rate+=",1e10"
 
     rr, pp = reaction.split("->")
     rr = [x.strip() for x in rr.split(" + ")]
@@ -42,6 +50,11 @@ def parse_udfa(line):
     pp = arow[4:8]
     ka, kb, kc = [float(x) for x in arow[9:12]]
     tmin, tmax = [float(x) for x in arow[12:14]]
+
+    if tmin <= 1e1:
+        tmin = None
+    if tmax >= 41000.:
+        tmax = None
 
     rate = None
     if rtype == "CR":
@@ -85,6 +98,12 @@ def parse_kida(line):
     tmin = float(arow[7])
     tmax = float(arow[8])
 
+    if float(tmin) <= 0e0:
+        tmin = None
+    if float(tmax) >= 9999.:
+        tmax = None
+
+
     rate = ""
 
     if formula == 1:
@@ -127,8 +146,7 @@ def parse_krome(line, fmt):
 
     assert len(arow) == len(afmt), "ERROR: KROME format does not match line '%s'" % line
 
-    tmin = 3e0
-    tmax = 1e6
+    tmin = tmax = None
 
     tminmax_reps = {"d": "e",
                     ".le.": "",
@@ -174,8 +192,8 @@ def parse_krome(line, fmt):
 
     rate = f90_convert(rate)
 
-    if("auto" in rate):
-        rate = rate.replace("auto","PHOTO,0.0,1e10")
+    if "auto" in rate:
+        rate = rate.replace("auto", "PHOTO, 1e99")
 
     sp_reps = {"E": "e-",
                 "e": "e-",

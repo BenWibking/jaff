@@ -11,23 +11,31 @@ class Reaction:
         self.tmin = tmin
         self.tmax = tmax
         self.reaction = None
+        self.xsecs = None  # dictionary {"energy": [], "xsecs": []}, energy in erg, xsecs in cm^2
         self.original_string = original_string
         # Add verbatim property for backward compatibility
         self.verbatim = self.get_verbatim()
 
         self.check(errors)
-        self.serialize()
+        self.serialized_exploded = self.serialize_exploded()
+        self.serialized = self.serialize()
 
     def guess_type(self):
         from sympy import symbols
 
         rtype = "unknown"
-        if self.rate.has(symbols('crate')):
-            rtype = "cosmic_ray"
-        elif self.rate.has(symbols('av')):
-            rtype = "photo_av"
-        elif self.rate.has(symbols('ntot')):
-            rtype = "3_body"
+
+        if type(self.rate) is str:
+            if "photo" in self.rate:
+                rtype = "photo"
+        else:
+            if self.rate.has(symbols('crate')):
+                rtype = "cosmic_ray"
+            elif self.rate.has(symbols('av')):
+                rtype = "photo_av"
+            elif self.rate.has(symbols('ntot')):
+                rtype = "3_body"
+
         return rtype
 
     def is_same(self, other):
@@ -35,7 +43,7 @@ class Reaction:
 
     def is_isomer_version(self, other):
         # compare serialized forms (ignore isomers)
-        is_same_serialized = self.serialized == other.serialized
+        is_same_serialized = self.serialized_exploded == other.serialized_exploded
 
         # compare actual species names (consider isomers)
         rp1 = sorted([x.name for x in self.reactants + self.products])
@@ -44,11 +52,22 @@ class Reaction:
 
         return is_same_serialized and has_different_species_names
 
-    def serialize(self):
+    # ****************
+    # note that the serialized form uses the exploded form of species names
+    # H2O+ will be serialzed as +/H/H/O, hence this will be identical to OH2+
+    def serialize_exploded(self):
         sr = "_".join(sorted([x.serialized for x in self.reactants]))
         sp = "_".join(sorted([x.serialized for x in self.products]))
-        self.serialized = sr + "__" + sp
-        return self.serialized
+        return sr + "__" + sp
+
+    # ****************
+    # this version uses the names and not the exploded forms of the species
+    def serialize(self):
+        # serialize the reaction in the form R__P_P
+        sr = "_".join(sorted([x.name for x in self.reactants]))
+        sp = "_".join(sorted([x.name for x in self.products]))
+        return sr + "__" + sp
+
 
     def check(self, errors):
         if not self.check_mass():
@@ -75,6 +94,16 @@ class Reaction:
                " + ".join([x.latex for x in self.products])
         return "$" + latex + "$"
 
+    def get_flux(self, idx=0, rate_variable="k", species_variable="y", brackets="[]", idx_prefix=""):
+        if len(brackets) != 2:
+            print("ERROR: brackets must be a string of length 2, e.g. '[]'")
+            sys.exit(1)
+
+        lb, rb = brackets[0], brackets[1]
+
+        flux = f"{rate_variable}{lb}{idx}{rb} * " + " * ".join([f"{species_variable}{lb}{idx_prefix+x.fidx}{rb}" for x in self.reactants])
+        return flux
+
     def has_any_species(self, species):
         if type(species) is str:
             species = [species]
@@ -91,7 +120,10 @@ class Reaction:
         return any([x.name in species for x in self.products])
 
     def get_python(self):
-        return str(self.rate)
+        from sympy.printing.numpy import NumPyPrinter
+        if type(self.rate) is str:
+            return self.rate
+        return NumPyPrinter().doprint(self.rate).replace("numpy.", "np.")
 
     def get_c(self):
         return sympy.ccode(self.rate,strict=False)
@@ -118,6 +150,51 @@ class Reaction:
         ax.set_ylabel('Rate')
         ax.set_xscale('log')
         ax.set_yscale('log')
+        ax.set_title(self.get_latex())
+        ax.grid()
+
+        if ax is None:
+            plt.show()
+
+    def plot_xsecs(self, ax=None, energy_unit='eV', energy_log=True, xsecs_log=True):
+        import matplotlib.pyplot as plt
+        import numpy as np
+
+        if self.xsecs is None:
+            print("No cross sections available for this reaction.")
+            return
+
+        if ax is None:
+            _, ax = plt.subplots()
+
+        clight = 2.99792458e10  # cm/s
+        hplanck = 6.62607015e-27  # erg s
+
+        if energy_unit == 'eV':
+            energies = np.array(self.xsecs['energy']) / 1.60218e-12
+            xlabel = 'Energy (eV)'
+        elif energy_unit == 'erg':
+            energies = np.array(self.xsecs['energy'])
+            xlabel = 'Energy (erg)'
+        elif energy_unit == 'nm':
+            energies = clight * hplanck * 1e7 / np.array(self.xsecs['energy'])
+            xlabel = 'Wavelength (nm)'
+        elif energy_unit in ['um', 'micron']:
+            energies = clight * hplanck * 1e4 / np.array(self.xsecs['energy'])
+            xlabel = 'Wavelength (µm)'
+        else:
+            print("ERROR: Unknown energy unit '%s'" % energy_unit)
+            sys.exit(1)
+
+        xsecs = np.array(self.xsecs['xsecs'])
+
+        ax.plot(energies, xsecs)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel('Cross section (cm^2)')
+        if energy_log:
+            ax.set_xscale('log')
+        if xsecs_log:
+            ax.set_yscale('log')
         ax.set_title(self.get_latex())
         ax.grid()
 

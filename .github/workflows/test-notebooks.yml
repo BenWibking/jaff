@@ -1,0 +1,54 @@
+# ABOUTME: GitHub Action workflow to run and test all Python notebooks in examples/
+# ABOUTME: Ensures notebooks execute without errors on every push and pull request
+
+name: Test Notebooks
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-notebooks:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Install dependencies
+      run: |
+        uv pip install --system .
+        uv pip install --system nbconvert ipykernel matplotlib scipy
+    
+    - name: Find and run notebooks
+      run: |
+        # Find all .ipynb files in examples/
+        notebooks=$(find examples -name "*.ipynb" -type f)
+        
+        # Exit if no notebooks found
+        if [ -z "$notebooks" ]; then
+          echo "No notebooks found in examples/"
+          exit 0
+        fi
+        
+        # Run each notebook
+        for notebook in $notebooks; do
+          echo "Running notebook: $notebook"
+          jupyter nbconvert --to notebook --execute --inplace "$notebook" || exit 1
+        done
+        
+        echo "All notebooks executed successfully!"

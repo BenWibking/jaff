@@ -16,11 +16,17 @@ class Species:
         self.latex = None
         self.charge = None
         self.index = index
-        self.fidx = "idx_" + name.replace("+", "j").replace("-", "k").strip()
+        self.fidx = self.get_fidx()
         self.serialized = None
 
         self.parse(mass_dict)
         self.serialize()
+
+    # ********************
+    def get_fidx(self):
+        if self.name == "e-":
+            return "idx_e"
+        return "idx_" + self.name.replace("+", "j").replace("-", "k").strip()
 
     # ********************
     def serialize(self):
