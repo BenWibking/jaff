@@ -27,13 +27,13 @@ After installation, you can use the `jaff` command:
 
 ```bash
 # Load and validate a network file
-jaff examples/example_networks/gas_reactions_kida.uva.2024.in
+jaff networks/gas_reactions_kida.uva.2024.in
 
 # Check mass and charge conservation
-jaff examples/example_networks/react_COthin --check-mass --check-charge
+jaff networks/react_COthin --check-mass --check-charge
 
 # List all species and reactions
-jaff examples/example_networks/test.dat --list-species --list-reactions
+jaff networks/test.dat --list-species --list-reactions
 
 # Exit on validation errors
 jaff network_file.dat --errors
@@ -92,7 +92,7 @@ The following variables are recognized in rate expressions:
 
 ## Examples
 
-Example network files can be found in the `examples/example_networks/` directory.
+Example network files can be found in the `networks/` directory.
 
 ## Development
 
@@ -109,7 +109,7 @@ pytest
 black src/jaff
 
 # Lint code
-ruff src/jaff
+ruff check src/jaff
 ```
 
 -----------------------------
