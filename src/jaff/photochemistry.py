@@ -25,7 +25,7 @@ class Photochemistry:
             header = [x for x in header if x != ""]
 
             # get the name of the file without path and extension, i.e. the reaction name in the form R__P_P
-            frea = fname.split("/")[-1].split(".")[0]
+            frea = os.path.basename(fname).split(".")[0]
 
             rrs = frea.split("__")[0].split("_")
             pps = frea.split("__")[1].split("_")

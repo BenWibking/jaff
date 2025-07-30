@@ -26,7 +26,7 @@ class Network:
         self.reactions = []
         self.rlist = self.plist = None
         self.file_name = fname
-        self.label = label if label else fname.split("/")[-1].split(".")[0]
+        self.label = label if label else os.path.basename(fname).split(".")[0]
 
         print("Loading network from %s" % fname)
         print("Network label = %s" % self.label)
