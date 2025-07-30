@@ -1,0 +1,187 @@
+# Examples
+
+## Loading Different Network Formats
+
+### KIDA Format
+```python
+from jaff import Network
+
+# Load a KIDA format network
+network = Network("networks/gas_reactions_kida.uva.2024.in")
+print(f"Loaded {len(network.reactions)} reactions")
+```
+
+### PRIZMO Format  
+```python
+# PRIZMO networks use -> separator and VARIABLES{} blocks
+network = Network("networks/prizmo_network.dat")
+
+# Check what variables were defined
+for reaction in network.reactions:
+    print(f"Rate expression: {reaction.rate}")
+```
+
+### KROME Format
+```python
+# KROME networks use comma separation with @format headers
+network = Network("networks/krome_network.dat") 
+
+# KROME supports custom shortcuts like t32, te, etc.
+print("Variables found:", [str(s) for s in network.reactions[0].rate.free_symbols])
+```
+
+## Species Analysis
+
+### Basic Properties
+```python
+network = Network("networks/react_COthin")
+
+# Find all carbon-bearing species
+carbon_species = []
+for species in network.species:
+    if 'C' in species.exploded:
+        carbon_species.append(species)
+        
+print(f"Found {len(carbon_species)} carbon-bearing species")
+```
+
+### Mass and Charge Distribution
+```python
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Plot mass distribution
+masses = [s.mass for s in network.species]
+plt.hist(masses, bins=50)
+plt.xlabel('Molecular Mass (amu)')
+plt.ylabel('Number of Species')
+plt.title('Species Mass Distribution')
+plt.show()
+
+# Plot charge distribution  
+charges = [s.charge for s in network.species]
+unique_charges, counts = np.unique(charges, return_counts=True)
+plt.bar(unique_charges, counts)
+plt.xlabel('Charge')
+plt.ylabel('Number of Species')
+plt.title('Species Charge Distribution')
+plt.show()
+```
+
+## Reaction Analysis
+
+### Rate Coefficient Tables
+```python
+# Generate rate table for temperature range
+rates = network.get_table(
+    T_min=10,      # 10 K
+    T_max=1000,    # 1000 K
+    nT=100,        # 100 temperature points
+    err_tol=0.01,  # 1% error tolerance
+    verbose=True   # Show adaptive refinement
+)
+
+print(f"Rate table shape: {rates.shape}")
+print(f"Temperature range: 10 - 1000 K")
+```
+
+### Temperature-Dependent Plotting
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Temperature grid
+T = np.logspace(1, 3, 100)  # 10 - 1000 K
+
+# Get rates for specific reaction
+reaction_idx = 5
+rates = network.get_table(T_min=10, T_max=1000, nT=100)
+reaction_rates = rates[reaction_idx, :]
+
+plt.loglog(T, reaction_rates)
+plt.xlabel('Temperature (K)')
+plt.ylabel('Rate Coefficient (cm³/s)')
+plt.title(f'Reaction: {network.reactions[reaction_idx]}')
+plt.show()
+```
+
+## Network Comparison
+
+### Compare Two Networks
+```python
+# Load two different networks
+network1 = Network("networks/react_COthin")
+network2 = Network("networks/react_popsicle_semenov")
+
+# Compare reactions (verbosity=1 shows differences)
+network1.compare_reactions(network2, verbosity=1)
+
+# Compare species
+network1.compare_species(network2, verbosity=1)
+```
+
+### Find Common Elements
+```python
+# Get species names from both networks
+species1 = set(s.name for s in network1.species)
+species2 = set(s.name for s in network2.species)
+
+# Find overlaps
+common_species = species1.intersection(species2)
+unique_to_1 = species1.difference(species2)
+unique_to_2 = species2.difference(species1)
+
+print(f"Common species: {len(common_species)}")
+print(f"Unique to network 1: {len(unique_to_1)}")
+print(f"Unique to network 2: {len(unique_to_2)}")
+```
+
+## Advanced Usage
+
+### Custom Rate Evaluation
+```python
+from sympy import symbols
+
+# Get a reaction's symbolic rate expression
+reaction = network.reactions[0]
+rate_expr = reaction.rate
+
+# Substitute specific values
+tgas, av, crate = symbols('tgas av crate')
+substituted_rate = rate_expr.subs([
+    (tgas, 100),    # 100 K
+    (av, 1.0),      # 1 mag extinction  
+    (crate, 1.3e-17) # Standard cosmic ray rate
+])
+
+print(f"Rate at T=100K: {substituted_rate}")
+```
+
+### Export to Other Formats
+```python
+# Export species list to CSV
+import csv
+
+with open('species_list.csv', 'w', newline='') as f:
+    writer = csv.writer(f)
+    writer.writerow(['Name', 'Mass', 'Charge', 'Formula'])
+    
+    for species in network.species:
+        writer.writerow([
+            species.name,
+            species.mass,
+            species.charge,
+            species.exploded
+        ])
+```
+
+### Working with ODEs
+```python
+# The network automatically generates ODE structure
+print(f"Reactant list shape: {network.rlist.shape}")
+print(f"Product list shape: {network.plist.shape}")
+
+# These arrays define the ODE system structure:
+# rlist[i, :] = indices of reactants for reaction i
+# plist[i, :] = indices of products for reaction i
+```

@@ -3,8 +3,29 @@ import sys
 import sympy
 
 class Reaction:
+    """Represents a chemical reaction with rate expression and temperature limits.
+    
+    Attributes:
+        reactants (list): List of Species objects that are consumed
+        products (list): List of Species objects that are produced  
+        rate (sympy.Expr): Symbolic rate expression
+        tmin (float): Minimum temperature for rate validity (K)
+        tmax (float): Maximum temperature for rate validity (K)
+        original_string (str): Original reaction string from input file
+    """
 
     def __init__(self, reactants, products, rate, tmin, tmax, original_string, errors=False):
+        """Initialize a chemical reaction.
+        
+        Args:
+            reactants (list): List of reactant Species objects
+            products (list): List of product Species objects
+            rate (sympy.Expr): Rate expression 
+            tmin (float): Minimum valid temperature (K) or None
+            tmax (float): Maximum valid temperature (K) or None
+            original_string (str): Original reaction string from file
+            errors (bool): Whether to raise errors on validation failure
+        """
         self.reactants = reactants
         self.products = products
         self.rate = rate

@@ -12,7 +12,13 @@ class Network:
 
     # ****************
     def __init__(self, fname, errors=False, label=None):
-
+        """Initialize a chemical reaction network from file.
+        
+        Args:
+            fname (str): Path to the network file
+            errors (bool): If True, exit on validation errors (default: False)
+            label (str): Custom label for the network (default: filename)
+        """
         self.motd()
 
         # Get the path to the data file relative to this module
@@ -235,6 +241,12 @@ class Network:
 
     # ****************
     def compare_reactions(self, other, verbosity=1):
+        """Compare reactions between two networks.
+        
+        Args:
+            other (Network): Another Network object to compare with
+            verbosity (int): Output detail level (0=minimal, 1=differences, 2=all)
+        """
         print("Comparing networks \"%s\" and \"%s\"..." % (self.label, other.label))
 
         net1 = [x.serialized for x in self.reactions]
@@ -266,6 +278,12 @@ class Network:
 
     # ****************
     def compare_species(self, other, verbosity=1):
+        """Compare species between two networks.
+        
+        Args:
+            other (Network): Another Network object to compare with
+            verbosity (int): Output detail level (0=minimal, 1=summary, 2=detailed)
+        """
         print("Comparing species in networks \"%s\" and \"%s\"..." % (self.label, other.label))
 
         net1 = [x.serialized for x in self.species]
@@ -420,18 +438,47 @@ class Network:
 
     # *****************
     def get_number_of_species(self):
+        """Get the total number of species in the network.
+        
+        Returns:
+            int: Number of species
+        """
         return len(self.species)
 
     # *****************
     def get_species_index(self, name):
+        """Get the index of a species by name.
+        
+        Args:
+            name (str): Species name
+            
+        Returns:
+            int: Species index in the species list
+        """
         return self.species_dict[name]
 
     # *****************
     def get_species_object(self, name):
+        """Get a Species object by name.
+        
+        Args:
+            name (str): Species name
+            
+        Returns:
+            Species: Species object with properties like mass, charge, etc.
+        """
         return self.species[self.species_dict[name]]
 
     # *****************
     def get_reaction_index(self, name):
+        """Get the index of a reaction by its verbatim string representation.
+        
+        Args:
+            name (str): Reaction string (e.g., "H + H -> H2")
+            
+        Returns:
+            int: Reaction index in the reactions list
+        """
         return self.reactions_dict[name]
 
     # *****************
