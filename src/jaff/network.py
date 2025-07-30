@@ -506,53 +506,44 @@ class Network:
                   nT = 64, err_tol = 0.01, 
                   rate_min = 1e-30, rate_max = 1e100,
                   verbose = False):
-        """
-        Return a tabulation of rate coefficients as a function of
-        temperature for all reactions.
+        """Return a tabulation of rate coefficients as a function of temperature for all reactions.
 
-        Parameters
-            T_min : float
-                minimum temperature for the tabulation
-            T_max : float
-                maximum temperature for the tabulation
-            nT : int
-                initial guess for number of sampling temperatures
-            err_tol : float or None
-                relative error tolerance for interpolation; if set to
-                None, adaptive resampling is disabled and the table size
-                will be exactly nT
-            rate_min : float
-                adaptive error tolerance is not applied to rates below
-                rate_min
-            rate_max : float
-                rataes above rate_max are clipped to rate_max to prevent
-                overflow
-            verbose : bool
-                if True, produce verbose output while adaptively refining
+        Args:
+            T_min (float): Minimum temperature for the tabulation
+            T_max (float): Maximum temperature for the tabulation
+            nT (int): Initial guess for number of sampling temperatures (default: 64)
+            err_tol (float or None): Relative error tolerance for interpolation; if set to
+                None, adaptive resampling is disabled and the table size will be exactly nT
+                (default: 0.01)
+            rate_min (float): Adaptive error tolerance is not applied to rates below
+                rate_min (default: 1e-30)
+            rate_max (float): Rates above rate_max are clipped to rate_max to prevent
+                overflow (default: 1e100)
+            verbose (bool): If True, produce verbose output while adaptively refining
+                (default: False)
 
-        Returns
-            coeff : array, shape (nreact, nTemp)
-                tabulated reaction rate coefficients
+        Returns:
+            np.ndarray: Tabulated reaction rate coefficients, shape (nreact, nTemp)
 
-        Notes
-            1) Temperature is sampled logarithmically in the output,
-            i.e., the temperatures at which the reaction coefficients
-            are computed are the output of
-            np.logspace(np.log10(T_min), np.log10(T_max), nTemp)
-            where nTemp is the number of temperatures in the output
-            table.
-            2) For reaction rates that depend on something other than
-            tgas, the results are computed at av = 0 and crate = 1;
-            rates that depend on any other quantities are not tabulated,
-            and the table entries for such reactions will be set to NaN.
-            3) Adaptive sampling is performed by comparing the results
-            of a logarithmic interpolation between each rate
-            coefficient at each pair of sampled temperature with
-            a calculation of the exact rate coefficient at a temperature
-            halfway between the two sample points; the errors is taken
-            to be abs((interp_value - exact_value) / (exact_value + rate_min)),
-            and nTemp is increased until the error for all coefficients
-            is below tolerance.
+        Notes:
+            1. Temperature is sampled logarithmically in the output,
+               i.e., the temperatures at which the reaction coefficients
+               are computed are the output of
+               np.logspace(np.log10(T_min), np.log10(T_max), nTemp)
+               where nTemp is the number of temperatures in the output
+               table.
+            2. For reaction rates that depend on something other than
+               tgas, the results are computed at av = 0 and crate = 1;
+               rates that depend on any other quantities are not tabulated,
+               and the table entries for such reactions will be set to NaN.
+            3. Adaptive sampling is performed by comparing the results
+               of a logarithmic interpolation between each rate
+               coefficient at each pair of sampled temperature with
+               a calculation of the exact rate coefficient at a temperature
+               halfway between the two sample points; the error is taken
+               to be abs((interp_value - exact_value) / (exact_value + rate_min)),
+               and nTemp is increased until the error for all coefficients
+               is below tolerance.
         """
 
         # First step: for each reaction, create a sympy object we can
