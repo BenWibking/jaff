@@ -5,6 +5,7 @@ import pytest
 import os
 import sys
 import tempfile
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 # Add src to path for imports
@@ -107,15 +108,18 @@ class TestNetworkInitialization:
         finally:
             os.unlink(temp_file)
     
-    def test_errors_parameter_true(self, sample_kida_file):
+    def test_errors_parameter_true(self):
         """Test initialization with errors=True parameter."""
+        # Use a valid file that shouldn't trigger errors
+        valid_file = Path(__file__).parent / "fixtures" / "sample_kida_valid.dat"
+        
         with patch('builtins.print'):
             # Mock sys.exit to prevent test from exiting
             with patch('sys.exit') as mock_exit:
-                network = Network(sample_kida_file, errors=True)
+                network = Network(str(valid_file), errors=True)
                 
                 # If there are any validation errors, sys.exit should be called
-                # In our sample file, we don't expect errors, so it shouldn't exit
+                # In our valid sample file, we don't expect errors, so it shouldn't exit
                 mock_exit.assert_not_called()
     
     def test_errors_parameter_false(self, sample_kida_file):

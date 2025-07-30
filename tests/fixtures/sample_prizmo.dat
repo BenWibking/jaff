@@ -8,12 +8,12 @@ VARIABLES{
   zeta = 1.3e-17
 }
 
-# Reactions with -> separator
-H + H + H -> H2 + H : 5.0e-30 * (tgas/300)**(-1.0) : 10 : 1000
-H2 + PHOTON -> H + H : photo(1e-11, 2.0) : 10 : 3000
-H + e- -> H- + PHOTON : 3.0e-16 * x : 10 : 10000
-H+ + e- -> H : 2.59e-13 * (tgas/300)**(-0.7) : 10 : 10000
+# Reactions with -> separator and temperature ranges in brackets
+H + H + H -> H2 + H [10,1000] 5.0e-30 * (tgas/300)**(-1.0)
+H2 + PHOTON -> H + H [10,3000] photo(1e-11, 2.0)
+H + e- -> H- + PHOTON [10,10000] 3.0e-16 * x
+H+ + e- -> H [10,10000] 2.59e-13 * (tgas/300)**(-0.7)
 # Test with variable substitution
-O + H -> OH : 9.9e-11 * y**(-0.38) : 10 : 41000
+O + H -> OH [10,41000] 9.9e-11 * y**(-0.38)
 # Test cosmic ray reaction
-H2 + CR -> H2+ + e- : zeta : 10 : 50000
+H2 + CR -> H2+ + e- [10,50000] zeta

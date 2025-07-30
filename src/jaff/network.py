@@ -169,16 +169,20 @@ class Network:
 
             # -------------------- REACTIONS --------------------
             # determine the type of reaction line and parse it
-            if "->" in srow:
-                rr, pp, tmin, tmax, rate = parse_prizmo(srow)
-            elif ":" in srow:
-                rr, pp, tmin, tmax, rate = parse_udfa(srow)
-            elif srow.count(",") > 3 and not ",NAN," in srow:
-                rr, pp, tmin, tmax, rate = parse_krome(srow, krome_format)
-            elif ",NAN," in srow:
-                rr, pp, tmin, tmax, rate = parse_uclchem(srow)
-            else:
-                rr, pp, tmin, tmax, rate = parse_kida(srow)
+            try:
+                if "->" in srow:
+                    rr, pp, tmin, tmax, rate = parse_prizmo(srow)
+                elif ":" in srow:
+                    rr, pp, tmin, tmax, rate = parse_udfa(srow)
+                elif srow.count(",") > 3 and not ",NAN," in srow:
+                    rr, pp, tmin, tmax, rate = parse_krome(srow, krome_format)
+                elif ",NAN," in srow:
+                    rr, pp, tmin, tmax, rate = parse_uclchem(srow)
+                else:
+                    rr, pp, tmin, tmax, rate = parse_kida(srow)
+            except (ValueError, IndexError) as e:
+                print(f"WARNING: Skipping invalid line: {srow[:50]}... ({e})")
+                continue
 
             # use lowercase for rate
             rate = rate.lower().strip()
@@ -186,13 +190,31 @@ class Network:
             # parse rate with sympy
             # photo-chemistry
             if("photo" in rate):
-                photo_args=rate.split(',')
-                if(len(photo_args)<3): photo_args.append(1e99)
-                f=Function("photorates")
-                rate = f(n_photo,photo_args[1],photo_args[2]) #f"{photo_rates({n_photo},{photo_args[1]},{photo_args[2]})"
-                n_photo+=1
+                # Extract arguments from photo(arg1, arg2) format
+                import re
+                match = re.match(r'photo\((.*)\)', rate)
+                if match:
+                    args_str = match.group(1)
+                    photo_args = [arg.strip() for arg in args_str.split(',')]
+                    if len(photo_args) < 2:
+                        photo_args.append('1e99')
+                    f = Function("photorates")
+                    rate = f(n_photo, photo_args[0], photo_args[1])
+                    n_photo += 1
+                else:
+                    # Fallback to old parsing if regex fails
+                    photo_args = rate.split(',')
+                    if len(photo_args) < 3:
+                        photo_args.append(1e99)
+                    f = Function("photorates")
+                    rate = f(n_photo, photo_args[1], photo_args[2])
+                    n_photo += 1
             else:
                 rate = parse_expr(rate, evaluate=False)
+                # If rate is just a single variable name that got parsed as a function,
+                # convert it to a symbol
+                if hasattr(rate, '__name__') and rate.__name__ in [v[0] for v in variables_sympy]:
+                    rate = symbols(rate.__name__)
             print(rate)
             # use sympy to replace custom variables into the rate expression
             for vv in variables_sympy[::-1]:
@@ -202,9 +224,9 @@ class Network:
                 else:
                     rate = rate.subs(symbols(var), val)
 
-            if tmin is not None:
+            if tmin is not None and tmin > 0:
                 rate = rate.subs(symbols("tgas"), "max(tgas, %f)" % tmin)
-            if tmax is not None:
+            if tmax is not None and tmax > 0:
                 rate = rate.subs(symbols("tgas"), "min(tgas, %f)" % tmax)
 
 

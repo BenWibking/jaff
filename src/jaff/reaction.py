@@ -12,6 +12,8 @@ class Reaction:
         self.tmax = tmax
         self.reaction = None
         self.original_string = original_string
+        # Add verbatim property for backward compatibility
+        self.verbatim = self.get_verbatim()
 
         self.check(errors)
         self.serialize()
