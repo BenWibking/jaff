@@ -51,7 +51,7 @@ def parse_udfa(line):
     ka, kb, kc = [float(x) for x in arow[9:12]]
     tmin, tmax = [float(x) for x in arow[12:14]]
 
-    if tmin <= 1e1:
+    if tmin <= 0e0:
         tmin = None
     if tmax >= 41000.:
         tmax = None

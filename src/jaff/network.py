@@ -41,6 +41,7 @@ class Network:
         self.check_unique_reactions(errors)
 
         self.generate_reactions_dict()
+        self.generate_reaction_matrices()
 
         print("All done!")
 
@@ -428,6 +429,28 @@ class Network:
     # ****************
     def generate_reactions_dict(self):
         self.reactions_dict = {rea.get_verbatim(): i for i, rea in enumerate(self.reactions)}
+
+    # ****************
+    def generate_reaction_matrices(self):
+        """Generate reaction matrices (rlist and plist) for tracking reactants and products."""
+        n_reactions = len(self.reactions)
+        n_species = len(self.species)
+        
+        # Initialize matrices
+        self.rlist = np.zeros((n_reactions, n_species), dtype=int)
+        self.plist = np.zeros((n_reactions, n_species), dtype=int)
+        
+        # Fill matrices based on reactions
+        for i, reaction in enumerate(self.reactions):
+            # Count reactants
+            for reactant in reaction.reactants:
+                species_idx = reactant.index
+                self.rlist[i, species_idx] += 1
+            
+            # Count products  
+            for product in reaction.products:
+                species_idx = product.index
+                self.plist[i, species_idx] += 1
 
     # ****************
     def get_reaction_verbatim(self, idx):

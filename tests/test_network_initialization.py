@@ -73,14 +73,15 @@ class TestNetworkInitialization:
         # Test with path containing directories
         test_path = "/some/long/path/to/network_file.txt"
         with patch('builtins.print'), patch('builtins.open', MagicMock()):
-            with patch.object(Network, 'load_network', MagicMock()):
-                with patch.object(Network, 'check_sink_sources', MagicMock()):
-                    with patch.object(Network, 'check_recombinations', MagicMock()):
-                        with patch.object(Network, 'check_isomers', MagicMock()):
-                            with patch.object(Network, 'check_unique_reactions', MagicMock()):
-                                with patch.object(Network, 'generate_ode', MagicMock()):
+            with patch('jaff.network.Photochemistry', MagicMock()):
+                with patch.object(Network, 'load_network', MagicMock()):
+                    with patch.object(Network, 'check_sink_sources', MagicMock()):
+                        with patch.object(Network, 'check_recombinations', MagicMock()):
+                            with patch.object(Network, 'check_isomers', MagicMock()):
+                                with patch.object(Network, 'check_unique_reactions', MagicMock()):
                                     with patch.object(Network, 'generate_reactions_dict', MagicMock()):
-                                        network = Network(test_path)
+                                        with patch.object(Network, 'generate_reaction_matrices', MagicMock()):
+                                            network = Network(test_path)
         
         assert network.label == 'network_file'
     
@@ -138,8 +139,8 @@ class TestNetworkInitialization:
                     with patch.object(Network, 'check_recombinations') as mock_recomb:
                         with patch.object(Network, 'check_isomers') as mock_isomers:
                             with patch.object(Network, 'check_unique_reactions') as mock_unique:
-                                with patch.object(Network, 'generate_ode') as mock_ode:
-                                    with patch.object(Network, 'generate_reactions_dict') as mock_dict:
+                                with patch.object(Network, 'generate_reactions_dict') as mock_dict:
+                                    with patch.object(Network, 'generate_reaction_matrices') as mock_matrices:
                                         network = Network(sample_kida_file, errors=True)
         
         # Verify all methods were called
@@ -148,8 +149,8 @@ class TestNetworkInitialization:
         mock_recomb.assert_called_once_with(True)
         mock_isomers.assert_called_once_with(True)
         mock_unique.assert_called_once_with(True)
-        mock_ode.assert_called_once()
         mock_dict.assert_called_once()
+        mock_matrices.assert_called_once()
     
     def test_empty_network_file(self, fixtures_dir):
         """Test initialization with empty network file."""
