@@ -1,0 +1,11 @@
+# ABOUTME: Sample UDFA format network file for testing
+# ABOUTME: Contains reactions in UDFA colon-separated format
+
+# Sample UDFA network file
+# Format: colon-separated
+H:H:H2:1.00e-32:0.00:0.0:10:1000:1
+H2:PHOTON:H:H:5.00e-11:0.00:0.0:10:3000:2
+H:e-:H-:3.00e-16:0.50:0.0:10:10000:3
+H+:e-:H:2.59e-13:-0.70:0.0:10:10000:4
+# Test with custom temperature expression
+O:H:OH:9.90e-11:-0.38:tgas/300:10:41000:5

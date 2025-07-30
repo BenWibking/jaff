@@ -1,0 +1,19 @@
+# ABOUTME: Sample PRIZMO format network file for testing
+# ABOUTME: Contains reactions in PRIZMO arrow format with variables
+
+# Sample PRIZMO network file
+VARIABLES{
+  x = 1e-4
+  y = tgas/300
+  zeta = 1.3e-17
+}
+
+# Reactions with -> separator
+H + H + H -> H2 + H : 5.0e-30 * (tgas/300)**(-1.0) : 10 : 1000
+H2 + PHOTON -> H + H : photo(1e-11, 2.0) : 10 : 3000
+H + e- -> H- + PHOTON : 3.0e-16 * x : 10 : 10000
+H+ + e- -> H : 2.59e-13 * (tgas/300)**(-0.7) : 10 : 10000
+# Test with variable substitution
+O + H -> OH : 9.9e-11 * y**(-0.38) : 10 : 41000
+# Test cosmic ray reaction
+H2 + CR -> H2+ + e- : zeta : 10 : 50000
