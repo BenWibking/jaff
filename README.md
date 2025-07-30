@@ -74,10 +74,15 @@ odes = network.get_odes()
 ## Supported Network Formats
 
 - **KIDA**: Kinetic Database for Astrochemistry format
-- **UDFA**: UMIST Database for Astrochemistry format  
+    Reference: [A&A, 689, A63 (2024)](https://doi.org/10.1051/0004-6361/202450606)
+- **UDFA**: UMIST Database for Astrochemistry format
+    Reference: [A&A, 682, A109 (2024)](https://doi.org/10.1051/0004-6361/202346908)
 - **PRIZMO**: Uses `->` separator with `VARIABLES{}` blocks
+    Reference:[MNRAS 494, 4471–4491 (2020)](https://doi.org/10.1093/mnras/staa971)
 - **KROME**: Comma-separated values with `@format:` header
+    Reference: [MNRAS 439, 2386–2419 (2014)](https://doi.org/10.1093/mnras/stu114)
 - **UCLCHEM**: Comma-separated with `,NAN,` marker (UNDER CONSTRUCTION)     
+    Reference: [J. Holdship et al 2017 AJ 154 38](https://doi.org/10.3847/1538-3881/aa773f)
 
 ## Primitive Variables
 
