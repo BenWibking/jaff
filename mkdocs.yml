@@ -5,7 +5,7 @@ repo_url: https://github.com/tgrassi/jaff
 repo_name: tgrassi/jaff
 
 theme:
-  name: mkdocs
+  name: readthedocs
 
 plugins:
   - search
