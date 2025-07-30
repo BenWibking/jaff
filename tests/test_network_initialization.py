@@ -60,7 +60,7 @@ class TestNetworkInitialization:
     def test_initialization_with_nonexistent_file(self):
         """Test initialization fails gracefully with non-existent file."""
         with pytest.raises(FileNotFoundError):
-            Network("/path/to/nonexistent/file.dat")
+            Network(os.path.join("path", "to", "nonexistent", "file.dat"))
     
     def test_default_label_extraction(self, sample_kida_file):
         """Test default label extraction from filename."""
@@ -71,7 +71,7 @@ class TestNetworkInitialization:
         assert network.label == 'sample_kida'
         
         # Test with path containing directories
-        test_path = "/some/long/path/to/network_file.txt"
+        test_path = os.path.join("some", "long", "path", "to", "network_file.txt")
         with patch('builtins.print'), patch('builtins.open', MagicMock()):
             with patch('jaff.network.Photochemistry', MagicMock()):
                 with patch.object(Network, 'load_network', MagicMock()):
