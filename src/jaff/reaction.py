@@ -138,7 +138,7 @@ class Reaction:
 
         tgas = np.linspace(self.tmin, self.tmax, 100)
         r = sympy.lambdify('tgas', self.rate, 'numpy')
-        y = r(tgas)
+        y = np.array([r(t) for t in tgas])
 
         if ax is None:
             _, ax = plt.subplots()
