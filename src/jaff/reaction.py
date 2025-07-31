@@ -136,9 +136,17 @@ class Reaction:
         import matplotlib.pyplot as plt
         import numpy as np
 
-        tgas = np.linspace(self.tmin, self.tmax, 100)
+        if self.tmin is None:
+            tmin = 2.73
+        else:
+            tmin = self.tmin
+        if self.tmax is None:
+            tmax = 1e6
+        else:
+            tmax = self.tmax
+        tgas = np.logspace(tmin, tmax, 100)
         r = sympy.lambdify('tgas', self.rate, 'numpy')
-        y = r(tgas)
+        y = np.array([r(t) for t in tgas])
 
         if ax is None:
             _, ax = plt.subplots()
