@@ -176,17 +176,13 @@ class TestNetworkParsers:
         with patch('builtins.print'):
             network = Network(prizmo_file)
         
-        # Check for photo reaction
-        found = False
-        for reaction in network.reactions:
-            if any(r.name == 'PHOTON' for r in reaction.reactants):
-                found = True
-                # Check that photo function is in the rate
-                rate_str = str(reaction.rate)
-                assert 'photorates' in rate_str
-                break
+        # Check for photo reaction by looking for photorates function
+        photo_reactions = [r for r in network.reactions if 'photorates' in str(r.rate)]
+        assert len(photo_reactions) >= 1, "Expected photochemistry reaction not found"
         
-        assert found, "Expected photochemistry reaction not found"
+        # Verify the photo reactions are correctly identified
+        for reaction in photo_reactions:
+            assert reaction.guess_type() == "photo"
     
     def test_temperature_limits_application(self, fixtures_dir):
         """Test that temperature limits (tmin/tmax) are correctly applied."""

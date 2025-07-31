@@ -10,7 +10,9 @@ VARIABLES{
 
 # Reactions with -> separator and temperature ranges in brackets
 H + H + H -> H2 + H [10,1000] 5.0e-30 * (tgas/300)**(-1.0)
-H2 + PHOTON -> H + H [10,3000] photo(1e-11, 2.0)
+# Use real photoreactions that have cross-section data
+H -> H+ + e- [10,3000] photo(1e-11, 13.6)
+CH2 -> CH + H [10,3000] photo(1e-12, 10.0)
 H + e- -> H- + PHOTON [10,10000] 3.0e-16 * x
 H+ + e- -> H [10,10000] 2.59e-13 * (tgas/300)**(-0.7)
 # Test with variable substitution

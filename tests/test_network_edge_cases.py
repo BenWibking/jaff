@@ -352,7 +352,8 @@ class TestNetworkEdgeCases:
         """Test photochemistry reactions without explicit PHOTON reactant."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.dat', delete=False) as f:
             f.write("# Photochemistry without PHOTON\n")
-            f.write("H2 -> H + H [10,1000] photo(h2_xsec, 13.6)\n")
+            # Use a real photoreaction that has cross-section data
+            f.write("H -> H+ + e- [10,1000] photo(h_xsec, 13.6)\n")
             temp_file = f.name
         
         try:
