@@ -137,9 +137,9 @@ class Reaction:
         import numpy as np
 
         if self.tmin is None:
-            tmin = self.tmin
-        else:
             tmin = 2.73
+        else:
+            tmin = self.tmin
         if self.tmax is None:
             tmax = 1e6
         else:
