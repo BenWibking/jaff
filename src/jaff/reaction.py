@@ -21,7 +21,7 @@ class Reaction:
         self.serialized = self.serialize()
 
     def guess_type(self):
-        from sympy import symbols
+        from sympy import symbols, Function
 
         rtype = "unknown"
 
@@ -29,7 +29,11 @@ class Reaction:
             if "photo" in self.rate:
                 rtype = "photo"
         else:
-            if self.rate.has(symbols('crate')):
+            # Check if rate is a photorates Function
+            if hasattr(self.rate, 'func') and isinstance(self.rate.func, type(Function('f'))):
+                if self.rate.func.__name__ == 'photorates':
+                    rtype = "photo"
+            elif self.rate.has(symbols('crate')):
                 rtype = "cosmic_ray"
             elif self.rate.has(symbols('av')):
                 rtype = "photo_av"
@@ -121,8 +125,14 @@ class Reaction:
 
     def get_python(self):
         from sympy.printing.numpy import NumPyPrinter
+        from sympy import Function
         if type(self.rate) is str:
             return self.rate
+        # Handle photorates function specially
+        if hasattr(self.rate, 'func') and isinstance(self.rate.func, type(Function('f'))):
+            if self.rate.func.__name__ == 'photorates':
+                # Return a placeholder that will be replaced later
+                return f"photorates(#IDX#, {', '.join(str(arg) for arg in self.rate.args[1:])})"
         return NumPyPrinter().doprint(self.rate).replace("numpy.", "np.")
 
     def get_c(self):
@@ -146,7 +156,7 @@ class Reaction:
             tmax = 1e6
         else:
             tmax = self.tmax
-        tgas = np.logspace(tmin, tmax, 100)
+        tgas = np.logspace(np.log10(tmin), np.log10(tmax), 100)
         r = sympy.lambdify('tgas', self.rate, 'numpy')
         y = np.array([r(t) for t in tgas])
 
