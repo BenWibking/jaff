@@ -5,6 +5,7 @@ import sys
 import re
 import os
 from tqdm import tqdm
+import sympy
 from sympy import parse_expr, symbols, sympify, lambdify, srepr, Function
 from .parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, parse_uclchem, f90_convert
 from .fastlog import fast_log2, inverse_fast_log2
@@ -534,7 +535,7 @@ class Network:
         sys.exit(1)
 
     # *****************
-    def get_table(self, T_min, T_max,
+    def get_table(self, T_min = None, T_max = None,
                   nT = 64, err_tol = 0.01,
                   rate_min = 1e-30, rate_max = 1e100,
                   fast_log = False, verbose = False):
@@ -544,10 +545,14 @@ class Network:
 
         Parameters
         ----------
-            T_min : float
-                minimum temperature for the tabulation
-            T_max : float
-                maximum temperature for the tabulation
+            T_min : float or None
+                minimum temperature for the tabulation; if left as None,
+                will be set to the minimum temperature over reactions in
+                the network
+            T_max : float or None
+                maximum temperature for the tabulation; if left as None,
+                will be set to the maximum temperature over reactions in
+                the network
             nT : int
                 initial guess for number of sampling temperatures
             err_tol : float or None
@@ -596,6 +601,17 @@ class Network:
             is below tolerance.
         """
 
+        # Get min and max temperature if not provided
+        if T_min is None:
+            T_min = np.nanmin([r.tmin if r.tmin is not None else np.nan 
+                               for r in self.reactions])
+        if T_max is None:
+            T_max = np.nanmax([r.tmax if r.tmax is not None else np.nan 
+                               for r in self.reactions])
+        if T_min is None or T_max is None:
+            raise ValueError("could not determine T_min or T_max from "
+                             "reaction list; set T_min and T_max manually")
+
         # First step: for each reaction, create a sympy object we can
         # use to substitute to get an expression in terms of the
         # primitive variables
@@ -614,7 +630,7 @@ class Network:
             if len(r.free_symbols) == 0:
                 # Reaction rates that are just constants; in this
                 # case just copy that constant to the list of functions
-                react_func.append(float(r))
+                react_func.append(np.log(float(r)))
             elif (len(r.free_symbols) > 1) or \
                 (symbols('tgas') not in r.free_symbols) or \
                 ('Function' in srepr(r)):
@@ -624,8 +640,12 @@ class Network:
                 # tabulate, so just store None
                 react_func.append(None)
             else:
-                # Case of reactions that depend only on temperature
-                react_func.append(lambdify(symbols('tgas'), r, 'numpy'))
+                # Case of reactions that depend only on temperature; to
+                # avoid overflows we will take the log of the rate function
+                # and expand it before converting to numpy, and then we will
+                # exponentiate at the very end
+                logr = sympy.expand_log(sympy.log(r))
+                react_func.append(lambdify(symbols('tgas'), logr, 'numpy'))
 
         # Fourth step: generate rate coefficient table for initial guess
         # table size
@@ -638,20 +658,20 @@ class Network:
             log_temp_max = fast_log2(T_max)
             log_temp = np.linspace(log_temp_min, log_temp_max, nTemp)
             temp = inverse_fast_log2(log_temp)
-        rates = np.zeros((len(react_func), nTemp))
+        log_rates = np.zeros((len(react_func), nTemp))
         for i, f in enumerate(react_func):
-            if type(f) is float:
-                rates[i,:] = f
+            if isinstance(f, float):
+                log_rates[i,:] = f
             elif f is None:
-                rates[i,:] = np.nan
+                log_rates[i,:] = np.nan
             else:
                 # Note: it would be much faster to do this via an array operation
                 # rather than a list comprehension, but sympy (as of v1.13) does
                 # not consistently generate numpy expressions that work properly
                 # with vector inputs, so restricting the input to scalars is safer.
                 f_eval = np.array([f(t) for t in temp])
-                rates[i,:] = np.clip(f_eval,
-                                     a_min = None, a_max = rate_max)
+                log_rates[i,:] = np.clip(f_eval,
+                                         a_min = None, a_max = rate_max)
 
         # Fifth step: do adaptive growth of table
         if err_tol is not None:
@@ -668,34 +688,35 @@ class Network:
                     log_temp_lo = fast_log2(temp[:-1])
                     log_temp_hi = fast_log2(temp[1:])
                     temp_grow[1::2] = inverse_fast_log2(0.5 * (log_temp_lo + log_temp_hi))
-                rates_grow = np.zeros((len(react_func), nTemp))
-                rates_grow[:,::2] = rates
-                rates_approx = np.zeros((len(react_func), (nTemp-1)//2))
+                log_rates_grow = np.zeros((len(react_func), nTemp))
+                log_rates_grow[:,::2] = log_rates
+                log_rates_approx = np.zeros((len(react_func), (nTemp-1)//2))
                 for i, f in enumerate(react_func):
-                    if type(f) is float:
-                        rates_grow[i,1::2] = f
-                        rates_approx[i,:] = f
+                    if isinstance(f, float):
+                        log_rates_grow[i,1::2] = np.log(f)
+                        log_rates_approx[i,:] = np.log(f)
                     elif f is None:
-                        rates_grow[i,1::2] = np.nan
-                        rates_approx[i,:] = np.nan
+                        log_rates_grow[i,1::2] = np.nan
+                        log_rates_approx[i,:] = np.nan
                     else:
                         # See comment above about why we're using a list comprehension
                         # here instead of a straight array operation
                         f_eval = np.array([f(t) for t in temp_grow[1::2]])
-                        rates_grow[i,1::2] = np.clip(f_eval,
-                                                     a_min = None,
-                                                     a_max = rate_max)
-                        rates_approx[i,:] = np.sqrt(rates_grow[i,:-1:2] *
-                                                    rates_grow[i,2::2])
+                        log_rates_grow[i,1::2] = np.clip(f_eval,
+                                                         a_min = None,
+                                                         a_max = rate_max)
+                        log_rates_approx[i,:] = 0.5 * \
+                            (log_rates_grow[i,:-1:2] +  
+                             log_rates_grow[i,2::2])
 
                 # Copy new estimates to current ones
                 temp = temp_grow
-                rates = rates_grow
+                log_rates = log_rates_grow
 
                 # Make error estimate
                 rel_err = np.abs(
-                    (rates_approx - rates[:,1::2]) /
-                    (rates[:,1::2] + rate_min ) )
+                    (np.exp(log_rates_approx) - np.exp(log_rates[:,1::2])) /
+                    (np.exp(log_rates[:,1::2]) + rate_min ) )
                 max_err = np.nanmax(rel_err)
 
                 # Print output if verbose
@@ -712,10 +733,10 @@ class Network:
                     break
 
         # Return final table
-        return temp, rates
+        return temp, np.exp(log_rates)
 
     # *****************
-    def write_table(self, fname, T_min, T_max,
+    def write_table(self, fname, T_min = None, T_max = None,
                     nT = 64, err_tol = 0.01,
                     rate_min = 1e-30, rate_max = 1e100,
                     fast_log = False, format = 'auto',
@@ -728,10 +749,14 @@ class Network:
         ----------
             fname : string
                 name of output file
-            T_min : float
-                minimum temperature for the tabulation
-            T_max : float
-                maximum temperature for the tabulation
+            T_min : float or None
+                minimum temperature for the tabulation; if left as None,
+                will be set to the minimum temperature over reactions in
+                the network
+            T_max : float or None
+                maximum temperature for the tabulation; if left as None,
+                will be set to the maximum temperature over reactions in
+                the network
             nT : int
                 initial guess for number of sampling temperatures
             err_tol : float or None
@@ -799,8 +824,8 @@ class Network:
                              format(str(format)))
         
         # Get rate coefficients
-        temp, coef = self.get_table(T_min, T_max, nT = nT,
-                                    err_tol = err_tol, 
+        temp, coef = self.get_table(T_min = T_min, T_max = T_max, 
+                                    nT = nT, err_tol = err_tol, 
                                     rate_min = rate_min,
                                     rate_max = rate_max,
                                     fast_log = fast_log,
@@ -820,25 +845,61 @@ class Network:
         coef = coef[react_list]
 
         # For the reactions that we are including, grab the reaction
-        # type and stoichiometric coefficients
+        # type and lists of reactants and products
         rtype = []
-        stoich = []
+        reactants = []
+        products = []
         for i in react_list:
             if self.reactions[i].guess_type() == 'unknown':
                 rtype.append('2_body')
             else:
                 rtype.append(self.reactions[i].guess_type())
-            stoich_ = {}
+            reactants_ = {}
             for r in self.reactions[i].reactants:
-                if r.name in stoich_.keys():
-                    stoich_[r.name] -= 1
+                if r.name in reactants_.keys():
+                    reactants_[r.name] += 1
                 else:
-                    stoich_[r.name] = -1
+                    reactants_[r.name] = 1
+            reactants.append(reactants_)
+            products_ = {}
             for p in self.reactions[i].products:
-                if p.name in stoich_.keys():
-                    stoich_[p.name] += 1
+                if p.name in products_.keys():
+                    products_[p.name] += 1
                 else:
-                    stoich_[p.name] = 1
-            stoich.append(stoich_)
+                    products_[p.name] = 1
+            products.append(products_)
 
         # Write output in appropriate format
+        if out_type == 'txt':
+
+            # Text output
+            fp = open(fname, 'w')
+
+            # Write header
+            fp.write("# JAFF auto-generated rate coefficient table\n")
+            fp.write("# Network name: {:s}\n".format(self.label))
+            fp.write("# Reactions included\n")
+            fp.write("#   (reactants) (products) (reaction type)\n")
+            for rt, r, p in zip(rtype, reactants, products):
+                fp.write("#   {:s} {:s} {:s}\n".format(
+                    repr(r), repr(p), rt))
+
+            # Write data in quokka table format
+            fp.write("1\n")                       # Table is 1d
+            fp.write("{:d}\n".format(len(coef)))  # N outputs per table entry
+            if fast_log:
+                fp.write("3\n")                   # Table is uniform in fast_log
+            else:
+                fp.write("2\n")                   # Table is uniform in log
+            fp.write("{:d}\n".format(len(temp)))  # Number of temperature entries
+            fp.write("{:e} {:e}\n".
+                     format(temp[0], temp[-1]))   # Min/max temperature
+
+            # Now write the data
+            for c in coef:
+                for c_ in c:
+                    fp.write("{:e} ".format(c_))
+                fp.write("\n")
+
+            # Close
+            fp.close()
