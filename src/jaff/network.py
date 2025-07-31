@@ -652,7 +652,12 @@ class Network:
             elif f is None:
                 rates[i,:] = np.nan
             else:
-                rates[i,:] = np.clip(f(temp),
+                # Note: it would be much faster to do this via an array operation
+                # rather than a list comprehension, but sympy (as of v1.13) does
+                # not consistently generate numpy expressions that work properly
+                # with vector inputs, so restricting the input to scalars is safer.
+                f_eval = np.array([f(t) for t in temp])
+                rates[i,:] = np.clip(f_eval,
                                      a_min = None, a_max = rate_max)
 
         # Fifth step: do adaptive growth of table
@@ -681,7 +686,10 @@ class Network:
                         rates_grow[i,1::2] = np.nan
                         rates_approx[i,:] = np.nan
                     else:
-                        rates_grow[i,1::2] = np.clip(f(temp_grow[1::2]),
+                        # See comment above about why we're using a list comprehension
+                        # here instead of a straight array operation
+                        f_eval = np.array([f(t) for t in temp_grow[1::2]])
+                        rates_grow[i,1::2] = np.clip(f_eval,
                                                      a_min = None,
                                                      a_max = rate_max)
                         rates_approx[i,:] = np.sqrt(rates_grow[i,:-1:2] *
