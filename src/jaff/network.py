@@ -508,6 +508,32 @@ class Network:
         sys.exit(1)
 
     # *****************
+    def get_species_by_serialized(self, serialized):
+        for sp in self.species:
+            if sp.serialized == serialized:
+                return sp
+        print("ERROR: species with serialized %s not found" % serialized)
+        sys.exit(1)
+
+    # *****************
+    def get_reaction_by_serialized(self, serialized):
+        for sp in self.reactions:
+            if sp.serialized == serialized:
+                return sp
+        print("ERROR: reaction with serialized %s not found" % serialized)
+        sys.exit(1)
+
+    # *****************
+    def get_reaction_by_verbatim(self, verbatim, rtype=None):
+
+        for rea in self.reactions:
+            if rea.get_verbatim() == verbatim:
+                if rtype is None or rea.guess_type() == rtype:
+                    return rea
+        print("ERROR: reaction with verbatim '%s' not found" % verbatim)
+        sys.exit(1)
+
+    # *****************
     def get_table(self, T_min, T_max,
                   nT = 64, err_tol = 0.01,
                   rate_min = 1e-30, rate_max = 1e100,
@@ -689,27 +715,106 @@ class Network:
         return temp, rates
 
     # *****************
-    def get_species_by_serialized(self, serialized):
-        for sp in self.species:
-            if sp.serialized == serialized:
-                return sp
-        print("ERROR: species with serialized %s not found" % serialized)
-        sys.exit(1)
+    def write_table(self, fname, T_min, T_max,
+                    nT = 64, err_tol = 0.01,
+                    rate_min = 1e-30, rate_max = 1e100,
+                    fast_log = False, format = 'auto',
+                    include_all = False, verbose = False):
+        """
+        Write a tabulation of rate coefficients as a function of
+        temperature for all reactions.
 
-    # *****************
-    def get_reaction_by_serialized(self, serialized):
-        for sp in self.reactions:
-            if sp.serialized == serialized:
-                return sp
-        print("ERROR: reaction with serialized %s not found" % serialized)
-        sys.exit(1)
+        Parameters
+        ----------
+            fname : string
+                name of output file
+            T_min : float
+                minimum temperature for the tabulation
+            T_max : float
+                maximum temperature for the tabulation
+            nT : int
+                initial guess for number of sampling temperatures
+            err_tol : float or None
+                relative error tolerance for interpolation; if set to
+                None, adaptive resampling is disabled and the table size
+                will be exactly nT
+            rate_min : float
+                adaptive error tolerance is not applied to rates below
+                rate_min
+            rate_max : float
+                rataes above rate_max are clipped to rate_max to prevent
+                overflow
+            fast_log : bool
+                if True, sample points are equally spaced in fast_log2(T)
+                rather than log(T)
+            format : 'auto' | 'txt' | 'hdf5'
+                output format; if set to 'auto', format will be guessed from
+                extension of fname, otherwise output will be set to either
+                text for hdf5 format
+            include_all : bool
+                if True, the output table will contain all reactions, with
+                entries for rate coefficients that cannot be tabulated
+                just as a function of temperature set to NaN; if False,
+                the output table only includes coefficients that can be
+                tabulated and are non-constant
+            verbose : bool
+                if True, produce verbose output while adaptively refining
 
-    # *****************
-    def get_reaction_by_verbatim(self, verbatim, rtype=None):
+        Returns
+        -------
+            Nothing
 
-        for rea in self.reactions:
-            if rea.get_verbatim() == verbatim:
-                if rtype is None or rea.guess_type() == rtype:
-                    return rea
-        print("ERROR: reaction with verbatim '%s' not found" % verbatim)
-        sys.exit(1)
+        Raises
+        ------
+            ValueError
+                if format is set to 'auto' and the extension is of fname
+                is not 'txt', 'hdf', or 'hdf5'
+            IOError
+                if the output fille cannot be opened
+
+        Notes
+        -----
+            See notes to get_table for details on how temperature sampling
+            and error tolerance is handled.
+        """
+
+        # Deduce output format
+        if format == 'txt':
+            out_type = 'txt'
+        elif format == 'hdf5':
+            out_type = 'hdf5'
+        elif format == 'auto':
+            if os.path.splitext(fname)[1] == ".txt":
+                out_type = 'txt'
+            elif os.path.splitext(fname)[1] == '.hdf5' \
+                or os.path.splitext(fname)[1] == '.hdf':
+                out_type = 'hdf5'
+            else:
+                raise ValueError("cannot deduce output type from "
+                                 "extension {:s}".format(
+                                     os.path.splitext(fname)
+                                 ))
+        else:
+            raise ValueError("unknown output format {:s}".
+                             format(str(format)))
+        
+        # Get rate coefficients
+        temp, coef = self.get_table(T_min, T_max, nT = nT,
+                                    err_tol = err_tol, 
+                                    rate_min = rate_min,
+                                    rate_max = rate_max,
+                                    fast_log = fast_log,
+                                    verbose = verbose)
+        
+        # Remove from table reaction rates that are either constant
+        # or NaN
+        if include_all:
+            react_list = list(range(len(coef)))
+        else:
+            react_list = []
+            for i, c in enumerate(coef):
+                if np.sum(np.isnan(c)) > 0 or \
+                    np.amax(c) - np.amin(c) == 0.0:
+                    continue
+                react_list.append(i)
+        coef = coef[react_list]
