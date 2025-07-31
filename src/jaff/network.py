@@ -818,3 +818,27 @@ class Network:
                     continue
                 react_list.append(i)
         coef = coef[react_list]
+
+        # For the reactions that we are including, grab the reaction
+        # type and stoichiometric coefficients
+        rtype = []
+        stoich = []
+        for i in react_list:
+            if self.reactions[i].guess_type() == 'unknown':
+                rtype.append('2_body')
+            else:
+                rtype.append(self.reactions[i].guess_type())
+            stoich_ = {}
+            for r in self.reactions[i].reactants:
+                if r.name in stoich_.keys():
+                    stoich_[r.name] -= 1
+                else:
+                    stoich_[r.name] = -1
+            for p in self.reactions[i].products:
+                if p.name in stoich_.keys():
+                    stoich_[p.name] += 1
+                else:
+                    stoich_[p.name] = 1
+            stoich.append(stoich_)
+
+        # Write output in appropriate format
