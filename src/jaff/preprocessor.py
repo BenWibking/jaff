@@ -74,7 +74,7 @@ class Preprocessor:
         fh.close()
 
         path_build = os.path.join(os.path.dirname(__file__), "builds")
-        fname_build = os.path.join(path_build, fname.split("/")[-1])
+        fname_build = os.path.join(path_build, os.path.basename(fname))
 
         print(f"Preprocessing {fname} -> {fname_build}")
         fout = open(fname_build, "w")
