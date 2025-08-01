@@ -7,6 +7,7 @@ import os
 from tqdm import tqdm
 import sympy
 from sympy import parse_expr, symbols, sympify, lambdify, srepr, Function
+import h5py
 from .parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, parse_uclchem, f90_convert
 from .fastlog import fast_log2, inverse_fast_log2
 from .photochemistry import Photochemistry
@@ -902,4 +903,38 @@ class Network:
                 fp.write("\n")
 
             # Close
+            fp.close()
+
+        elif out_type == 'hdf5':
+
+            # HDF5 output
+            fp = h5py.File(fname, mode='w')
+
+            # Create a group to contain the data
+            grp = fp.create_group('data')
+
+            # Store metadata in the attributes
+            grp.attrs['input_name_1'] = 'Temperature'
+            grp.attrs['input_unit_1'] = 'K'
+            grp.attrs['xlo_1'] = temp[0]
+            grp.attrs['xhi_1'] = temp[-1]
+            if fast_log:     # Spacing type
+                grp.attrs['spacing'] = np.array([2], dtype=np.uint32)
+            else:
+                grp.attrs['spacing'] = np.array([2], dtype=np.uint32)
+
+            # Store information on which reactions / rate coefficients
+            # are included
+            for i, rt, r, p in zip(range(len(rtype)), rtype, 
+                                   reactants, products):
+                grp.attrs['output_name_{:d}'.format(i)] = 'rate coeff'
+                grp.attrs['output_unit_{:d}'.format(i)] = 'cm^3 s^-1'
+                grp.attrs['reaction_{:d}_type'.format(i)] = str(rt)
+                grp.attrs['reaction_{:d}_reactants'.format(i)] = str(r)
+                grp.attrs['reaction_{:d}_products'.format(i)] = str(p)
+
+            # Create data set holding the coefficient table
+            dset = grp.create_dataset('data', data=coef)
+
+            # Close file
             fp.close()
