@@ -26,7 +26,7 @@ class Network:
         self.reactions = []
         self.rlist = self.plist = None
         self.file_name = fname
-        self.label = label if label else fname.split("/")[-1].split(".")[0]
+        self.label = label if label else os.path.basename(fname).split(".")[0]
 
         print("Loading network from %s" % fname)
         print("Network label = %s" % self.label)
@@ -41,6 +41,7 @@ class Network:
         self.check_unique_reactions(errors)
 
         self.generate_reactions_dict()
+        self.generate_reaction_matrices()
 
         print("All done!")
 
@@ -173,33 +174,54 @@ class Network:
 
             # -------------------- REACTIONS --------------------
             # determine the type of reaction line and parse it
-            if "->" in srow:
-                rr, pp, tmin, tmax, rate = parse_prizmo(srow)
-            elif ":" in srow:
-                rr, pp, tmin, tmax, rate = parse_udfa(srow)
-            elif srow.count(",") > 3 and not ",NAN," in srow:
-                rr, pp, tmin, tmax, rate = parse_krome(srow, krome_format)
-            elif ",NAN," in srow:
-                rr, pp, tmin, tmax, rate = parse_uclchem(srow)
-            else:
-                rr, pp, tmin, tmax, rate = parse_kida(srow)
+            try:
+                if "->" in srow:
+                    rr, pp, tmin, tmax, rate = parse_prizmo(srow)
+                elif ":" in srow:
+                    rr, pp, tmin, tmax, rate = parse_udfa(srow)
+                elif srow.count(",") > 3 and not ",NAN," in srow:
+                    rr, pp, tmin, tmax, rate = parse_krome(srow, krome_format)
+                elif ",NAN," in srow:
+                    rr, pp, tmin, tmax, rate = parse_uclchem(srow)
+                else:
+                    rr, pp, tmin, tmax, rate = parse_kida(srow)
+            except (ValueError, IndexError) as e:
+                print(f"WARNING: Skipping invalid line: {srow[:50]}... ({e})")
+                continue
 
             # use lowercase for rate
             rate = rate.lower().strip()
 
-            # parse the rate expression with sympy
-            if "photo" in rate:
-                # # parse photo-chemistry
-                # photo_args = rate.split(',')
-                # if len(photo_args) < 2:
-                #     photo_args.append(1e99)
-                # f = Function("photorates")
-                # rate = f(n_photo, photo_args[1]) #f"{photo_rates({n_photo},{photo_args[1]},{photo_args[2]})"
-                rate = "kphoto[#IDX#]"
-                n_photo += 1
+            # parse rate with sympy
+            # photo-chemistry
+            if("photo" in rate):
+                # Extract arguments from photo(arg1, arg2) format
+                import re
+                match = re.match(r'photo\((.*)\)', rate)
+                if match:
+                    args_str = match.group(1)
+                    photo_args = [arg.strip() for arg in args_str.split(',')]
+                    if len(photo_args) < 2:
+                        photo_args.append('1e99')
+                    f = Function("photorates")
+                    rate = f(n_photo, photo_args[0], photo_args[1])
+                    n_photo += 1
+                else:
+                    # Fallback to old parsing if regex fails
+                    photo_args = rate.split(',')
+                    if len(photo_args) < 3:
+                        photo_args.append(1e99)
+                    f = Function("photorates")
+                    rate = f(n_photo, photo_args[1], photo_args[2])
+                    n_photo += 1
             else:
                 # parse non-photo-chemistry rates
                 rate = parse_expr(rate, evaluate=False)
+                # If rate is just a single variable name that got parsed as a function,
+                # convert it to a symbol
+                if hasattr(rate, '__name__') and rate.__name__ in [v[0] for v in variables_sympy]:
+                    rate = symbols(rate.__name__)
+            print(rate)
 
             # use sympy to replace custom variables into the rate expression
             # note: reverse order to allow for nested variable replacement
@@ -211,9 +233,9 @@ class Network:
                     if type(rate) is not str:
                         rate = rate.subs(symbols(var), val)
 
-            if tmin is not None:
+            if tmin is not None and tmin > 0:
                 rate = rate.subs(symbols("tgas"), "max(tgas, %f)" % tmin)
-            if tmax is not None:
+            if tmax is not None and tmax > 0:
                 rate = rate.subs(symbols("tgas"), "min(tgas, %f)" % tmax)
 
             if type(rate) is not str:
@@ -407,6 +429,28 @@ class Network:
     # ****************
     def generate_reactions_dict(self):
         self.reactions_dict = {rea.get_verbatim(): i for i, rea in enumerate(self.reactions)}
+
+    # ****************
+    def generate_reaction_matrices(self):
+        """Generate reaction matrices (rlist and plist) for tracking reactants and products."""
+        n_reactions = len(self.reactions)
+        n_species = len(self.species)
+        
+        # Initialize matrices
+        self.rlist = np.zeros((n_reactions, n_species), dtype=int)
+        self.plist = np.zeros((n_reactions, n_species), dtype=int)
+        
+        # Fill matrices based on reactions
+        for i, reaction in enumerate(self.reactions):
+            # Count reactants
+            for reactant in reaction.reactants:
+                species_idx = reactant.index
+                self.rlist[i, species_idx] += 1
+            
+            # Count products  
+            for product in reaction.products:
+                species_idx = product.index
+                self.plist[i, species_idx] += 1
 
     # ****************
     def get_reaction_verbatim(self, idx):
