@@ -1,0 +1,13 @@
+# ABOUTME: Malformed network file for testing error handling
+# ABOUTME: Contains various malformed lines to test parser robustness
+
+# Mix of different formats and malformed lines
+H + H + H -> H2 + H : missing_rate_expression
+INVALID:COLON:FORMAT:WITHOUT:ENOUGH:FIELDS
+,,,,,COMMA,SEPARATED,BUT,WRONG
+This is just plain text
+H2      + + + ERROR                            H       + H                                        1.00e-11  0.00    0.0
+@format:wrong,format,specification
+VARIABLES{
+  unclosed variable block
+  x = 1.0

@@ -51,7 +51,7 @@ def parse_udfa(line):
     ka, kb, kc = [float(x) for x in arow[9:12]]
     tmin, tmax = [float(x) for x in arow[12:14]]
 
-    if tmin <= 1e1:
+    if tmin <= 0e0:
         tmin = None
     if tmax >= 41000.:
         tmax = None
@@ -85,9 +85,14 @@ def parse_kida(line):
 
     srow = line
 
-    rr = srow[:products_pos].split()
-    pp = srow[products_pos:a_pos].split()
+    rr = [x for x in srow[:products_pos].split() if x != '+']
+    pp = [x for x in srow[products_pos:a_pos].split() if x != '+']
     arow = srow[a_pos:].split()
+    
+    # Check if we have enough fields
+    if len(arow) < 10:
+        raise ValueError(f"Invalid KIDA format: insufficient fields in line: {line}")
+    
     ka, kb, kc = [float(x) for x in arow[:3]]
     formula = int(arow[9])
     tmin = float(arow[7])

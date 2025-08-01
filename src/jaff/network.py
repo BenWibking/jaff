@@ -5,7 +5,9 @@ import sys
 import re
 import os
 from tqdm import tqdm
+import sympy
 from sympy import parse_expr, symbols, sympify, lambdify, srepr, Function
+import h5py
 from .parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, parse_uclchem, f90_convert
 from .fastlog import fast_log2, inverse_fast_log2
 from .photochemistry import Photochemistry
@@ -26,7 +28,7 @@ class Network:
         self.reactions = []
         self.rlist = self.plist = None
         self.file_name = fname
-        self.label = label if label else fname.split("/")[-1].split(".")[0]
+        self.label = label if label else os.path.basename(fname).split(".")[0]
 
         print("Loading network from %s" % fname)
         print("Network label = %s" % self.label)
@@ -41,6 +43,7 @@ class Network:
         self.check_unique_reactions(errors)
 
         self.generate_reactions_dict()
+        self.generate_reaction_matrices()
 
         print("All done!")
 
@@ -173,33 +176,54 @@ class Network:
 
             # -------------------- REACTIONS --------------------
             # determine the type of reaction line and parse it
-            if "->" in srow:
-                rr, pp, tmin, tmax, rate = parse_prizmo(srow)
-            elif ":" in srow:
-                rr, pp, tmin, tmax, rate = parse_udfa(srow)
-            elif srow.count(",") > 3 and not ",NAN," in srow:
-                rr, pp, tmin, tmax, rate = parse_krome(srow, krome_format)
-            elif ",NAN," in srow:
-                rr, pp, tmin, tmax, rate = parse_uclchem(srow)
-            else:
-                rr, pp, tmin, tmax, rate = parse_kida(srow)
+            try:
+                if "->" in srow:
+                    rr, pp, tmin, tmax, rate = parse_prizmo(srow)
+                elif ":" in srow:
+                    rr, pp, tmin, tmax, rate = parse_udfa(srow)
+                elif srow.count(",") > 3 and not ",NAN," in srow:
+                    rr, pp, tmin, tmax, rate = parse_krome(srow, krome_format)
+                elif ",NAN," in srow:
+                    rr, pp, tmin, tmax, rate = parse_uclchem(srow)
+                else:
+                    rr, pp, tmin, tmax, rate = parse_kida(srow)
+            except (ValueError, IndexError) as e:
+                print(f"WARNING: Skipping invalid line: {srow[:50]}... ({e})")
+                continue
 
             # use lowercase for rate
             rate = rate.lower().strip()
 
-            # parse the rate expression with sympy
-            if "photo" in rate:
-                # # parse photo-chemistry
-                # photo_args = rate.split(',')
-                # if len(photo_args) < 2:
-                #     photo_args.append(1e99)
-                # f = Function("photorates")
-                # rate = f(n_photo, photo_args[1]) #f"{photo_rates({n_photo},{photo_args[1]},{photo_args[2]})"
-                rate = "kphoto[#IDX#]"
-                n_photo += 1
+            # parse rate with sympy
+            # photo-chemistry
+            if("photo" in rate):
+                # Extract arguments from photo(arg1, arg2) format
+                import re
+                match = re.match(r'photo\((.*)\)', rate)
+                if match:
+                    args_str = match.group(1)
+                    photo_args = [arg.strip() for arg in args_str.split(',')]
+                    if len(photo_args) < 2:
+                        photo_args.append('1e99')
+                    f = Function("photorates")
+                    rate = f(n_photo, photo_args[0], photo_args[1])
+                    n_photo += 1
+                else:
+                    # Fallback to old parsing if regex fails
+                    photo_args = rate.split(',')
+                    if len(photo_args) < 3:
+                        photo_args.append(1e99)
+                    f = Function("photorates")
+                    rate = f(n_photo, photo_args[1], photo_args[2])
+                    n_photo += 1
             else:
                 # parse non-photo-chemistry rates
                 rate = parse_expr(rate, evaluate=False)
+                # If rate is just a single variable name that got parsed as a function,
+                # convert it to a symbol
+                if hasattr(rate, '__name__') and rate.__name__ in [v[0] for v in variables_sympy]:
+                    rate = symbols(rate.__name__)
+            print(rate)
 
             # use sympy to replace custom variables into the rate expression
             # note: reverse order to allow for nested variable replacement
@@ -211,9 +235,9 @@ class Network:
                     if type(rate) is not str:
                         rate = rate.subs(symbols(var), val)
 
-            if tmin is not None:
+            if tmin is not None and tmin > 0:
                 rate = rate.subs(symbols("tgas"), "max(tgas, %f)" % tmin)
-            if tmax is not None:
+            if tmax is not None and tmax > 0:
                 rate = rate.subs(symbols("tgas"), "min(tgas, %f)" % tmax)
 
             if type(rate) is not str:
@@ -409,6 +433,28 @@ class Network:
         self.reactions_dict = {rea.get_verbatim(): i for i, rea in enumerate(self.reactions)}
 
     # ****************
+    def generate_reaction_matrices(self):
+        """Generate reaction matrices (rlist and plist) for tracking reactants and products."""
+        n_reactions = len(self.reactions)
+        n_species = len(self.species)
+        
+        # Initialize matrices
+        self.rlist = np.zeros((n_reactions, n_species), dtype=int)
+        self.plist = np.zeros((n_reactions, n_species), dtype=int)
+        
+        # Fill matrices based on reactions
+        for i, reaction in enumerate(self.reactions):
+            # Count reactants
+            for reactant in reaction.reactants:
+                species_idx = reactant.index
+                self.rlist[i, species_idx] += 1
+            
+            # Count products  
+            for product in reaction.products:
+                species_idx = product.index
+                self.plist[i, species_idx] += 1
+
+    # ****************
     def get_reaction_verbatim(self, idx):
         return self.reactions[idx].get_verbatim()
 
@@ -508,7 +554,33 @@ class Network:
         sys.exit(1)
 
     # *****************
-    def get_table(self, T_min, T_max,
+    def get_species_by_serialized(self, serialized):
+        for sp in self.species:
+            if sp.serialized == serialized:
+                return sp
+        print("ERROR: species with serialized %s not found" % serialized)
+        sys.exit(1)
+
+    # *****************
+    def get_reaction_by_serialized(self, serialized):
+        for sp in self.reactions:
+            if sp.serialized == serialized:
+                return sp
+        print("ERROR: reaction with serialized %s not found" % serialized)
+        sys.exit(1)
+
+    # *****************
+    def get_reaction_by_verbatim(self, verbatim, rtype=None):
+
+        for rea in self.reactions:
+            if rea.get_verbatim() == verbatim:
+                if rtype is None or rea.guess_type() == rtype:
+                    return rea
+        print("ERROR: reaction with verbatim '%s' not found" % verbatim)
+        sys.exit(1)
+
+    # *****************
+    def get_table(self, T_min = None, T_max = None,
                   nT = 64, err_tol = 0.01,
                   rate_min = 1e-30, rate_max = 1e100,
                   fast_log = False, verbose = False):
@@ -518,10 +590,14 @@ class Network:
 
         Parameters
         ----------
-            T_min : float
-                minimum temperature for the tabulation
-            T_max : float
-                maximum temperature for the tabulation
+            T_min : float or None
+                minimum temperature for the tabulation; if left as None,
+                will be set to the minimum temperature over reactions in
+                the network
+            T_max : float or None
+                maximum temperature for the tabulation; if left as None,
+                will be set to the maximum temperature over reactions in
+                the network
             nT : int
                 initial guess for number of sampling temperatures
             err_tol : float or None
@@ -570,6 +646,17 @@ class Network:
             is below tolerance.
         """
 
+        # Get min and max temperature if not provided
+        if T_min is None:
+            T_min = np.nanmin([r.tmin if r.tmin is not None else np.nan 
+                               for r in self.reactions])
+        if T_max is None:
+            T_max = np.nanmax([r.tmax if r.tmax is not None else np.nan 
+                               for r in self.reactions])
+        if T_min is None or T_max is None:
+            raise ValueError("could not determine T_min or T_max from "
+                             "reaction list; set T_min and T_max manually")
+
         # First step: for each reaction, create a sympy object we can
         # use to substitute to get an expression in terms of the
         # primitive variables
@@ -588,7 +675,7 @@ class Network:
             if len(r.free_symbols) == 0:
                 # Reaction rates that are just constants; in this
                 # case just copy that constant to the list of functions
-                react_func.append(float(r))
+                react_func.append(np.log(float(r)))
             elif (len(r.free_symbols) > 1) or \
                 (symbols('tgas') not in r.free_symbols) or \
                 ('Function' in srepr(r)):
@@ -598,8 +685,12 @@ class Network:
                 # tabulate, so just store None
                 react_func.append(None)
             else:
-                # Case of reactions that depend only on temperature
-                react_func.append(lambdify(symbols('tgas'), r, 'numpy'))
+                # Case of reactions that depend only on temperature; to
+                # avoid overflows we will take the log of the rate function
+                # and expand it before converting to numpy, and then we will
+                # exponentiate at the very end
+                logr = sympy.expand_log(sympy.log(r))
+                react_func.append(lambdify(symbols('tgas'), logr, 'numpy'))
 
         # Fourth step: generate rate coefficient table for initial guess
         # table size
@@ -612,15 +703,20 @@ class Network:
             log_temp_max = fast_log2(T_max)
             log_temp = np.linspace(log_temp_min, log_temp_max, nTemp)
             temp = inverse_fast_log2(log_temp)
-        rates = np.zeros((len(react_func), nTemp))
+        log_rates = np.zeros((len(react_func), nTemp))
         for i, f in enumerate(react_func):
-            if type(f) is float:
-                rates[i,:] = f
+            if isinstance(f, float):
+                log_rates[i,:] = f
             elif f is None:
-                rates[i,:] = np.nan
+                log_rates[i,:] = np.nan
             else:
-                rates[i,:] = np.clip(f(temp),
-                                     a_min = None, a_max = rate_max)
+                # Note: it would be much faster to do this via an array operation
+                # rather than a list comprehension, but sympy (as of v1.13) does
+                # not consistently generate numpy expressions that work properly
+                # with vector inputs, so restricting the input to scalars is safer.
+                f_eval = np.array([f(t) for t in temp])
+                log_rates[i,:] = np.clip(f_eval,
+                                         a_min = None, a_max = rate_max)
 
         # Fifth step: do adaptive growth of table
         if err_tol is not None:
@@ -637,31 +733,35 @@ class Network:
                     log_temp_lo = fast_log2(temp[:-1])
                     log_temp_hi = fast_log2(temp[1:])
                     temp_grow[1::2] = inverse_fast_log2(0.5 * (log_temp_lo + log_temp_hi))
-                rates_grow = np.zeros((len(react_func), nTemp))
-                rates_grow[:,::2] = rates
-                rates_approx = np.zeros((len(react_func), (nTemp-1)//2))
+                log_rates_grow = np.zeros((len(react_func), nTemp))
+                log_rates_grow[:,::2] = log_rates
+                log_rates_approx = np.zeros((len(react_func), (nTemp-1)//2))
                 for i, f in enumerate(react_func):
-                    if type(f) is float:
-                        rates_grow[i,1::2] = f
-                        rates_approx[i,:] = f
+                    if isinstance(f, float):
+                        log_rates_grow[i,1::2] = np.log(f)
+                        log_rates_approx[i,:] = np.log(f)
                     elif f is None:
-                        rates_grow[i,1::2] = np.nan
-                        rates_approx[i,:] = np.nan
+                        log_rates_grow[i,1::2] = np.nan
+                        log_rates_approx[i,:] = np.nan
                     else:
-                        rates_grow[i,1::2] = np.clip(f(temp_grow[1::2]),
-                                                     a_min = None,
-                                                     a_max = rate_max)
-                        rates_approx[i,:] = np.sqrt(rates_grow[i,:-1:2] *
-                                                    rates_grow[i,2::2])
+                        # See comment above about why we're using a list comprehension
+                        # here instead of a straight array operation
+                        f_eval = np.array([f(t) for t in temp_grow[1::2]])
+                        log_rates_grow[i,1::2] = np.clip(f_eval,
+                                                         a_min = None,
+                                                         a_max = rate_max)
+                        log_rates_approx[i,:] = 0.5 * \
+                            (log_rates_grow[i,:-1:2] +  
+                             log_rates_grow[i,2::2])
 
                 # Copy new estimates to current ones
                 temp = temp_grow
-                rates = rates_grow
+                log_rates = log_rates_grow
 
                 # Make error estimate
                 rel_err = np.abs(
-                    (rates_approx - rates[:,1::2]) /
-                    (rates[:,1::2] + rate_min ) )
+                    (np.exp(log_rates_approx) - np.exp(log_rates[:,1::2])) /
+                    (np.exp(log_rates[:,1::2]) + rate_min ) )
                 max_err = np.nanmax(rel_err)
 
                 # Print output if verbose
@@ -678,30 +778,207 @@ class Network:
                     break
 
         # Return final table
-        return temp, rates
+        return temp, np.exp(log_rates)
 
     # *****************
-    def get_species_by_serialized(self, serialized):
-        for sp in self.species:
-            if sp.serialized == serialized:
-                return sp
-        print("ERROR: species with serialized %s not found" % serialized)
-        sys.exit(1)
+    def write_table(self, fname, T_min = None, T_max = None,
+                    nT = 64, err_tol = 0.01,
+                    rate_min = 1e-30, rate_max = 1e100,
+                    fast_log = False, format = 'auto',
+                    include_all = False, verbose = False):
+        """
+        Write a tabulation of rate coefficients as a function of
+        temperature for all reactions.
 
-    # *****************
-    def get_reaction_by_serialized(self, serialized):
-        for sp in self.reactions:
-            if sp.serialized == serialized:
-                return sp
-        print("ERROR: reaction with serialized %s not found" % serialized)
-        sys.exit(1)
+        Parameters
+        ----------
+            fname : string
+                name of output file
+            T_min : float or None
+                minimum temperature for the tabulation; if left as None,
+                will be set to the minimum temperature over reactions in
+                the network
+            T_max : float or None
+                maximum temperature for the tabulation; if left as None,
+                will be set to the maximum temperature over reactions in
+                the network
+            nT : int
+                initial guess for number of sampling temperatures
+            err_tol : float or None
+                relative error tolerance for interpolation; if set to
+                None, adaptive resampling is disabled and the table size
+                will be exactly nT
+            rate_min : float
+                adaptive error tolerance is not applied to rates below
+                rate_min
+            rate_max : float
+                rataes above rate_max are clipped to rate_max to prevent
+                overflow
+            fast_log : bool
+                if True, sample points are equally spaced in fast_log2(T)
+                rather than log(T)
+            format : 'auto' | 'txt' | 'hdf5'
+                output format; if set to 'auto', format will be guessed from
+                extension of fname, otherwise output will be set to either
+                text for hdf5 format
+            include_all : bool
+                if True, the output table will contain all reactions, with
+                entries for rate coefficients that cannot be tabulated
+                just as a function of temperature set to NaN; if False,
+                the output table only includes coefficients that can be
+                tabulated and are non-constant
+            verbose : bool
+                if True, produce verbose output while adaptively refining
 
-    # *****************
-    def get_reaction_by_verbatim(self, verbatim, rtype=None):
+        Returns
+        -------
+            Nothing
 
-        for rea in self.reactions:
-            if rea.get_verbatim() == verbatim:
-                if rtype is None or rea.guess_type() == rtype:
-                    return rea
-        print("ERROR: reaction with verbatim '%s' not found" % verbatim)
-        sys.exit(1)
+        Raises
+        ------
+            ValueError
+                if format is set to 'auto' and the extension is of fname
+                is not 'txt', 'hdf', or 'hdf5'
+            IOError
+                if the output fille cannot be opened
+
+        Notes
+        -----
+            See notes to get_table for details on how temperature sampling
+            and error tolerance is handled.
+        """
+
+        # Deduce output format
+        if format == 'txt':
+            out_type = 'txt'
+        elif format == 'hdf5':
+            out_type = 'hdf5'
+        elif format == 'auto':
+            if os.path.splitext(fname)[1] == ".txt":
+                out_type = 'txt'
+            elif os.path.splitext(fname)[1] == '.hdf5' \
+                or os.path.splitext(fname)[1] == '.hdf':
+                out_type = 'hdf5'
+            else:
+                raise ValueError("cannot deduce output type from "
+                                 "extension {:s}".format(
+                                     os.path.splitext(fname)
+                                 ))
+        else:
+            raise ValueError("unknown output format {:s}".
+                             format(str(format)))
+        
+        # Get rate coefficients
+        temp, coef = self.get_table(T_min = T_min, T_max = T_max, 
+                                    nT = nT, err_tol = err_tol, 
+                                    rate_min = rate_min,
+                                    rate_max = rate_max,
+                                    fast_log = fast_log,
+                                    verbose = verbose)
+        
+        # Remove from table reaction rates that are either constant
+        # or NaN
+        if include_all:
+            react_list = list(range(len(coef)))
+        else:
+            react_list = []
+            for i, c in enumerate(coef):
+                if np.sum(np.isnan(c)) > 0 or \
+                    np.amax(c) - np.amin(c) == 0.0:
+                    continue
+                react_list.append(i)
+        coef = coef[react_list]
+
+        # For the reactions that we are including, grab the reaction
+        # type and lists of reactants and products
+        rtype = []
+        reactants = []
+        products = []
+        for i in react_list:
+            if self.reactions[i].guess_type() == 'unknown':
+                rtype.append('2_body')
+            else:
+                rtype.append(self.reactions[i].guess_type())
+            reactants_ = {}
+            for r in self.reactions[i].reactants:
+                if r.name in reactants_.keys():
+                    reactants_[r.name] += 1
+                else:
+                    reactants_[r.name] = 1
+            reactants.append(reactants_)
+            products_ = {}
+            for p in self.reactions[i].products:
+                if p.name in products_.keys():
+                    products_[p.name] += 1
+                else:
+                    products_[p.name] = 1
+            products.append(products_)
+
+        # Write output in appropriate format
+        if out_type == 'txt':
+
+            # Text output
+            fp = open(fname, 'w')
+
+            # Write header
+            fp.write("# JAFF auto-generated rate coefficient table\n")
+            fp.write("# Network name: {:s}\n".format(self.label))
+            fp.write("# Reactions included\n")
+            fp.write("#   (reactants) (products) (reaction type)\n")
+            for rt, r, p in zip(rtype, reactants, products):
+                fp.write("#   {:s} {:s} {:s}\n".format(
+                    repr(r), repr(p), rt))
+
+            # Write data in quokka table format
+            fp.write("1\n")                       # Table is 1d
+            fp.write("{:d}\n".format(len(coef)))  # N outputs per table entry
+            if fast_log:
+                fp.write("3\n")                   # Table is uniform in fast_log
+            else:
+                fp.write("2\n")                   # Table is uniform in log
+            fp.write("{:d}\n".format(len(temp)))  # Number of temperature entries
+            fp.write("{:e} {:e}\n".
+                     format(temp[0], temp[-1]))   # Min/max temperature
+
+            # Now write the data
+            for c in coef:
+                for c_ in c:
+                    fp.write("{:e} ".format(c_))
+                fp.write("\n")
+
+            # Close
+            fp.close()
+
+        elif out_type == 'hdf5':
+
+            # HDF5 output
+            fp = h5py.File(fname, mode='w')
+
+            # Create a group to contain the data
+            grp = fp.create_group('data')
+
+            # Store metadata in the attributes
+            grp.attrs['input_name_1'] = 'Temperature'
+            grp.attrs['input_unit_1'] = 'K'
+            grp.attrs['xlo_1'] = temp[0]
+            grp.attrs['xhi_1'] = temp[-1]
+            if fast_log:     # Spacing type
+                grp.attrs['spacing'] = np.array([2], dtype=np.uint32)
+            else:
+                grp.attrs['spacing'] = np.array([2], dtype=np.uint32)
+
+            # Store information on which reactions / rate coefficients
+            # are included
+            for i, rt, r, p in zip(range(len(rtype)), rtype, 
+                                   reactants, products):
+                grp.attrs['output_name_{:d}'.format(i)] = 'rate coeff'
+                grp.attrs['output_unit_{:d}'.format(i)] = 'cm^3 s^-1'
+                grp.attrs['reaction_{:d}_type'.format(i)] = str(rt)
+                grp.attrs['reaction_{:d}_reactants'.format(i)] = str(r)
+                grp.attrs['reaction_{:d}_products'.format(i)] = str(p)
+
+            # Create data set holding the coefficient table
+            dset = grp.create_dataset('data', data=coef)
+
+            # Close file
+            fp.close()
