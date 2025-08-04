@@ -126,9 +126,16 @@ def parse_myformat(line):
 Update the format detection logic in `network.py` (around line 170):
 
 ```python
-# Add detection for your format
+# Example format detection logic (add to existing if/elif chain)
+if "kida_marker" in srow:
+    rr, pp, tmin, tmax, rate = parse_kida(srow)
+elif "udfa_marker" in srow:
+    rr, pp, tmin, tmax, rate = parse_udfa(srow)
 elif "myformat_marker" in srow:
     rr, pp, tmin, tmax, rate = parse_myformat(srow)
+else:
+    # Default fallback
+    continue
 ```
 
 ### 3. Add Tests

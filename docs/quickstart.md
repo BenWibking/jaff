@@ -36,14 +36,14 @@ for i, reaction in enumerate(network.reactions):
     print(f"Reaction {i+1}: {reaction}")
 
 # Get reaction by its string representation
-reaction_idx = network.get_reaction_index("CO + H+ -> HCO+ + photon")
+reaction_idx = network.get_reaction_index("CO + H+ -> HCO+")
 ```
 
 ### Generating Rate Tables
 
 ```python
 # Create a temperature-dependent rate table
-rates = network.get_table(
+temp, rates = network.get_table(
     T_min=10,      # Minimum temperature (K)
     T_max=1000,    # Maximum temperature (K) 
     nT=64,         # Number of temperature points

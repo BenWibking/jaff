@@ -10,7 +10,7 @@ The main class for loading and working with chemical networks.
 from jaff import Network
 
 # Initialize a network
-network = Network(fname, errors=False, label=None)
+network = Network("networks/react_COthin", errors=False, label=None)
 ```
 
 **Parameters:**
@@ -44,7 +44,7 @@ reactions_list = network.reactions
 n_reactions = len(network.reactions)
 
 # Get reaction by verbatim string
-idx = network.get_reaction_index("CO + H+ -> HCO+ + photon")
+idx = network.get_reaction_index("CO + H+ -> HCO+")
 ```
 
 ### Rate Table Generation
@@ -95,8 +95,8 @@ The HDF5 format follows the Quokka table standard with proper metadata attribute
 Compare two networks:
 
 ```python
-network1 = Network("file1.dat")
-network2 = Network("file2.dat")
+network1 = Network("networks/react_COthin")
+network2 = Network("networks/react_COthin")
 
 # Compare reactions
 network1.compare_reactions(network2, verbosity=1)
@@ -110,7 +110,7 @@ network1.compare_species(network2, verbosity=1)
 Individual species objects have these attributes:
 
 ```python
-species = network.get_species_object("H2O")
+species = network.get_species_object("CO")
 
 print(species.name)        # Species name
 print(species.mass)        # Molecular mass
@@ -138,7 +138,7 @@ print(reaction.tmax)       # Maximum temperature (if set)
 
 ```python
 # Get LaTeX representation of species
-latex_str = network.get_latex("H2O", dollars=True)
+latex_str = network.get_latex("CO", dollars=True)
 
 # Get reaction verbatim string
 verbatim = network.get_reaction_verbatim(idx)

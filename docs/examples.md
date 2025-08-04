@@ -13,6 +13,8 @@ print(f"Loaded {len(network.reactions)} reactions")
 
 ### PRIZMO Format  
 ```python
+from jaff import Network
+
 # PRIZMO networks use -> separator and VARIABLES{} blocks
 network = Network("networks/prizmo_network.dat")
 
@@ -23,6 +25,8 @@ for reaction in network.reactions:
 
 ### KROME Format
 ```python
+from jaff import Network
+
 # KROME networks use comma separation with @format headers
 network = Network("networks/krome_network.dat") 
 
@@ -34,6 +38,8 @@ print("Variables found:", [str(s) for s in network.reactions[0].rate.free_symbol
 
 ### Basic Properties
 ```python
+from jaff import Network
+
 network = Network("networks/react_COthin")
 
 # Find all carbon-bearing species
@@ -47,8 +53,12 @@ print(f"Found {len(carbon_species)} carbon-bearing species")
 
 ### Mass and Charge Distribution
 ```python
+from jaff import Network
 import matplotlib.pyplot as plt
 import numpy as np
+
+# Load network
+network = Network("networks/react_COthin")
 
 # Plot mass distribution
 masses = [s.mass for s in network.species]
@@ -72,8 +82,13 @@ plt.show()
 
 ### Rate Coefficient Tables
 ```python
+from jaff import Network
+
+# Load network
+network = Network("networks/react_COthin")
+
 # Generate rate table for temperature range
-rates = network.get_table(
+temp, rates = network.get_table(
     T_min=10,      # 10 K
     T_max=1000,    # 1000 K
     nT=100,        # 100 temperature points
@@ -82,23 +97,24 @@ rates = network.get_table(
 )
 
 print(f"Rate table shape: {rates.shape}")
-print(f"Temperature range: 10 - 1000 K")
+print(f"Temperature range: {temp[0]:.1f} - {temp[-1]:.1f} K")
 ```
 
 ### Temperature-Dependent Plotting
 ```python
+from jaff import Network
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Temperature grid
-T = np.logspace(1, 3, 100)  # 10 - 1000 K
+# Load network
+network = Network("networks/react_COthin")
 
 # Get rates for specific reaction
-reaction_idx = 5
-rates = network.get_table(T_min=10, T_max=1000, nT=100)
+reaction_idx = 2  # Use reaction index 2 since we only have 3 reactions
+temp, rates = network.get_table(T_min=10, T_max=1000, nT=100)
 reaction_rates = rates[reaction_idx, :]
 
-plt.loglog(T, reaction_rates)
+plt.loglog(temp, reaction_rates)
 plt.xlabel('Temperature (K)')
 plt.ylabel('Rate Coefficient (cm³/s)')
 plt.title(f'Reaction: {network.reactions[reaction_idx]}')
@@ -109,6 +125,8 @@ plt.show()
 
 ### Compare Two Networks
 ```python
+from jaff import Network
+
 # Load two different networks
 network1 = Network("networks/react_COthin")
 network2 = Network("networks/react_popsicle_semenov")

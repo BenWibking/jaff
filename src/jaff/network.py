@@ -812,7 +812,7 @@ class Network:
                 max_err = np.nanmax(rel_err)
 
                 # Print output if verbose
-                if verbose:
+                if verbose and not np.isnan(max_err):
                     idx_max = np.unravel_index(np.nanargmax(rel_err),
                                                rel_err.shape)
                     print("nTemp = {:d}, max_err = {:f} in reaction {:s} at T = {:e}".
@@ -821,7 +821,7 @@ class Network:
                                  temp[idx_max[1]]))
 
                 # Check for convergence
-                if max_err < err_tol:
+                if np.isnan(max_err) or max_err < err_tol:
                     break
 
         # Return final table
