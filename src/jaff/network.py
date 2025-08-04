@@ -955,27 +955,31 @@ class Network:
             fp = h5py.File(fname, mode='w')
 
             # Create a group to contain the data
-            grp = fp.create_group('data')
+            grp = fp.create_group('reaction_coeff')
 
             # Store metadata in the attributes
-            grp.attrs['input_name_1'] = 'Temperature'
-            grp.attrs['input_unit_1'] = 'K'
-            grp.attrs['xlo_1'] = temp[0]
-            grp.attrs['xhi_1'] = temp[-1]
+            grp.attrs['input_names'] = ['temperature']
+            grp.attrs['input_units'] = ['K']
+            grp.attrs['xlo'] = np.array([temp[0]])
+            grp.attrs['xhi'] = np.array([temp[-1]])
             if fast_log:     # Spacing type
-                grp.attrs['spacing'] = np.array([2], dtype=np.uint32)
+                grp.attrs['spacing'] = ['fast_log']
             else:
-                grp.attrs['spacing'] = np.array([2], dtype=np.uint32)
+                grp.attrs['spacing'] = ['log']
 
             # Store information on which reactions / rate coefficients
             # are included
+            output_names = []
+            output_units = []
             for i, rt, r, p in zip(range(len(rtype)), rtype, 
                                    reactants, products):
-                grp.attrs['output_name_{:d}'.format(i)] = 'rate coeff'
-                grp.attrs['output_unit_{:d}'.format(i)] = 'cm^3 s^-1'
-                grp.attrs['reaction_{:d}_type'.format(i)] = str(rt)
-                grp.attrs['reaction_{:d}_reactants'.format(i)] = str(r)
-                grp.attrs['reaction_{:d}_products'.format(i)] = str(p)
+                output_names.append(
+                    '{:s} rate coefficient: {:s} --> {:s}'.
+                    format(str(rt), str(r), str(p))
+                )
+                output_units.append('cm^3 s^-1')
+            grp.attrs['output_names'] = output_names
+            grp.attrs['output_units'] = output_units
 
             # Create data set holding the coefficient table
             dset = grp.create_dataset('data', data=coef)
