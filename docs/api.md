@@ -52,18 +52,43 @@ idx = network.get_reaction_index("CO + H+ -> HCO+ + photon")
 Generate temperature-dependent rate coefficient tables:
 
 ```python
-rates = network.get_table(
+temps, rates = network.get_table(
     T_min=10,           # Minimum temperature (K)
     T_max=1000,         # Maximum temperature (K)  
     nT=64,              # Initial number of temperature points
     err_tol=0.01,       # Relative error tolerance
     rate_min=1e-30,     # Minimum rate for error calculation
     rate_max=1e100,     # Maximum rate (clipped)
+    fast_log=False,     # Use fast_log2 sampling (default: False)
     verbose=False       # Print adaptive refinement info
 )
 ```
 
-**Returns:** `numpy.ndarray` with shape `(n_reactions, n_temperatures)`
+**Returns:** 
+- `temps`: `numpy.ndarray` of temperature values (K)
+- `rates`: `numpy.ndarray` with shape `(n_reactions, n_temperatures)`
+
+### Table Export
+
+Export rate tables to disk in text or HDF5 format:
+
+```python
+network.write_table(
+    fname="rates.hdf5",    # Output filename (.txt or .hdf5/.hdf)
+    T_min=10,              # Minimum temperature (K)
+    T_max=1000,            # Maximum temperature (K)
+    nT=64,                 # Initial number of temperature points
+    err_tol=0.01,          # Relative error tolerance
+    rate_min=1e-30,        # Minimum rate for error calculation
+    rate_max=1e100,        # Maximum rate (clipped)
+    fast_log=False,        # Use fast_log2 sampling
+    format='auto',         # 'auto', 'txt', or 'hdf5'
+    include_all=False,     # Include non-tabulated reactions as NaN
+    verbose=False          # Print adaptive refinement info
+)
+```
+
+The HDF5 format follows the Quokka table standard with proper metadata attributes.
 
 ### Network Comparison
 
@@ -132,3 +157,53 @@ Rate expressions can contain these primitive variables:
 - `ntot`: Total number density (cm⁻³)
 - `hnuclei`: H nuclei number density (cm⁻³)
 - `d2g`: Dust-to-gas mass ratio
+
+## Code Generation
+
+Generate ODE solver code from a network:
+
+```python
+from jaff.builder import Builder
+
+# Create builder instance
+builder = Builder(network)
+
+# Generate Python solver code
+builder.build(template="python_solve_ivp")
+
+# Generate Fortran solver code
+builder.build(template="fortran_dlsodes")
+```
+
+Generated code is placed in the `builds/` directory.
+
+## Photochemistry
+
+Access photochemical cross-section data:
+
+```python
+from jaff.photochemistry import Photochemistry
+
+# Initialize photochemistry module
+photo = Photochemistry()
+
+# Get cross-section data for a reaction
+data = photo.get_xsec(reaction)
+# Returns dict with keys: 'energy' (erg), 'xsecs' (cm²)
+```
+
+Cross-section data files should be placed in `data/xsecs/` in Leiden database format.
+
+## Fast Logarithm Functions
+
+For performance-optimized temperature sampling:
+
+```python
+from jaff.fastlog import fast_log2, inverse_fast_log2
+
+# Fast approximation of log2(x)
+y = fast_log2(100.0)
+
+# Inverse function (machine precision)
+x = inverse_fast_log2(y)
+```

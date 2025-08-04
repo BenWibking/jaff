@@ -34,6 +34,9 @@ nav:
     - Supported Formats: formats.md
     - Command Line Interface: cli.md
     - Python API: api.md
+    - Table Export: table-export.md
+    - Code Generation: code-generation.md
+    - Photochemistry: photochemistry.md
   - API Reference:
     - Network: reference/network.md
     - Parsers: reference/parsers.md
