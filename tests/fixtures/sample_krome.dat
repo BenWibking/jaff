@@ -1,0 +1,16 @@
+# ABOUTME: Sample KROME format network file for testing
+# ABOUTME: Contains reactions in KROME comma-separated format
+
+# Sample KROME network file
+@format:idx,R,R,R,P,P,P,P,tmin,tmax,rate
+@var:inv_tgas = 1.0/tgas
+@var:t32 = tgas/3e2
+
+# idx,R1,R2,R3,P1,P2,P3,P4,tmin,tmax,rate
+1,H,H,H,H2,H,,,10,1000,5.0e-30
+2,H2,PHOTON,,H,H,,,10,3000,1.0e-11
+3,H,e-,,H-,PHOTON,,,10,10000,3.0e-16
+4,H+,e-,,H,,,,10,10000,2.59e-13*(tgas/300)**(-0.7)
+5,O,H,,OH,,,,10,41000,9.9e-11*t32**(-0.38)
+# Test with inv_tgas variable
+6,C+,H2,,CH+,H,,,10,41000,1.0e-10*exp(-4640*inv_tgas)

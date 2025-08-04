@@ -1,0 +1,10 @@
+# ABOUTME: Sample UCLCHEM format network file for testing
+# ABOUTME: Contains reactions in UCLCHEM comma-separated format with NAN marker
+
+# Sample UCLCHEM network file
+# Format: comma-separated with ,NAN, marker
+H,H,H,NAN,H2,H,NAN,NAN,5.00e-30,0.00,0.0,10,1000,1
+H2,PHOTON,NAN,NAN,H,H,NAN,NAN,1.00e-11,0.00,0.0,10,3000,2
+H,e-,NAN,NAN,H-,PHOTON,NAN,NAN,3.00e-16,0.00,0.0,10,10000,3
+H+,e-,NAN,NAN,H,NAN,NAN,NAN,2.59e-13,-0.70,0.0,10,10000,4
+O,H,NAN,NAN,OH,NAN,NAN,NAN,9.90e-11,-0.38,0.0,10,41000,5

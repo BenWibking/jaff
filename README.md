@@ -29,14 +29,8 @@ After installation, you can use the `jaff` command:
 # Load and validate a network file
 jaff networks/gas_reactions_kida.uva.2024.in
 
-# Check mass and charge conservation
-jaff networks/react_COthin --check-mass --check-charge
-
 # List all species and reactions
 jaff networks/test.dat --list-species --list-reactions
-
-# Exit on validation errors
-jaff network_file.dat --errors
 ```
 
 ### Python API Usage
@@ -45,7 +39,7 @@ jaff network_file.dat --errors
 from jaff import Network
 
 # Load a chemical network
-network = Network("path/to/network_file.dat")
+network = Network("networks/react_COthin")
 
 # Access species
 for species in network.species:
@@ -53,14 +47,7 @@ for species in network.species:
 
 # Access reactions
 for reaction in network.reactions:
-    print(f"{reaction}")
-    
-# Check conservation laws
-network.check_mass(errors=False)
-network.check_charge(errors=False)
-
-# Generate ODEs for the network
-odes = network.get_odes()
+    print(f"{reaction.get_sympy()}")
 ```
 
 ## Features
@@ -74,10 +61,15 @@ odes = network.get_odes()
 ## Supported Network Formats
 
 - **KIDA**: Kinetic Database for Astrochemistry format
-- **UDFA**: UMIST Database for Astrochemistry format  
+    Reference: [A&A, 689, A63 (2024)](https://doi.org/10.1051/0004-6361/202450606)
+- **UDFA**: UMIST Database for Astrochemistry format
+    Reference: [A&A, 682, A109 (2024)](https://doi.org/10.1051/0004-6361/202346908)
 - **PRIZMO**: Uses `->` separator with `VARIABLES{}` blocks
+    Reference:[MNRAS 494, 4471–4491 (2020)](https://doi.org/10.1093/mnras/staa971)
 - **KROME**: Comma-separated values with `@format:` header
+    Reference: [MNRAS 439, 2386–2419 (2014)](https://doi.org/10.1093/mnras/stu114)
 - **UCLCHEM**: Comma-separated with `,NAN,` marker (UNDER CONSTRUCTION)     
+    Reference: [J. Holdship et al 2017 AJ 154 38](https://doi.org/10.3847/1538-3881/aa773f)
 
 ## Primitive Variables
 

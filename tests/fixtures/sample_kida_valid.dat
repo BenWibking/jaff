@@ -1,0 +1,10 @@
+# ABOUTME: Valid sample KIDA format network file for testing
+# ABOUTME: Contains basic reactions in KIDA fixed-width column format without errors
+
+# Sample KIDA network file - Balanced version without sinks/sources  
+# Format: fixed-width columns with specific positions
+# Reactants: 0-34, Products: 34-91, Parameters: 91+
+H       + H       + H                          H2      + H                                        5.00e-30  0.00    0.0      0.0     0.0     0.0     10.0    1000.0  0       3
+H2      + Photon                               H       + H                                        1.00e-11  0.00    0.0      0.0     0.0     0.0     10.0    3000.0  0       2
+H       + Photon                               H+      + e-                                       1.00e-13  0.00    0.0      0.0     0.0     0.0     10.0    10000.0 0       2
+H+      + e-                                   H                                                  1.00e-13  0.00    0.0      0.0     0.0     0.0     10.0    10000.0 0       3
