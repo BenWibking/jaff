@@ -47,35 +47,37 @@ The `python_solve_ivp` template generates a complete Python solver with the foll
 After generation, you can use the solver like this:
 
 ```python
-# In the builds directory
-from ode import ode_rhs
-from scipy.integrate import solve_ivp
-import numpy as np
+# Example of how to use the generated code (requires builds/ in Python path):
+# import sys
+# sys.path.insert(0, 'src/jaff/builds')
+# from ode import ode_rhs
+# from scipy.integrate import solve_ivp
+# import numpy as np
 
-# Initial conditions
-n_species = 50  # Number from your network
-y0 = np.ones(n_species) * 1e-10  # Initial abundances
+# # Initial conditions
+# n_species = 50  # Number from your network
+# y0 = np.ones(n_species) * 1e-10  # Initial abundances
 
-# Time span
-t_span = (0, 1e6)  # seconds
+# # Time span
+# t_span = (0, 1e6)  # seconds
 
-# Physical parameters
-params = {
-    'tgas': 100.0,    # Temperature (K)
-    'av': 1.0,        # Visual extinction
-    'crate': 1e-17,   # Cosmic ray rate
-    'ntot': 1e4       # Total density (cm^-3)
-}
+# # Physical parameters
+# params = {
+#     'tgas': 100.0,    # Temperature (K)
+#     'av': 1.0,        # Visual extinction
+#     'crate': 1e-17,   # Cosmic ray rate
+#     'ntot': 1e4       # Total density (cm^-3)
+# }
 
-# Solve ODEs
-sol = solve_ivp(
-    lambda t, y: ode_rhs(t, y, **params),
-    t_span, 
-    y0,
-    method='BDF',
-    rtol=1e-8,
-    atol=1e-20
-)
+# # Solve ODEs
+# sol = solve_ivp(
+#     lambda t, y: ode_rhs(t, y, **params),
+#     t_span, 
+#     y0,
+#     method='BDF',
+#     rtol=1e-8,
+#     atol=1e-20
+# )
 ```
 
 ## Fortran Solver Template
