@@ -1024,8 +1024,10 @@ class Network:
                     format(str(rt), str(r), str(p))
                 )
                 output_units.append('cm^3 s^-1')
-            grp.attrs['output_names'] = output_names
-            grp.attrs['output_units'] = output_units
+            # Store output names and units as datasets instead of attributes
+            # to avoid HDF5 attribute size limitations
+            grp.create_dataset('output_names', data=output_names, dtype=h5py.string_dtype())
+            grp.create_dataset('output_units', data=output_units, dtype=h5py.string_dtype())
 
             # Create data set holding the coefficient table
             dset = grp.create_dataset('data', data=coef)
