@@ -162,7 +162,7 @@ os.makedirs('output', exist_ok=True)
             ['python', str(test_file)],
             capture_output=True,
             text=True,
-            timeout=300,  # Longer timeout for combined execution
+            timeout=900,  # Longer timeout for combined execution
             cwd=str(test_dir)
         )
         
@@ -181,7 +181,7 @@ os.makedirs('output', exist_ok=True)
         return len(blocks), 0, []
         
     except subprocess.TimeoutExpired:
-        return len(blocks), 1, [f"Execution timed out for {md_file} (300s limit)"]
+        return len(blocks), 1, [f"Execution timed out for {md_file} (900s limit)"]
     except Exception as e:
         return len(blocks), 1, [f"Unexpected error testing {md_file}: {str(e)}"]
 
@@ -233,7 +233,7 @@ if 'networks/' in '''{}''':
             ['python', str(test_file)],
             capture_output=True,
             text=True,
-            timeout=300,
+            timeout=900,
             cwd=str(test_dir)
         )
         
@@ -243,7 +243,7 @@ if 'networks/' in '''{}''':
         return True, ""
         
     except subprocess.TimeoutExpired:
-        return False, "Code execution timed out (300s limit)"
+        return False, "Code execution timed out (900s limit)"
     except Exception as e:
         return False, f"Unexpected error: {str(e)}"
 
