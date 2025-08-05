@@ -88,14 +88,16 @@ The HDF5 format follows the Quokka table standard with a group structure:
 ```
 /reaction_coeff/              # Main group
     data                      # Dataset: (n_reactions, n_temps)
+    output_names              # Dataset: reaction descriptions
+    output_units              # Dataset: units for each reaction
     @input_names  = ['temperature']
     @input_units  = ['K']
     @xlo          = [T_min]
     @xhi          = [T_max]
     @spacing      = ['log'] or ['fast_log']
-    @output_names = ['2_body rate coefficient: ...', ...]
-    @output_units = ['cm^3 s^-1', ...]
 ```
+
+Note: Output names and units are stored as datasets rather than attributes to avoid HDF5 attribute size limitations when dealing with large reaction networks.
 
 ## Fast Logarithm Sampling
 
