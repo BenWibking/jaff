@@ -39,13 +39,4 @@ jobs:
 
     - name: Test documentation examples
       run: |
-        uv run python .github/workflows/test_docs_examples.py
-
-    - name: Test specific problematic files (if any)
-      if: failure()
-      run: |
-        echo "Testing individual documentation files to identify issues:"
-        for file in docs/*.md; do
-          echo "Testing $file..."
-          uv run python .github/workflows/test_docs_examples.py "$file" --verbose || true
-        done
+        uv run python .github/workflows/test_docs_examples.py --verbose --fail-fast
