@@ -135,7 +135,7 @@ network.write_table(
     T_min=5.0,           # Very low temperature
     T_max=5000.0,        # High temperature  
     nT=128,              # Start with 128 points
-    err_tol=0.001,       # 0.1% accuracy
+    err_tol=0.01,        # 1% accuracy
     rate_min=1e-40,      # Very small rates
     rate_max=1e-5,       # Clip large rates
     fast_log=True,       # Use fast_log sampling
