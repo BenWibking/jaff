@@ -35,7 +35,7 @@ jobs:
     - name: Install dependencies
       run: |
         uv pip install --system -e "."
-        uv pip install --system matplotlib
+        uv add --dev matplotlib
 
     - name: Test documentation examples
       run: |
