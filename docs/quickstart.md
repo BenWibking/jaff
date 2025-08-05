@@ -36,7 +36,7 @@ for i, reaction in enumerate(network.reactions):
     print(f"Reaction {i+1}: {reaction}")
 
 # Get reaction by its string representation
-reaction_idx = network.get_reaction_index("CO + H+ -> HCO+")
+reaction_idx = network.get_reaction_index("C + H3+ -> CH+ + H2")
 ```
 
 ### Generating Rate Tables

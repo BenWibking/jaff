@@ -190,9 +190,10 @@ photo = Photochemistry()
 # Get cross-section data for a reaction
 # First load a network with photoreactions
 from jaff import Network
-network = Network("networks/test.dat")
-reaction = network.get_reaction_by_verbatim("H -> H+ + e-")
-data = photo.get_xsec(reaction)
+network = Network("networks/react_COthin")
+# Example: access photoreaction data if it exists
+# reaction = network.reactions[0]  # Get first reaction
+# data = photo.get_xsec(reaction)
 # Returns dict with keys: 'energy' (erg), 'xsecs' (cm²)
 ```
 

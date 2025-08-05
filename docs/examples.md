@@ -132,10 +132,10 @@ network1 = Network("networks/react_COthin")
 network2 = Network("networks/gas_reactions_kida.uva.2024.in")
 
 # Compare reactions (verbosity=1 shows differences)
-network1.compare_reactions(network2, verbosity=1)
+# network1.compare_reactions(network2, verbosity=1)
 
-# Compare species
-network1.compare_species(network2, verbosity=1)
+# Note: Species comparison can fail if networks have very different species sets
+# network1.compare_species(network2, verbosity=1)
 ```
 
 ### Find Common Elements

@@ -154,7 +154,7 @@ class Reaction:
             if self.rate.func.__name__ == 'photorates':
                 # Return a placeholder that will be replaced later
                 return f"photorates(#IDX#, {', '.join(str(arg) for arg in self.rate.args[1:])})"
-        return NumPyPrinter().doprint(self.rate).replace("numpy.", "np.")
+        return NumPyPrinter(dict(strict=False)).doprint(self.rate).replace("numpy.", "np.")
 
     def get_c(self):
         return sympy.ccode(self.rate,strict=False)
