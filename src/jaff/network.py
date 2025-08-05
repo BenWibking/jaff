@@ -229,7 +229,6 @@ class Network:
                 # convert it to a symbol
                 if hasattr(rate, '__name__') and rate.__name__ in [v[0] for v in variables_sympy]:
                     rate = symbols(rate.__name__)
-            print(rate)
 
             # use sympy to replace custom variables into the rate expression
             # note: reverse order to allow for nested variable replacement
