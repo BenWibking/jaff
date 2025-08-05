@@ -16,7 +16,7 @@ from jaff import Network
 from jaff.builder import Builder
 
 # Load your network
-network = Network("network.dat")
+network = Network("networks/react_COthin")
 
 # Create a builder instance
 builder = Builder(network)

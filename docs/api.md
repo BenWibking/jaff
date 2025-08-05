@@ -44,7 +44,7 @@ reactions_list = network.reactions
 n_reactions = len(network.reactions)
 
 # Get reaction by verbatim string
-idx = network.get_reaction_index("CO + H+ -> HCO+")
+idx = network.get_reaction_index("H + e- -> H+ + e- + e-")
 ```
 
 ### Rate Table Generation
@@ -188,6 +188,10 @@ from jaff.photochemistry import Photochemistry
 photo = Photochemistry()
 
 # Get cross-section data for a reaction
+# First load a network with photoreactions
+from jaff import Network
+network = Network("networks/test.dat")
+reaction = network.get_reaction_by_verbatim("H -> H+ + e-")
 data = photo.get_xsec(reaction)
 # Returns dict with keys: 'energy' (erg), 'xsecs' (cm²)
 ```

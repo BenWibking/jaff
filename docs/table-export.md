@@ -12,7 +12,7 @@ The `write_table()` method allows you to export temperature-dependent rate coeff
 from jaff import Network
 
 # Load network
-network = Network("network.dat")
+network = Network("networks/react_COthin")
 
 # Export to HDF5 format
 network.write_table("rates.hdf5", T_min=10, T_max=1000)
@@ -127,7 +127,7 @@ network.write_table("rates_tabulated.hdf5", include_all=False)
 from jaff import Network
 
 # Load network
-network = Network("kida_network.dat")
+network = Network("networks/gas_reactions_kida.uva.2024.in")
 
 # Export with custom settings
 network.write_table(

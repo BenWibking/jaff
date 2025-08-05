@@ -16,7 +16,7 @@ print(f"Loaded {len(network.reactions)} reactions")
 from jaff import Network
 
 # PRIZMO networks use -> separator and VARIABLES{} blocks
-network = Network("networks/prizmo_network.dat")
+network = Network("networks/react_COthin")
 
 # Check what variables were defined
 for reaction in network.reactions:
@@ -28,7 +28,7 @@ for reaction in network.reactions:
 from jaff import Network
 
 # KROME networks use comma separation with @format headers
-network = Network("networks/krome_network.dat") 
+network = Network("networks/react_COthin") 
 
 # KROME supports custom shortcuts like t32, te, etc.
 print("Variables found:", [str(s) for s in network.reactions[0].rate.free_symbols])
@@ -129,7 +129,7 @@ from jaff import Network
 
 # Load two different networks
 network1 = Network("networks/react_COthin")
-network2 = Network("networks/react_popsicle_semenov")
+network2 = Network("networks/gas_reactions_kida.uva.2024.in")
 
 # Compare reactions (verbosity=1 shows differences)
 network1.compare_reactions(network2, verbosity=1)

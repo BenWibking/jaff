@@ -33,7 +33,7 @@ from jaff import Network
 from jaff.builder import Builder
 
 # Load a chemical network
-network = Network("path/to/network_file.dat")
+network = Network("networks/react_COthin")
 
 # Access species and reactions
 print(f"Network contains {len(network.species)} species")

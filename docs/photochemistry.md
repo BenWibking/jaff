@@ -52,13 +52,13 @@ from jaff import Network
 from jaff.photochemistry import Photochemistry
 
 # Load network with photoreactions
-network = Network("network_with_photo.dat")
+network = Network("networks/test.dat")
 
 # Initialize photochemistry module
 photo = Photochemistry()
 
 # Get cross-section data for a specific reaction
-reaction = network.get_reaction_by_verbatim("H2O + photon -> H + OH")
+reaction = network.get_reaction_by_verbatim("H -> H+ + e-")
 xsec_data = photo.get_xsec(reaction)
 
 # Access the data
@@ -143,8 +143,9 @@ import numpy as np
 wavelengths = np.array([100, 110, 120, 130])  # nm
 cross_sections = np.array([1e-17, 2e-17, 3e-17, 2.5e-17])  # cm²
 
-# Write file
-with open('src/jaff/data/xsecs/NH3__NH2_H.dat', 'w') as f:
+# Write file (example - modify path as needed)
+filename = 'NH3__NH2_H.dat'
+with open(filename, 'w') as f:
     f.write("# Photodissociation of NH3\n")
     f.write("# NH3 + photon -> NH2 + H\n")
     f.write("# wavelength(nm)  dissociation(cm2)\n")

@@ -105,7 +105,12 @@ def test_file_examples(md_file: Path, test_dir: Path, verbose: bool = False) -> 
     
     # Create test file with setup
     test_file = test_dir / "test_combined.py"
-    setup_code = """
+    
+    # Get absolute path to project networks directory
+    project_root = Path('.').resolve()
+    source_networks_dir = project_root / 'networks'
+    
+    setup_code = f"""
 import sys
 import os
 sys.path.insert(0, os.path.abspath('.'))
@@ -120,33 +125,26 @@ import shutil
 os.makedirs('networks', exist_ok=True)
 
 # Copy any existing network files to temp directory
-source_networks_dir = os.path.abspath('./networks')
+source_networks_dir = r'{source_networks_dir}'
 if os.path.exists(source_networks_dir):
     for file in os.listdir(source_networks_dir):
         src_path = os.path.join(source_networks_dir, file)
         dest_path = os.path.join('networks', file)
-        if os.path.isfile(src_path) and not os.path.samefile(src_path, dest_path):
+        if os.path.isfile(src_path):
             shutil.copy2(src_path, dest_path)
 
-# Create any missing network files that are referenced in docs
-network_files_to_create = [
-    'networks/gas_reactions_kida.uva.2024.in',
-    'networks/prizmo_network.dat',
-    'networks/krome_network.dat',
-    'networks/network.dat',
-    'networks/react_popsicle_semenov',
-    'networks/react_COthin'
+# Create symbolic links to real network files that exist
+network_files_to_link = [
+    ('networks/gas_reactions_kida.uva.2024.in', 'gas_reactions_kida.uva.2024.in'),
+    ('networks/react_popsicle_semenov', 'react_popsicle_semenov'),
+    ('networks/react_COthin', 'react_COthin')
 ]
 
-for network_file in network_files_to_create:
-    if not os.path.exists(network_file):
-        # Create a minimal valid network file
-        with open(network_file, 'w') as f:
-            f.write('# Minimal network file for testing\\n')
-            f.write('@format:idx,R,R,R,P,P,P,P,Tmin,Tmax,rate\\n')
-            f.write('1,H,E,,H+,E,E,,10,1e8,1e-9\\n')
-            f.write('2,H+,E,,H,,,, 10,1e8,1e-12\\n')
-            f.write('3,CO,H+,,HCO+,,,, 10,1e8,1e-9\\n')
+for target_path, source_file in network_files_to_link:
+    source_path = os.path.join(source_networks_dir, source_file)
+    if os.path.exists(source_path) and not os.path.exists(target_path):
+        # Create symbolic link only if source exists
+        os.symlink(source_path, target_path)
 
 # Create output files that might be generated
 os.makedirs('output', exist_ok=True)
