@@ -1014,7 +1014,11 @@ class Network:
                 grp.attrs['spacing'] = ['log']
 
             # Store information on which reactions / rate coefficients
-            # are included
+            # are included; note that we store these as data sets
+            # instead of attributes to avoid problems in the case where
+            # the number of reactions is very large, and thus resulting
+            # size of the output reaction list exceeds the HDF5 limit
+            # on the sizes of attributes
             output_names = []
             output_units = []
             for i, rt, r, p in zip(range(len(rtype)), rtype, 
@@ -1024,8 +1028,7 @@ class Network:
                     format(str(rt), str(r), str(p))
                 )
                 output_units.append('cm^3 s^-1')
-            # Store output names and units as datasets instead of attributes
-            # to avoid HDF5 attribute size limitations
+
             grp.create_dataset('output_names', data=output_names, dtype=h5py.string_dtype())
             grp.create_dataset('output_units', data=output_units, dtype=h5py.string_dtype())
 
