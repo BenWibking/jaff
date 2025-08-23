@@ -475,6 +475,8 @@ class Network:
 
         if language in ["fortran", "f90"]:
             brackets = "()"
+        elif language in ["c++", "cpp", "cxx"]:
+            brackets = "[]"
         else:
             brackets = "[]"
 
@@ -483,6 +485,10 @@ class Network:
         rates = ""
         for i, rea in enumerate(self.reactions):
             if language in ["python", "py"]:
+                rate = rea.get_python()
+            elif language in ["c++", "cpp", "cxx"]:
+                rate = rea.get_cpp()
+            else:
                 rate = rea.get_python()
             if rea.guess_type() == "photo":
                 rate = rate.replace("#IDX#", str(idx_offset + i))
