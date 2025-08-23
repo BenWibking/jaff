@@ -191,8 +191,8 @@ class Network:
                 print(f"WARNING: Skipping invalid line: {srow[:50]}... ({e})")
                 continue
 
-            # use lowercase for rate
-            rate = rate.lower().strip()
+            # Clean up rate expression but preserve species name case
+            rate = rate.strip()
 
             # parse rate with sympy
             # photo-chemistry
@@ -511,7 +511,7 @@ class Network:
         return fluxes
 
     # ****************
-    def get_ode(self, idx_offset=0, flux_variable="flux", brackets="[]", species_variable="y", idx_prefix=""):
+    def get_ode(self, idx_offset=0, flux_variable="flux", brackets="[]", species_variable="y", idx_prefix="", derivative_prefix="d"):
 
         lb, rb = brackets[0], brackets[1]
 
@@ -530,7 +530,7 @@ class Network:
 
         sode = ""
         for name, expr in ode.items():
-            sode += f"d{species_variable}{lb}{name}{rb} = {expr};\n"
+            sode += f"{derivative_prefix}{species_variable}{lb}{name}{rb} = {expr};\n"
 
         return sode
 

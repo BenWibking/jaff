@@ -22,7 +22,7 @@ struct ChemistryODE {
     
     // Evaluate the ODE right-hand side: dy/dt = f(t, y)
     template <class vec_type1, class vec_type2>
-    KOKKOS_FUNCTION void evaluate_function(const double t, const double dt, 
+    KOKKOS_FUNCTION void evaluate_function(const double /*t*/, const double /*dt*/, 
                                           const vec_type1& y, const vec_type2& f) const {
         // Temperature (could be passed as parameter or computed from energy)
         const double T = 300.0; // Default temperature in K, should be parameterized
@@ -53,7 +53,7 @@ struct ChemistryODE {
     
     // Evaluate the Jacobian matrix: J_ij = df_i/dy_j
     template <class vec_type, class mat_type>
-    KOKKOS_FUNCTION void evaluate_jacobian(const double t, const double dt,
+    KOKKOS_FUNCTION void evaluate_jacobian(const double /*t*/, const double /*dt*/,
                                           const vec_type& y, const mat_type& jac) const {
         // Simplified approach: set Jacobian to zero (forces BDF solver to use numerical differentiation)
         // This is a valid approach when analytical Jacobian is difficult to compute
@@ -65,7 +65,7 @@ struct ChemistryODE {
         }
         
         // Suppress unused parameter warnings
-        (void)t; (void)dt; (void)y;
+        (void)y;
     }
 };
 

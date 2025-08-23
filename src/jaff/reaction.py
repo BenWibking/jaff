@@ -147,17 +147,10 @@ class Reaction:
             if self.rate.func.__name__ == 'photorates':
                 # Return a placeholder that will be replaced later
                 return f"photorates(#IDX#, {', '.join(str(arg) for arg in self.rate.args[1:])})"
-        # Use C code but with C++ math functions
-        cpp_code = sympy.ccode(self.rate, strict=False)
-        # Replace C math with Kokkos equivalents
-        cpp_code = cpp_code.replace("exp(", "Kokkos::exp(")
-        cpp_code = cpp_code.replace("pow(", "Kokkos::pow(")
-        cpp_code = cpp_code.replace("log(", "Kokkos::log(")
-        cpp_code = cpp_code.replace("sqrt(", "Kokkos::sqrt(")
-        # Replace single-precision f-prefix functions with double precision equivalents
-        cpp_code = cpp_code.replace("fmax(", "Kokkos::max(")
-        cpp_code = cpp_code.replace("fmin(", "Kokkos::min(")
-        cpp_code = cpp_code.replace("fabs(", "Kokkos::abs(")
+        # Use C++ code generation
+        cpp_code = sympy.cxxcode(self.rate, strict=False)
+        # Replace std:: prefix with Kokkos:: for math functions
+        cpp_code = cpp_code.replace("std::", "Kokkos::")
         return cpp_code
 
     def get_f90(self):

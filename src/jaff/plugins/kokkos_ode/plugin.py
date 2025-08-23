@@ -15,8 +15,8 @@ def main(network, path_template):
     rates = network.get_rates(idx_offset=0, rate_variable="k", language="c++")
     
     # Get ODE fluxes and derivatives with C++ array access
-    sflux = network.get_fluxes(idx_offset=0, rate_variable="k", species_variable="y", brackets="()", idx_prefix="")
-    sode = network.get_ode(idx_offset=0, flux_variable="flux", brackets="()", species_variable="dydt", idx_prefix="")
+    sflux = network.get_fluxes(idx_offset=0, rate_variable="k", species_variable="y", brackets="[]", idx_prefix="")
+    sode = network.get_ode(idx_offset=0, flux_variable="flux", brackets="[]", species_variable="f", idx_prefix="", derivative_prefix="")
     
     # Get jacobian if possible (we'll need to implement this in the template)
     # For now, we'll pass empty jacobian and let the template handle numerical jacobian
@@ -24,24 +24,47 @@ def main(network, path_template):
     
     # Generate temperature variable definitions for C++
     temp_vars = """// Temperature variables used in chemical reactions
-        const double tgas = T;  // Gas temperature
-        const double te = T * 8.617343e-5;  // Temperature in eV
-        const double invte = 1.0 / te;  // Inverse temperature in eV
-        const double invt = 1.0 / T;  // Inverse temperature in K
-        const double t32 = T / 32.0;  // Temperature divided by 32
-        const double invt32 = 32.0 / T;  // 32 divided by temperature
-        const double sqrtgas = Kokkos::sqrt(T);  // Square root of temperature
-        const double lnte = Kokkos::log(te);  // Log of temperature in eV
+        const double Tgas = T;  // Gas temperature (matches KROME convention)
+        const double Te = T * 8.617343e-5;  // Temperature in eV (matches KROME convention)
+        const double invTe = 1.0 / Te;  // Inverse temperature in eV (matches KROME convention)
+        const double invT = 1.0 / T;  // Inverse temperature in K (matches KROME convention)
+        const double T32 = T / 32.0;  // Temperature divided by 32 (matches KROME convention)
+        const double invT32 = 32.0 / T;  // 32 divided by temperature (matches KROME convention)
+        const double sqrTgas = Kokkos::sqrt(T);  // Square root of temperature (matches KROME convention)
+        const double lnTe = Kokkos::log(Te);  // Log of temperature in eV (matches KROME convention)
+        
+        // Essential lowercase aliases that are actually used in expressions
+        const double tgas = Tgas;  // Lowercase alias for temperature
+        
+        // Function parameter for accessing species densities
+        const auto& n = y;  // Access to species array
         
         // Additional chemistry variables (these would typically come from the simulation)
         const double av = 1.0;  // Visual extinction
         const double crate = 1.3e-17;  // Cosmic ray ionization rate
-        const double user_av = av;  // User-defined extinction
-        const double user_tdust = T;  // Dust temperature
+        const double user_av = av;  // User-defined extinction (lowercase)
+        const double user_Av = av;  // User-defined extinction (KROME case)
+        const double user_tdust = T;  // Dust temperature (lowercase)
+        const double user_Tdust = T;  // Dust temperature (KROME case)
         
-        // Placeholder functions and variables for complex expressions
+        // Additional variables that may be referenced in KROME expressions
+        const double user_H2self = 1.0;  // H2 self-shielding factor (placeholder)
+        const double HnOj = 1.0;  // H_n O+ rate factor (placeholder)
+        const double Hnuclei = 1.0;  // Total hydrogen nuclei density (placeholder)
+        const double fA = 1.0;  // Dust formation efficiency factor (placeholder)
+        const double ntot = 1.0;  // Total number density (placeholder)
+        const double invTgas = 1.0/T;  // Inverse gas temperature alias
+        const double logT = 10.0;  // log10(Tgas) placeholder
+        const double invsqrT = 1.0/Kokkos::sqrt(T);  // 1/sqrt(Tgas) alias
+        
+        // Function parameter for accessing species densities
+        // const auto& n = y;  // Access to species array
+        
+        // Placeholder functions for KROME expressions
         // These should be properly implemented in a real chemistry solver
-        // const double ntot = ...;  // Total number density"""
+        auto get_hnuclei = [](const auto& /*y*/) -> double { 
+            return 1.0;  // Total hydrogen nuclei density placeholder
+        };"""
     
     # Process template files
     num_species = str(network.get_number_of_species())
