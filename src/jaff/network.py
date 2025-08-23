@@ -476,7 +476,7 @@ class Network:
         return scommons
 
     # ****************
-    def get_rates(self, idx_offset=0, rate_variable="k", language="python"):
+    def get_rates(self, idx_offset=0, rate_variable="k", language="python", use_cse=True):
 
         if language in ["fortran", "f90"]:
             brackets = "()"
@@ -488,19 +488,94 @@ class Network:
         lb, rb = brackets[0], brackets[1]
 
         rates = ""
-        for i, rea in enumerate(self.reactions):
-            if language in ["python", "py"]:
-                rate = rea.get_python()
-            elif language in ["c++", "cpp", "cxx"]:
-                rate = rea.get_cpp()
+        
+        # For C++ with CSE enabled, collect all rate expressions and apply CSE
+        if language in ["c++", "cpp", "cxx"] and use_cse:
+            from sympy import cse, cxxcode, Function
+            
+            # Collect all rate expressions as SymPy objects
+            rate_exprs = []
+            photo_indices = []
+            for i, rea in enumerate(self.reactions):
+                if type(rea.rate) is str:
+                    # String rates are kept as-is (will be handled separately)
+                    rate_exprs.append(None)
+                elif hasattr(rea.rate, 'func') and isinstance(rea.rate.func, type(Function('f'))):
+                    if rea.rate.func.__name__ == 'photorates':
+                        # Photorates are handled specially
+                        rate_exprs.append(None)
+                        photo_indices.append(i)
+                    else:
+                        rate_exprs.append(rea.rate)
+                else:
+                    rate_exprs.append(rea.rate)
+            
+            # Filter out None values for CSE
+            valid_exprs = [(i, expr) for i, expr in enumerate(rate_exprs) if expr is not None]
+            
+            if valid_exprs:
+                # Apply CSE to all valid expressions
+                indices, exprs = zip(*valid_exprs)
+                replacements, reduced_exprs = cse(exprs, optimizations='basic')
+                
+                # Generate code for common subexpressions
+                if replacements:
+                    rates += "// Common subexpressions\n"
+                for i, (var, expr) in enumerate(replacements):
+                    cpp_expr = cxxcode(expr, strict=False).replace("std::", "Kokkos::")
+                    rates += f"const double {var} = {cpp_expr};\n"
+                
+                if replacements:
+                    rates += "\n// Rate calculations using common subexpressions\n"
+                
+                # Generate code for reduced rate expressions
+                expr_dict = dict(zip(indices, reduced_exprs))
+                
+                # Generate all rate assignments
+                for i, rea in enumerate(self.reactions):
+                    if i in expr_dict:
+                        # Use CSE-optimized expression
+                        cpp_code = cxxcode(expr_dict[i], strict=False).replace("std::", "Kokkos::")
+                        rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {cpp_code};\n"
+                    elif type(rea.rate) is str:
+                        # String rate
+                        rate = rea.rate
+                        if rea.guess_type() == "photo":
+                            rate = rate.replace("#IDX#", str(idx_offset + i))
+                        rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate};\n"
+                    elif i in photo_indices:
+                        # Photorates
+                        rate = f"photorates(#IDX#, {', '.join(str(arg) for arg in rea.rate.args[1:])})"
+                        rate = rate.replace("#IDX#", str(idx_offset + i))
+                        rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate};\n"
+                    else:
+                        # Fallback to regular code generation
+                        rate = rea.get_cpp()
+                        if rea.guess_type() == "photo":
+                            rate = rate.replace("#IDX#", str(idx_offset + i))
+                        rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate};\n"
             else:
-                rate = rea.get_python()
-            if rea.guess_type() == "photo":
-                rate = rate.replace("#IDX#", str(idx_offset + i))
-            if language in ["c++", "cpp", "cxx"]:
-                rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate};\n"
-            else:
-                rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate}\n"
+                # No valid expressions for CSE, use regular generation
+                for i, rea in enumerate(self.reactions):
+                    rate = rea.get_cpp()
+                    if rea.guess_type() == "photo":
+                        rate = rate.replace("#IDX#", str(idx_offset + i))
+                    rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate};\n"
+        else:
+            # Original behavior for non-C++ or CSE disabled
+            for i, rea in enumerate(self.reactions):
+                if language in ["python", "py"]:
+                    rate = rea.get_python()
+                elif language in ["c++", "cpp", "cxx"]:
+                    rate = rea.get_cpp()
+                else:
+                    rate = rea.get_python()
+                if rea.guess_type() == "photo":
+                    rate = rate.replace("#IDX#", str(idx_offset + i))
+                if language in ["c++", "cpp", "cxx"]:
+                    rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate};\n"
+                else:
+                    rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate}\n"
 
         return rates
 

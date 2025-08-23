@@ -11,8 +11,8 @@ def main(network, path_template, path_build=None):
     # Add semicolons for C++ syntax
     scommons = '\n'.join([line + ';' if line.strip() and not line.strip().endswith(';') else line for line in scommons.split('\n')])
     
-    # Get reaction rates with C++ syntax
-    rates = network.get_rates(idx_offset=0, rate_variable="k", language="c++")
+    # Get reaction rates with C++ syntax and CSE optimization
+    rates = network.get_rates(idx_offset=0, rate_variable="k", language="c++", use_cse=True)
     
     # Get ODE fluxes and derivatives with C++ array access
     sflux = network.get_fluxes(idx_offset=0, rate_variable="k", species_variable="y", brackets="[]", idx_prefix="")
