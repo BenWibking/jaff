@@ -1,6 +1,6 @@
 import os
 
-def main(network, path_template):
+def main(network, path_template, path_build=None):
     from jaff.preprocessor import Preprocessor
 
     p = Preprocessor()
@@ -87,4 +87,5 @@ auto get_hnuclei = [](const auto& /*y*/) -> double {
                    "NUM_SPECIES": f"static constexpr int neqs = {num_species};",
                    "NUM_REACTIONS": num_reactions, "TEMP_VARS": temp_vars},
                   {"NUM_SPECIES": num_species}],
-                 comment="auto")
+                 comment="auto",
+                 path_build=path_build)

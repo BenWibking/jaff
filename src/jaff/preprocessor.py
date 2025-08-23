@@ -10,7 +10,7 @@ class Preprocessor:
     # **********************************
     # loop on the files in the fnames list and replace the pragmas from the dictionaries
     # this also copies all the files that are not in the fnames list but are in the path
-    def preprocess(self, path, fnames, dictionaries, comment="!!", add_header=True):
+    def preprocess(self, path, fnames, dictionaries, comment="!!", add_header=True, path_build=None):
         if type(fnames) is str:
             fnames = [fnames]
 
@@ -18,13 +18,14 @@ class Preprocessor:
             dictionaries = [dictionaries]
 
         # create the build path if it does not exist
-        path_build = os.path.join(os.path.dirname(__file__), "builds")
+        if path_build is None:
+            path_build = os.getcwd()
         if not os.path.exists(path_build):
             os.makedirs(path_build)
 
         # preprocess the files in the fnames list first
         for fname, dictionary in zip(fnames, dictionaries):
-            self.preprocess_file(os.path.join(path, fname), dictionary, comment=comment, add_header=add_header)
+            self.preprocess_file(os.path.join(path, fname), dictionary, comment=comment, add_header=add_header, path_build=path_build)
 
         # copy files that are not in the fnames list
         for fname in glob(os.path.join(path, "*")):
@@ -37,7 +38,7 @@ class Preprocessor:
     # preprocess a single file replacing the pragmas with the values from the dictionary
     # this also adds a header to the file
     # comment is the string that starts the pragma
-    def preprocess_file(self, fname, dictionary, comment="!!", add_header=True):
+    def preprocess_file(self, fname, dictionary, comment="!!", add_header=True, path_build=None):
         
         # Auto-detect comment style based on file extension if not explicitly set
         if comment == "auto":
@@ -85,7 +86,8 @@ class Preprocessor:
             out += row
         fh.close()
 
-        path_build = os.path.join(os.path.dirname(__file__), "builds")
+        if path_build is None:
+            path_build = os.getcwd()
         fname_build = os.path.join(path_build, os.path.basename(fname))
 
         print(f"Preprocessing {fname} -> {fname_build}")

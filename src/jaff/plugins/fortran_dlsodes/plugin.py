@@ -1,6 +1,6 @@
 import os
 
-def main(network, path_template):
+def main(network, path_template, path_build=None):
     from jaff.preprocessor import Preprocessor
 
     p = Preprocessor()
@@ -13,5 +13,6 @@ def main(network, path_template):
     p.preprocess(path_template,
                  ["commons.f90", "ode.f90"],
                  [{"COMMONS": scommons}, {"ODE": sode}],
-                 comment="!!")
+                 comment="!!",
+                 path_build=path_build)
 
