@@ -59,7 +59,7 @@ int main(int argc, char* argv[]) {
         std::cout << "Number of species: " << mySys.neqs << "\n";
         std::cout << "Number of reactions: " << 
 // PREPROCESS_NUM_REACTIONS
-287
+0
 // PREPROCESS_END
          << "\n";
         std::cout << "Time interval: [" << t_start << ", " << t_end << "] seconds\n";

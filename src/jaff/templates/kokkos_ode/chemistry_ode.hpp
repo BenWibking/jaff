@@ -67,12 +67,6 @@ struct ChemistryODE {
         // Suppress unused parameter warnings
         (void)t; (void)dt; (void)y;
     }
-    
-    // Helper function to compute reaction rates
-    template <typename T>
-    KOKKOS_INLINE_FUNCTION T arrhenius_rate(T alpha, T beta, T gamma, T temperature) const {
-        return alpha * Kokkos::pow(temperature / 300.0, beta) * Kokkos::exp(-gamma / temperature);
-    }
 };
 
 #endif // CHEMISTRY_ODE_HPP
