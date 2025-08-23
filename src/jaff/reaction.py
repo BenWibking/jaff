@@ -154,6 +154,10 @@ class Reaction:
         cpp_code = cpp_code.replace("pow(", "Kokkos::pow(")
         cpp_code = cpp_code.replace("log(", "Kokkos::log(")
         cpp_code = cpp_code.replace("sqrt(", "Kokkos::sqrt(")
+        # Replace single-precision f-prefix functions with double precision equivalents
+        cpp_code = cpp_code.replace("fmax(", "Kokkos::max(")
+        cpp_code = cpp_code.replace("fmin(", "Kokkos::min(")
+        cpp_code = cpp_code.replace("fabs(", "Kokkos::abs(")
         return cpp_code
 
     def get_f90(self):
