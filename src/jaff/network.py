@@ -193,13 +193,18 @@ class Network:
 
             # Clean up rate expression but preserve species name case
             rate = rate.strip()
+            
+            # Convert PHOTO keyword to lowercase for consistent handling
+            # but preserve case for everything else
+            if "PHOTO" in rate:
+                rate = rate.replace("PHOTO", "photo")
 
             # parse rate with sympy
             # photo-chemistry
-            if("photo" in rate):
+            if("photo" in rate.lower()):
                 # Extract arguments from photo(arg1, arg2) format
                 import re
-                match = re.match(r'photo\((.*)\)', rate)
+                match = re.match(r'(?i)photo\((.*)\)', rate)
                 if match:
                     args_str = match.group(1)
                     photo_args = [arg.strip() for arg in args_str.split(',')]
