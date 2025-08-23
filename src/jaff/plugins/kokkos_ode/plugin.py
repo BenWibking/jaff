@@ -7,7 +7,7 @@ def main(network, path_template):
 
     # Generate C++ code for Kokkos
     # Get species indices and counts with C++ formatting
-    scommons = network.get_commons(idx_offset=0, idx_prefix="idx_", definition_prefix="static constexpr int ")
+    scommons = network.get_commons(idx_offset=0, idx_prefix="", definition_prefix="static constexpr int ")
     # Add semicolons for C++ syntax
     scommons = '\n'.join([line + ';' if line.strip() and not line.strip().endswith(';') else line for line in scommons.split('\n')])
     
