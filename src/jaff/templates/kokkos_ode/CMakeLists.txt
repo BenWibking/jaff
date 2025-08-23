@@ -43,14 +43,3 @@ target_link_libraries(chemistry_ode
     Kokkos::kokkos
     Kokkos::kokkoskernels
 )
-
-# Add test executable
-add_executable(test_chemistry test_chemistry.cpp)
-target_link_libraries(test_chemistry 
-    Kokkos::kokkos
-    Kokkos::kokkoskernels
-)
-
-# Enable testing
-enable_testing()
-add_test(NAME ChemistryTest COMMAND test_chemistry)

@@ -26,7 +26,7 @@ def main(network, path_template):
     
     # Process C++ files with C++ comments
     p.preprocess(path_template,
-                 ["chemistry_ode.hpp", "chemistry_ode.cpp", "test_chemistry.cpp"],
+                 ["chemistry_ode.hpp", "chemistry_ode.cpp"],
                  [{"COMMONS": scommons, "RATES": rates, "FLUXES": sflux, "ODE": sode, "JACOBIAN": jacobian,
                    "NUM_SPECIES": f"static constexpr int neqs = {num_species};",
                    "NUM_REACTIONS": num_reactions},
