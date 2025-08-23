@@ -492,7 +492,10 @@ class Network:
                 rate = rea.get_python()
             if rea.guess_type() == "photo":
                 rate = rate.replace("#IDX#", str(idx_offset + i))
-            rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate}\n"
+            if language in ["c++", "cpp", "cxx"]:
+                rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate};\n"
+            else:
+                rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate}\n"
 
         return rates
 
@@ -503,7 +506,7 @@ class Network:
         fluxes = ""
         for i, rea in enumerate(self.reactions):
             flux = rea.get_flux(idx=idx_offset+i, rate_variable=rate_variable, species_variable=species_variable, brackets=brackets, idx_prefix=idx_prefix)
-            fluxes += f"flux{lb}{idx_offset+i}{rb} = {flux}\n"
+            fluxes += f"flux{lb}{idx_offset+i}{rb} = {flux};\n"
 
         return fluxes
 
@@ -527,7 +530,7 @@ class Network:
 
         sode = ""
         for name, expr in ode.items():
-            sode += f"d{species_variable}{lb}{name}{rb} = {expr}\n"
+            sode += f"d{species_variable}{lb}{name}{rb} = {expr};\n"
 
         return sode
 

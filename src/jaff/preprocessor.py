@@ -22,6 +22,10 @@ class Preprocessor:
         if not os.path.exists(path_build):
             os.makedirs(path_build)
 
+        # preprocess the files in the fnames list first
+        for fname, dictionary in zip(fnames, dictionaries):
+            self.preprocess_file(os.path.join(path, fname), dictionary, comment=comment, add_header=add_header)
+
         # copy files that are not in the fnames list
         for fname in glob(os.path.join(path, "*")):
             if os.path.basename(fname) in fnames:
@@ -29,15 +33,23 @@ class Preprocessor:
             print(f"Copying {fname} to {path_build}")
             shutil.copyfile(fname, os.path.join(path_build, os.path.basename(fname)))
 
-        # preprocess the files in the fnames list
-        for fname, dictionary in zip(fnames, dictionaries):
-            self.preprocess_file(os.path.join(path, fname), dictionary, comment=comment, add_header=add_header)
-
     # **********************************
     # preprocess a single file replacing the pragmas with the values from the dictionary
     # this also adds a header to the file
     # comment is the string that starts the pragma
     def preprocess_file(self, fname, dictionary, comment="!!", add_header=True):
+        
+        # Auto-detect comment style based on file extension if not explicitly set
+        if comment == "auto":
+            if fname.endswith('.cmake') or fname.endswith('CMakeLists.txt'):
+                comment = "#"
+            elif fname.endswith('.cpp') or fname.endswith('.hpp') or fname.endswith('.h') or fname.endswith('.cc'):
+                comment = "//"
+            elif fname.endswith('.f90') or fname.endswith('.f') or fname.endswith('.F90'):
+                comment = "!!"
+            elif fname.endswith('.py'):
+                comment = "#"
+            # else keep the default
 
         full_pragma = comment + " PREPROCESS_"
         in_pragma = False

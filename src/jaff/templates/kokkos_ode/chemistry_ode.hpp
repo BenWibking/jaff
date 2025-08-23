@@ -27,6 +27,10 @@ struct ChemistryODE {
         // Temperature (could be passed as parameter or computed from energy)
         const double T = 300.0; // Default temperature in K, should be parameterized
         
+        // PREPROCESS_TEMP_VARS
+        
+        // PREPROCESS_END
+        
         // Compute reaction rates and fluxes
         // PREPROCESS_NUM_REACTIONS
         double k[0];
