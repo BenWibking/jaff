@@ -30,3 +30,5 @@ class Builder:
 
         print(f"Network built successfully using template '{template}'.")
         print(f"Output files are located in: {path_build}")
+        
+        return path_build
