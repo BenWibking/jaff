@@ -615,6 +615,153 @@ class Network:
         return sode
 
     # *****************
+    def get_symbolic_ode_and_jacobian(self, idx_offset=0, use_cse=True, language="c++"):
+        """
+        Generate symbolic ODE expressions and compute the analytical Jacobian.
+        
+        Returns:
+            tuple: (ode_expressions, jacobian_expressions)
+                - ode_expressions: string containing the ODE expressions
+                - jacobian_expressions: string containing the Jacobian matrix elements
+        """
+        import sympy as sp
+        from sympy import symbols, Matrix, diff, cse, numbered_symbols
+        
+        # Create symbolic variables for species concentrations
+        n_species = len(self.species)
+        y_symbols = [symbols(f'y[{i}]') for i in range(n_species)]
+        
+        # Create symbolic variables for reaction rates
+        n_reactions = len(self.reactions)
+        k_symbols = [symbols(f'k[{i}]') for i in range(n_reactions)]
+        
+        # Build symbolic flux expressions
+        flux_symbols = []
+        for i, rea in enumerate(self.reactions):
+            flux_expr = k_symbols[i]
+            for rr in rea.reactants:
+                # Handle both integer indices and string identifiers like "idx_Hj"
+                if isinstance(rr.fidx, str):
+                    if rr.fidx.startswith("idx_"):
+                        # The fidx format replaces + with j and - with k
+                        # So we need to look up the species by its actual name
+                        idx = rr.index  # Use the species index directly
+                    else:
+                        idx = int(rr.fidx)
+                else:
+                    idx = int(rr.fidx)
+                flux_expr *= y_symbols[idx]
+            flux_symbols.append(flux_expr)
+        
+        # Build symbolic ODE expressions (RHS)
+        ode_symbols = [sp.Integer(0) for _ in range(n_species)]
+        for i, rea in enumerate(self.reactions):
+            # Subtract flux from reactants
+            for rr in rea.reactants:
+                # Handle both integer indices and string identifiers like "idx_Hj"
+                if isinstance(rr.fidx, str):
+                    if rr.fidx.startswith("idx_"):
+                        # The fidx format replaces + with j and - with k
+                        # So we need to look up the species by its actual name
+                        idx = rr.index  # Use the species index directly
+                    else:
+                        idx = int(rr.fidx)
+                else:
+                    idx = int(rr.fidx)
+                ode_symbols[idx] -= flux_symbols[i]
+            # Add flux to products
+            for pp in rea.products:
+                # Handle both integer indices and string identifiers like "idx_Hj"
+                if isinstance(pp.fidx, str):
+                    if pp.fidx.startswith("idx_"):
+                        # The fidx format replaces + with j and - with k
+                        # So we need to look up the species by its actual name
+                        idx = pp.index  # Use the species index directly
+                    else:
+                        idx = int(pp.fidx)
+                else:
+                    idx = int(pp.fidx)
+                ode_symbols[idx] += flux_symbols[i]
+        
+        # Compute the Jacobian matrix
+        jacobian_matrix = Matrix(ode_symbols).jacobian(y_symbols)
+        
+        # Generate code strings
+        if language in ["c++", "cpp", "cxx"]:
+            brackets = "[]"
+            assignment_op = "="
+            line_end = ";"
+        else:  # Default to Python/Fortran style
+            brackets = "[]" if language == "python" else "()"
+            assignment_op = "="
+            line_end = ""
+        
+        lb, rb = brackets[0], brackets[1]
+        
+        # Apply common subexpression elimination if requested
+        if use_cse:
+            # Collect all expressions for CSE
+            all_exprs = list(ode_symbols) + list(jacobian_matrix)
+            replacements, reduced_exprs = cse(all_exprs, symbols=numbered_symbols("cse"))
+            
+            # Generate CSE assignments
+            cse_code = ""
+            for i, (var, expr) in enumerate(replacements):
+                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                # Replace array brackets in the expression
+                expr_str = expr_str.replace('[', lb).replace(']', rb)
+                cse_code += f"const double {var} {assignment_op} {expr_str}{line_end}\n"
+            
+            # Split reduced expressions back
+            ode_reduced = reduced_exprs[:n_species]
+            jac_reduced = reduced_exprs[n_species:]
+            
+            # Generate ODE code with CSE
+            ode_code = cse_code
+            for i, expr in enumerate(ode_reduced):
+                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                expr_str = expr_str.replace('[', lb).replace(']', rb)
+                ode_code += f"f{lb}{i}{rb} {assignment_op} {expr_str}{line_end}\n"
+            
+            # Generate Jacobian code with CSE (include CSE variable definitions)
+            jac_code = cse_code  # Include the CSE variable definitions
+            for i in range(n_species):
+                for j in range(n_species):
+                    idx = i * n_species + j
+                    expr = jac_reduced[idx]
+                    if expr != 0:
+                        expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                        expr_str = expr_str.replace('[', lb).replace(']', rb)
+                        # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
+                        if language in ["c++", "cpp", "cxx"]:
+                            jac_code += f"J({i}, {j}) {assignment_op} {expr_str}{line_end}\n"
+                        else:
+                            jac_code += f"J{lb}{i}{rb}{lb}{j}{rb} {assignment_op} {expr_str}{line_end}\n"
+        else:
+            # Generate ODE code without CSE
+            ode_code = ""
+            for i, expr in enumerate(ode_symbols):
+                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                expr_str = expr_str.replace('[', lb).replace(']', rb)
+                ode_code += f"f{lb}{i}{rb} {assignment_op} {expr_str}{line_end}\n"
+            
+            # Generate Jacobian code without CSE
+            jac_code = ""
+            for i in range(n_species):
+                for j in range(n_species):
+                    expr = jacobian_matrix[i, j]
+                    if expr != 0:
+                        expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                        expr_str = expr_str.replace('[', lb).replace(']', rb)
+                        # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
+                        if language in ["c++", "cpp", "cxx"]:
+                            jac_code += f"J({i}, {j}) {assignment_op} {expr_str}{line_end}\n"
+                        else:
+                            jac_code += f"J{lb}{i}{rb}{lb}{j}{rb} {assignment_op} {expr_str}{line_end}\n"
+        
+        return ode_code, jac_code
+
+    # *****************
     def get_number_of_species(self):
         return len(self.species)
 
