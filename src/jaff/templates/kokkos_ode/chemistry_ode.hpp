@@ -29,7 +29,6 @@ struct ChemistryODE {
         // Compute reaction rates
         // PREPROCESS_NUM_REACTIONS
         double k[0];
-        double flux[0];
         // PREPROCESS_END
         
         // PREPROCESS_RATES

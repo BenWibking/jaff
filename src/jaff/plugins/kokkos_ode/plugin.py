@@ -73,7 +73,8 @@ const auto& n = y;  // Species array alias"""
     num_reactions = str(len(network.reactions))
     
     # Generate proper C++ array declarations
-    num_reactions_decl = f"double k[{num_reactions}];\ndouble flux[{num_reactions}];"
+    # When using CSE, we don't need the flux array
+    num_reactions_decl = f"double k[{num_reactions}];"
     
     # Process all files with auto-detected comment styles
     p.preprocess(path_template,
