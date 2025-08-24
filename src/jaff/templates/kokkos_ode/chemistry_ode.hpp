@@ -15,7 +15,6 @@ struct ChemistryODE {
     
     // Species indices
     // PREPROCESS_COMMONS
-    
     // PREPROCESS_END
     
     ChemistryODE() {}
@@ -25,26 +24,19 @@ struct ChemistryODE {
     KOKKOS_FUNCTION void evaluate_function(const double /*t*/, const double /*dt*/, 
                                           const vec_type1& y, const vec_type2& f) const {
         // PREPROCESS_TEMP_VARS
-        
         // PREPROCESS_END
         
-        // Compute reaction rates and fluxes
+        // Compute reaction rates
         // PREPROCESS_NUM_REACTIONS
         double k[0];
         double flux[0];
         // PREPROCESS_END
         
         // PREPROCESS_RATES
-        
-        // PREPROCESS_END
-        
-        // PREPROCESS_FLUXES
-        
         // PREPROCESS_END
         
         // Compute derivatives for each species
         // PREPROCESS_ODE
-        
         // PREPROCESS_END
     }
     
@@ -53,7 +45,6 @@ struct ChemistryODE {
     KOKKOS_FUNCTION void evaluate_jacobian(const double /*t*/, const double /*dt*/,
                                           const vec_type& y, const mat_type& J) const {
         // PREPROCESS_TEMP_VARS
-        
         // PREPROCESS_END
         
         // Compute reaction rates (needed for Jacobian evaluation)
@@ -62,12 +53,10 @@ struct ChemistryODE {
         // PREPROCESS_END
         
         // PREPROCESS_RATES
-        
         // PREPROCESS_END
         
         // Compute analytical Jacobian
         // PREPROCESS_JACOBIAN
-        
         // PREPROCESS_END
     }
 };
