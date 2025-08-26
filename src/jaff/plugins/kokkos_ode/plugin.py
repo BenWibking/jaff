@@ -5,9 +5,11 @@ def main(network, path_template, path_build=None):
 
     p = Preprocessor()
 
-    # Generate C++ code for Kokkos
+    ## Generate C++ code for Kokkos
+
     # Get species indices and counts with C++ formatting
     scommons = network.get_commons(idx_offset=0, idx_prefix="", definition_prefix="static constexpr int ")
+
     # Add semicolons for C++ syntax
     scommons = '\n'.join([line + ';' if line.strip() and not line.strip().endswith(';') else line for line in scommons.split('\n')])
     
@@ -34,25 +36,8 @@ static double photorates(int /*index*/, T /*energy*/, T /*max_energy*/) {
     # Get reaction rates with C++ syntax and CSE optimization
     rates = network.get_rates(idx_offset=0, rate_variable="k", language="c++", use_cse=True)
     
-    # Get ODE fluxes and derivatives with C++ array access
-    sflux = network.get_fluxes(idx_offset=0, rate_variable="k", species_variable="y", brackets="[]", idx_prefix="")
-    
     # Generate symbolic ODE and analytical Jacobian
-    sode_symbolic, jacobian = network.get_symbolic_ode_and_jacobian(idx_offset=0, use_cse=True, language="c++")
-    
-    # For backward compatibility, also generate the traditional ODE (without CSE)
-    # This can be used if the symbolic version has issues
-    sode_traditional = network.get_ode(idx_offset=0, flux_variable="flux", brackets="[]", species_variable="f", idx_prefix="", derivative_prefix="")
-    
-    # Fix spacing in traditional ODE expressions
-    import re
-    # Replace patterns like "- flux" or "+ flux" with proper spacing
-    sode_traditional = re.sub(r'([+-])\s*flux', r'\1 flux', sode_traditional)
-    # Also ensure space before operators that aren't at the start of the expression
-    sode_traditional = re.sub(r'(\S)([+-])', r'\1 \2', sode_traditional)
-    
-    # Use the symbolic ODE by default
-    sode = sode_symbolic
+    sode, jacobian = network.get_symbolic_ode_and_jacobian(idx_offset=0, use_cse=True, language="c++")
     
     # Generate temperature variable definitions for C++
     # These variables are commonly used in chemistry rate expressions
@@ -79,10 +64,10 @@ const auto& n = y;  // Species array alias"""
     # Process all files with auto-detected comment styles
     p.preprocess(path_template,
                  ["chemistry_ode.hpp", "chemistry_ode.cpp", "CMakeLists.txt"],
-                 [{"COMMONS": scommons, "RATES": rates, "FLUXES": sflux, "ODE": sode, "JACOBIAN": jacobian,
+                 [{"COMMONS": scommons, "RATES": rates, "ODE": sode, "JACOBIAN": jacobian,
                    "NUM_SPECIES": f"static constexpr int neqs = {num_species};",
                    "NUM_REACTIONS": num_reactions_decl, "TEMP_VARS": temp_vars},
-                  {"COMMONS": scommons, "RATES": rates, "FLUXES": sflux, "ODE": sode, "JACOBIAN": jacobian,
+                  {"COMMONS": scommons, "RATES": rates, "ODE": sode, "JACOBIAN": jacobian,
                    "NUM_SPECIES": f"static constexpr int neqs = {num_species};",
                    "NUM_REACTIONS": num_reactions, "TEMP_VARS": temp_vars},
                   {"NUM_SPECIES": num_species}],
