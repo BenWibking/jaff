@@ -191,14 +191,9 @@ class Network:
                 print(f"WARNING: Skipping invalid line: {srow[:50]}... ({e})")
                 continue
 
-            # Clean up rate expression but preserve species name case
-            rate = rate.strip()
+            # use lowercase for rate
+            rate = rate.lower().strip()
             
-            # Convert PHOTO keyword to lowercase for consistent handling
-            # but preserve case for everything else
-            if "PHOTO" in rate:
-                rate = rate.replace("PHOTO", "photo")
-
             # parse rate with sympy
             # photo-chemistry
             if("photo" in rate.lower()):

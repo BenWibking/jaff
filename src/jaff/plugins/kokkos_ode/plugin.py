@@ -48,11 +48,14 @@ const double tgas = Tgas;  // Lowercase alias for compatibility
 
 // Environmental parameters (should be passed in or use defaults)
 const double av = DEFAULT_AV;  // Visual extinction
+const double user_av = DEFAULT_AV;  // Visual extinction
 const double crate = DEFAULT_CRATE;  // Cosmic ray ionization rate
+const double user_tdust = Tgas;
 
 // Access to species densities (for compatibility with different conventions)
-const auto& n = y;  // Species array alias"""
-    
+const auto& n = y;  // Species array alias
+const double ntot = 1.0; // FIXME: placeholder"""
+
     # Process template files
     num_species = str(network.get_number_of_species())
     num_reactions = str(len(network.reactions))
