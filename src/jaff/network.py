@@ -437,19 +437,19 @@ class Network:
         """Generate reaction matrices (rlist and plist) for tracking reactants and products."""
         n_reactions = len(self.reactions)
         n_species = len(self.species)
-        
+
         # Initialize matrices
         self.rlist = np.zeros((n_reactions, n_species), dtype=int)
         self.plist = np.zeros((n_reactions, n_species), dtype=int)
-        
+
         # Fill matrices based on reactions
         for i, reaction in enumerate(self.reactions):
             # Count reactants
             for reactant in reaction.reactants:
                 species_idx = reactant.index
                 self.rlist[i, species_idx] += 1
-            
-            # Count products  
+
+            # Count products
             for product in reaction.products:
                 species_idx = product.index
                 self.plist[i, species_idx] += 1
@@ -471,12 +471,14 @@ class Network:
         return scommons
 
     # ****************
-    def get_rates(self, idx_offset=0, rate_variable="k", language="python"):
+    def get_rates(self, rate_variable="k", language="python"):
 
         if language in ["fortran", "f90"]:
             brackets = "()"
+            idx_offset = 1
         else:
             brackets = "[]"
+            idx_offset = 0
 
         lb, rb = brackets[0], brackets[1]
 
@@ -484,6 +486,8 @@ class Network:
         for i, rea in enumerate(self.reactions):
             if language in ["python", "py"]:
                 rate = rea.get_python()
+            if language in ["fortran", "f90"]:
+                rate = rea.get_f90()
             if rea.guess_type() == "photo":
                 rate = rate.replace("#IDX#", str(idx_offset + i))
             rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate}\n"
@@ -491,7 +495,15 @@ class Network:
         return rates
 
     # ****************
-    def get_fluxes(self, idx_offset=0, rate_variable="k", species_variable="y", brackets="[]", idx_prefix=""):
+    def get_fluxes(self, rate_variable="k", species_variable="y", idx_prefix="", language="python"):
+
+        if language in ["fortran", "f90"]:
+            brackets = "()"
+            idx_offset = 1
+        else:
+            brackets = "[]"
+            idx_offset = 0
+
         lb, rb = brackets[0], brackets[1]
 
         fluxes = ""
@@ -502,7 +514,14 @@ class Network:
         return fluxes
 
     # ****************
-    def get_ode(self, idx_offset=0, flux_variable="flux", brackets="[]", species_variable="y", idx_prefix=""):
+    def get_ode(self, flux_variable="flux", species_variable="y", derivative_variable="None", idx_prefix="", language="python"):
+
+        if language in ["fortran", "f90"]:
+            brackets = "()"
+            idx_offset = 1
+        else:
+            brackets = "[]"
+            idx_offset = 0
 
         lb, rb = brackets[0], brackets[1]
 
@@ -512,16 +531,18 @@ class Network:
                 rrfidx = idx_prefix + rr.fidx
                 if rrfidx not in ode:
                     ode[rrfidx] = ""
-                ode[rrfidx] += f"- {flux_variable}{lb}{idx_offset+i}{rb}"
+                ode[rrfidx] += f" - {flux_variable}{lb}{idx_offset+i}{rb}"
             for pp in rea.products:
                 ppfidx = idx_prefix + pp.fidx
                 if ppfidx not in ode:
                     ode[ppfidx] = ""
-                ode[ppfidx] += f"+ {flux_variable}{lb}{idx_offset+i}{rb}"
+                ode[ppfidx] += f" + {flux_variable}{lb}{idx_offset+i}{rb}"
 
         sode = ""
         for name, expr in ode.items():
-            sode += f"d{species_variable}{lb}{name}{rb} = {expr}\n"
+            if derivative_variable is None:
+                derivative_variable = f"d{species_variable}"
+            sode += f"{derivative_variable}{lb}{name}{rb} = {expr}\n"
 
         return sode
 
@@ -648,10 +669,10 @@ class Network:
 
         # Get min and max temperature if not provided
         if T_min is None:
-            T_min = np.nanmin([r.tmin if r.tmin is not None else np.nan 
+            T_min = np.nanmin([r.tmin if r.tmin is not None else np.nan
                                for r in self.reactions])
         if T_max is None:
-            T_max = np.nanmax([r.tmax if r.tmax is not None else np.nan 
+            T_max = np.nanmax([r.tmax if r.tmax is not None else np.nan
                                for r in self.reactions])
         if T_min is None or T_max is None:
             raise ValueError("could not determine T_min or T_max from "
@@ -751,7 +772,7 @@ class Network:
                                                          a_min = None,
                                                          a_max = rate_max)
                         log_rates_approx[i,:] = 0.5 * \
-                            (log_rates_grow[i,:-1:2] +  
+                            (log_rates_grow[i,:-1:2] +
                              log_rates_grow[i,2::2])
 
                 # Copy new estimates to current ones
@@ -867,15 +888,15 @@ class Network:
         else:
             raise ValueError("unknown output format {:s}".
                              format(str(format)))
-        
+
         # Get rate coefficients
-        temp, coef = self.get_table(T_min = T_min, T_max = T_max, 
-                                    nT = nT, err_tol = err_tol, 
+        temp, coef = self.get_table(T_min = T_min, T_max = T_max,
+                                    nT = nT, err_tol = err_tol,
                                     rate_min = rate_min,
                                     rate_max = rate_max,
                                     fast_log = fast_log,
                                     verbose = verbose)
-        
+
         # Remove from table reaction rates that are either constant
         # or NaN
         if include_all:
@@ -975,7 +996,7 @@ class Network:
             # on the sizes of attributes
             output_names = []
             output_units = []
-            for i, rt, r, p in zip(range(len(rtype)), rtype, 
+            for i, rt, r, p in zip(range(len(rtype)), rtype,
                                    reactants, products):
                 output_names.append(
                     '{:s} rate coefficient: {:s} --> {:s}'.
