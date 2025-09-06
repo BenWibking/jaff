@@ -52,4 +52,4 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-jaff = ["data/*.dat"]
+jaff = ["data/*.dat", "templates/**/*"]
