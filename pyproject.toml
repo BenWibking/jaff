@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=2.0.0",
-    "scipy>=1.14.0",
+    "scipy>=1.13.0",
     "sympy>=1.14.0",
     "tqdm>=4.67.1",
     "h5py>=3.9.0",
@@ -52,4 +52,4 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-jaff = ["data/*.dat"]
+jaff = ["data/*.dat", "templates/**/*"]

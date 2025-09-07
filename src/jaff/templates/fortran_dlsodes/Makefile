@@ -53,6 +53,27 @@ obj_main = main.o
 all:	$(objs) $(obj_main)
 	$(fc) $(fswitch) $(objs) $(obj_main) -o $(exe) $(lib)
 
+# Module dependencies
+# commons module is used by reactions, fluxes, ode, and main
+reactions.o: reactions.f90 commons.o
+	$(fc) $(fswitch) -c $< -o $@ $(lib)
+
+# fluxes module uses commons and reactions
+fluxes.o: fluxes.f90 commons.o reactions.o
+	$(fc) $(fswitch) -c $< -o $@ $(lib)
+
+# ode module uses commons and fluxes
+ode.o: ode.f90 commons.o fluxes.o
+	$(fc) $(fswitch) -c $< -o $@ $(lib)
+
+# main uses commons and ode
+main.o: main.f90 commons.o ode.o
+	$(fc) $(fswitch) -c $< -o $@ $(lib)
+
+# commons has no dependencies
+commons.o: commons.f90
+	$(fc) $(fswitch) -c $< -o $@ $(lib)
+
 #full debug target
 debug: fswitch = $(switchDBG)
 debug: all
