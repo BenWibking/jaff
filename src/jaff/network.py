@@ -6,7 +6,8 @@ import re
 import os
 from tqdm import tqdm
 import sympy
-from sympy import parse_expr, symbols, sympify, lambdify, srepr, Function
+from sympy import parse_expr, symbols, sympify, lambdify, srepr, Function, Piecewise
+from sympy.core.function import UndefinedFunction
 import h5py
 from .parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, parse_uclchem, f90_convert
 from .fastlog import fast_log2, inverse_fast_log2
@@ -92,7 +93,18 @@ class Network:
         invte = 1e0 / te
         invtgas = 1e0 / tgas
         sqrtgas = sqrt(tgas)
+        user_tdust = tdust
+        user_av = av
         '''
+
+        # KROME fortan syntax that we need to remove and replace with
+        # symbols that can be substituted into arbitrary codes
+        KROME_replacements = [ 
+            [ parse_expr('get_hnuclei(n)'), parse_expr('nh') ],
+            [ parse_expr('n(idx_h2)'), parse_expr('nh2') ],
+            [ parse_expr('n(idx_h)'), parse_expr('nh0') ],
+            [ parse_expr('n_global(idx_h2)'), parse_expr('nh2') ]
+        ]
 
         # parse krome shortcuts
         for row in krome_shortcuts.split("\n"):
@@ -224,7 +236,7 @@ class Network:
                 if hasattr(rate, '__name__') and rate.__name__ in [v[0] for v in variables_sympy]:
                     rate = symbols(rate.__name__)
             print(rate)
-
+               
             # use sympy to replace custom variables into the rate expression
             # note: reverse order to allow for nested variable replacement
             for vv in variables_sympy[::-1]:
@@ -239,6 +251,38 @@ class Network:
                 rate = rate.subs(symbols("tgas"), "max(tgas, %f)" % tmin)
             if tmax is not None and tmax > 0:
                 rate = rate.subs(symbols("tgas"), "min(tgas, %f)" % tmax)
+
+            # Apply KROME replacement rules; note that these may be nested, so we
+            # do substitutions repeatedly until none remain
+            while True:
+                did_replacement = False
+                for repl in KROME_replacements:
+                    sub = rate.subs( repl[0], repl[1] )
+                    if sub != rate:
+                        rate = sub
+                        did_replacement = True
+                if not did_replacement:
+                    break
+ 
+            # Special case of KROME replacement rule: convert a fortran merge
+            # function to the sympy equivalent, which is a Piecewise object. This
+            # is a bit involved, since we have to first identify any calls to
+            # merge (which may be deep inside a complicated, nested expression),
+            # then extract the three arguments, then construct an equivalent
+            # expression using Piecewise, and then substitute that in.
+            funcs = [f for f in rate.atoms(Function) 
+                     if type(f.func) is UndefinedFunction ] # Grab undefined functions
+            expr_to_repl = []
+            expr_repl = []
+            for f in funcs:
+                if f.name == 'merge':   # This is a merge function
+                    expr_to_repl.append(f)  # Add to replacement list
+                    expr_repl.append(
+                        Piecewise((f.args[0], f.args[2]), (f.args[1], True))
+                    )  # Equivalent Piecewise expression
+                    print(expr_to_repl[-1], expr_repl[-1])
+            for to_repl, repl in zip(expr_to_repl, expr_repl):
+                rate = rate.subs( to_repl, repl )  # Make replacement
 
             if type(rate) is not str:
                 # add variables to the list of all variables
