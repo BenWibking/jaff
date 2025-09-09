@@ -20,15 +20,7 @@ def main(network, path_template, path_build=None):
 static constexpr double DEFAULT_TEMPERATURE = 300.0;  // Default gas temperature in K
 static constexpr double DEFAULT_AV = 1.0;             // Default visual extinction
 static constexpr double DEFAULT_CRATE = 1.3e-17;      // Default cosmic ray ionization rate
-
-// Placeholder function for photorates (should be replaced with actual implementation)
-template<typename T>
-KOKKOS_INLINE_FUNCTION
-static double photorates(int /*index*/, T /*energy*/, T /*max_energy*/) {
-    // Placeholder: return 0 for photochemistry rates
-    // In a real implementation, this would compute photo-dissociation/ionization rates
-    return 0.0;
-}"""
+"""
     
     # Combine species indices with chemistry variables
     scommons = scommons + "\n" + chemistry_vars
@@ -43,18 +35,11 @@ static double photorates(int /*index*/, T /*energy*/, T /*max_energy*/) {
     # These variables are commonly used in chemistry rate expressions
     temp_vars = """// Temperature and environment variables used in chemical reactions
 // T is expected to be passed as a parameter or computed from the state
-const double Tgas = DEFAULT_TEMPERATURE;  // Gas temperature (matches network conventions)
-const double tgas = Tgas;  // Lowercase alias for compatibility
-
-// Environmental parameters (should be passed in or use defaults)
+const double tgas = DEFAULT_TEMPERATURE;
+const double tdust = DEFAULT_TEMPERATURE;
 const double av = DEFAULT_AV;  // Visual extinction
-const double user_av = DEFAULT_AV;  // Visual extinction
 const double crate = DEFAULT_CRATE;  // Cosmic ray ionization rate
-const double user_tdust = Tgas;
-
-// Access to species densities (for compatibility with different conventions)
-const auto& n = y;  // Species array alias
-const double ntot = 1.0; // FIXME: placeholder"""
+"""
 
     # Process template files
     num_species = str(network.get_number_of_species())
