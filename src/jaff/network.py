@@ -332,6 +332,9 @@ class Network:
         print("Loaded %d reactions" % len(self.reactions))
         print("Lodaded %d photo-chemistry reactions" % n_photo)
 
+        # Issue warning message if undefined functions remain
+
+
     # ****************
     def read_aux_funcs(self, funcfile):
         """
@@ -367,7 +370,7 @@ class Network:
                 return parse_funcfile(self.file_name+"_functions")
             except IOError:
                 # Fail silently if no function file is present
-                pass
+                return {}
         else:
             return parse_funcfile(funcfile)        
 
