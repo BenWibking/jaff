@@ -270,12 +270,9 @@ class Network:
                 if not did_replacement:
                     break
  
-            # Special case of KROME replacement rule: convert a fortran merge
-            # function to the sympy equivalent, which is a Piecewise object. This
-            # is a bit involved, since we have to first identify any calls to
-            # merge (which may be deep inside a complicated, nested expression),
-            # then extract the three arguments, then construct an equivalent
-            # expression using Piecewise, and then substitute that in.
+            # Replacements for fortran functions that do not have sympy
+            # equivalents: merge and log10. The former converts to piecewise,
+            # the latter to log divided by log(10).
             funcs = [f for f in rate.atoms(Function) 
                      if type(f.func) is UndefinedFunction ] # Grab undefined functions
             expr_to_repl = []
@@ -286,7 +283,11 @@ class Network:
                     expr_repl.append(
                         Piecewise((f.args[0], f.args[2]), (f.args[1], True))
                     )  # Equivalent Piecewise expression
-                    print(expr_to_repl[-1], expr_repl[-1])
+                elif f.name == 'log10':  # This is a log10 function
+                    expr_to_repl.append(f)  # Add to replacement list
+                    expr_repl.append(
+                        (sympy.log(f.args[0])/sympy.log(10))
+                    )
             for to_repl, repl in zip(expr_to_repl, expr_repl):
                 rate = rate.subs( to_repl, repl )  # Make replacement
 
@@ -333,6 +334,14 @@ class Network:
         print("Lodaded %d photo-chemistry reactions" % n_photo)
 
         # Issue warning message if undefined functions remain
+        undef_funcs = []
+        for r in self.reactions:
+            for f in r.rate.atoms(Function):
+                if type(f.func) is UndefinedFunction and f.name not in undef_funcs:
+                    undef_funcs.append(f.name)
+        if len(undef_funcs) > 0:
+            print("WARNING: found undefined functions ", undef_funcs)
+            print("   some functionality will not be available as a result")
 
 
     # ****************
@@ -364,13 +373,13 @@ class Network:
         """
 
         if funcfile == 'none':
-            return [], {}
+            return dict()   # Empty dict
         elif funcfile is None:
             try:
                 return parse_funcfile(self.file_name+"_functions")
             except IOError:
-                # Fail silently if no function file is present
-                return {}
+                # Silently return empty dict if no function file is present
+                return dict()
         else:
             return parse_funcfile(funcfile)        
 
