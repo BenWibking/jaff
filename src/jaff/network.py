@@ -363,7 +363,11 @@ class Network:
         if funcfile == 'none':
             return [], {}
         elif funcfile is None:
-            return parse_funcfile(self.file_name+"_functions")
+            try:
+                return parse_funcfile(self.file_name+"_functions")
+            except IOError:
+                # Fail silently if no function file is present
+                pass
         else:
             return parse_funcfile(funcfile)        
 
