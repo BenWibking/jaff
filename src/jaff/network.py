@@ -12,11 +12,13 @@ import h5py
 from .parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, parse_uclchem, f90_convert
 from .fastlog import fast_log2, inverse_fast_log2
 from .photochemistry import Photochemistry
+from .function_parser import parse_funcfile
 
 class Network:
 
     # ****************
-    def __init__(self, fname, errors=False, label=None):
+    def __init__(self, fname, errors=False, label=None,
+                 funcfile=None):
 
         self.motd()
 
@@ -36,7 +38,7 @@ class Network:
 
         self.photochemistry = Photochemistry()
 
-        self.load_network(fname)
+        self.load_network(fname, funcfile)
 
         self.check_sink_sources(errors)
         self.check_recombinations(errors)
@@ -75,7 +77,7 @@ class Network:
         return mass_dict
 
     # ****************
-    def load_network(self, fname):
+    def load_network(self, fname, funcfile):
 
         default_species = [] # ["dummy", "CR", "CRP", "Photon"]
         self.species = [Species(s, self.mass_dict, i) for i, s in enumerate(default_species)]
@@ -85,7 +87,7 @@ class Network:
         # custom variables
         variables_sympy = []
 
-        # some of the krome shortcuts used in KROME
+        # some of the shortcuts used in KROME
         krome_shortcuts = '''
         t32=tgas/3e2
         te=tgas*8.617343e-5
@@ -97,6 +99,14 @@ class Network:
         user_av = av
         '''
 
+        # parse krome shortcuts
+        for row in krome_shortcuts.split("\n"):
+            srow = row.strip()
+            if srow == "" or srow.startswith("#"):
+                continue
+            var, val = srow.split("=")
+            variables_sympy.append([var, parse_expr(val, evaluate=False)])
+
         # KROME fortan syntax that we need to remove and replace with
         # symbols that can be substituted into arbitrary codes
         KROME_replacements = [ 
@@ -106,13 +116,9 @@ class Network:
             [ parse_expr('n_global(idx_h2)'), parse_expr('nh2') ]
         ]
 
-        # parse krome shortcuts
-        for row in krome_shortcuts.split("\n"):
-            srow = row.strip()
-            if srow == "" or srow.startswith("#"):
-                continue
-            var, val = srow.split("=")
-            variables_sympy.append([var, parse_expr(val, evaluate=False)])
+        # Read the auxiliary function file to get the list of functions
+        # to substitute
+        aux_funcs = self.read_aux_funcs(funcfile)
 
         # all variables found in the rate expressions (not in the custom variables)
         free_symbols_all = []
@@ -284,6 +290,18 @@ class Network:
             for to_repl, repl in zip(expr_to_repl, expr_repl):
                 rate = rate.subs( to_repl, repl )  # Make replacement
 
+            # Apply the replacement rules for custom functions
+            funcs = [f for f in rate.atoms(Function) 
+                     if type(f.func) is UndefinedFunction ] # Grab undefined functions
+            for f in funcs:
+                if f.name in aux_funcs.keys():
+                    # Grab function definition and substitute in arguments
+                    fdef = aux_funcs[f.name]["def"]
+                    for a1, a2 in zip(aux_funcs[f.name]["args"], f.args):
+                        fdef = fdef.subs(a1, a2)
+                    # Substitute function into rate
+                    rate = rate.subs(f, fdef)
+
             if type(rate) is not str:
                 # add variables to the list of all variables
                 free_symbols_all += rate.free_symbols
@@ -313,6 +331,41 @@ class Network:
         print("Variables found:", free_symbols_all)
         print("Loaded %d reactions" % len(self.reactions))
         print("Lodaded %d photo-chemistry reactions" % n_photo)
+
+    # ****************
+    def read_aux_funcs(self, funcfile):
+        """
+        Read the auxiliary function file
+
+        Parameters:
+            funcfile : string or None
+                Name of auxiliary function file; if left as None,
+                the default name self.file_name+"_functions' is used,
+                and if set to the string 'none' then no auxiliary
+                functions will be read
+
+        Returns:
+            funcs : dict
+                a dict whose keys are the names of functions and
+                whose values are dicts containing the fields "def",
+                "args", and "argcomments"; "def" contains a Sympy
+                expression giving the function definition, "args"
+                contains a list of Sympy.Symbols defining the
+                arguments, "comments" is a string that captures any
+                comments the follow the function definition,
+                and "argcomments" is a list of strings capturing 
+                comments on the definitions of the arguments.
+
+        Raises:
+            IOError, if the file does not exist or cannot be parsed
+        """
+
+        if funcfile == 'none':
+            return [], {}
+        elif funcfile is None:
+            return parse_funcfile(self.file_name+"_functions")
+        else:
+            return parse_funcfile(funcfile)        
 
     # ****************
     def compare_reactions(self, other, verbosity=1):
