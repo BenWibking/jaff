@@ -6,7 +6,8 @@ import re
 import os
 from tqdm import tqdm
 import sympy
-from sympy import parse_expr, symbols, sympify, lambdify, srepr, Function, Piecewise
+from sympy import parse_expr, symbols, sympify, lambdify, srepr, \
+    IndexedBase, Idx, Function, Piecewise
 from sympy.core.function import UndefinedFunction
 import h5py
 from .parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, parse_uclchem, f90_convert
@@ -303,10 +304,6 @@ class Network:
                     # Substitute function into rate
                     rate = rate.subs(f, fdef)
 
-            if type(rate) is not str:
-                # add variables to the list of all variables
-                free_symbols_all += rate.free_symbols
-
             # convert reactants and products to Species objects
             for s in rr + pp:
                 if s not in species_names:
@@ -325,6 +322,51 @@ class Network:
                 rea.xsecs = self.photochemistry.get_xsec(rea)
 
             self.reactions.append(rea)
+
+        # Now that we have loaded all rates, apply replacement rules
+        # to replace standard symbols appearing in rates with terms
+        # involving known species
+        nden = IndexedBase('nden')
+        for rea in self.reactions:
+            free_symbols = list(rea.rate.free_symbols)
+            for fs in free_symbols:
+
+                # Construct replacement expression
+                repl = None
+                if fs.name.lower() == "nh":
+                    # Number density of H nuclei in all forms
+                    for spec in self.species:
+                        count = spec.exploded.count('H')
+                        if count > 0:
+                            if repl is None:
+                                repl = count * \
+                                    nden[Idx(self.species_dict[spec.name])]
+                            else:
+                                repl += count * \
+                                    nden[Idx(self.species_dict[spec.name])]
+                elif fs.name.lower() == "nh0":
+                    # Number density if neutral hydrogen atoms
+                    repl = nden[self.species_dict['H']]
+                elif fs.name.lower() == "nh2":
+                    # Number density of H2 nuclei
+                    repl = nden[self.species_dict['H2']]
+                elif fs.name.lower() == 'ntot':
+                    # Total number density of all free particles
+                    for i in range(len(self.species)):
+                        if i == 0:
+                            repl = nden[Idx(i)]
+                        else:
+                            repl += nden[Idx(i)]
+                
+                # Apply replacement expression
+                if repl is not None:
+                    rea.rate = rea.rate.subs(fs, repl)
+
+            # Append any remaining un-replaced quantities to list
+            # of free symbols, removing nden's
+            free_symbols_all += [
+                fs for fs in rea.rate.free_symbols
+                if not 'nden' in fs.name ]
 
         # unique list of variables names found in the rate expressions
         free_symbols_all = sorted([x.name for x in list(set(free_symbols_all))])
