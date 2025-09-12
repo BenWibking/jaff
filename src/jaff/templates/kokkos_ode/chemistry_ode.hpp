@@ -27,6 +27,9 @@ struct ChemistryODE {
         // PREPROCESS_TEMP_VARS
         // PREPROCESS_END
 
+        // Alias species concentrations to `nden` to match generated code
+        const auto& nden = y;
+
         // Compute reaction rates
         // PREPROCESS_NUM_REACTIONS
         double k[0];
@@ -44,6 +47,9 @@ struct ChemistryODE {
     static void jacobian(const integrators::Real /*t*/, const state_type& y, jacobian_type& J) {
         // PREPROCESS_TEMP_VARS
         // PREPROCESS_END
+
+        // Alias species concentrations to `nden` to match generated code
+        const auto& nden = y;
 
         // Compute reaction rates (needed for Jacobian evaluation)
         // PREPROCESS_NUM_REACTIONS

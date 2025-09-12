@@ -806,8 +806,10 @@ class Network:
         from sympy import symbols, Matrix, diff, cse, numbered_symbols
         
         # Create symbolic variables for species concentrations
+        # Use nden[i] instead of y[i] to be consistent with
+        # number density notation in rates and templates
         n_species = len(self.species)
-        y_symbols = [symbols(f'y[{i}]') for i in range(n_species)]
+        nden_symbols = [symbols(f'nden[{i}]') for i in range(n_species)]
         
         # Create symbolic variables for reaction rates
         n_reactions = len(self.reactions)
@@ -828,7 +830,7 @@ class Network:
                         idx = int(rr.fidx)
                 else:
                     idx = int(rr.fidx)
-                flux_expr *= y_symbols[idx]
+                flux_expr *= nden_symbols[idx]
             flux_symbols.append(flux_expr)
         
         # Build symbolic ODE expressions (RHS)
@@ -862,7 +864,7 @@ class Network:
                 ode_symbols[idx] += flux_symbols[i]
         
         # Compute the Jacobian matrix
-        jacobian_matrix = Matrix(ode_symbols).jacobian(y_symbols)
+        jacobian_matrix = Matrix(ode_symbols).jacobian(nden_symbols)
         
         # Generate code strings
         if language in ["c++", "cpp", "cxx"]:

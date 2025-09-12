@@ -56,7 +56,7 @@ int main(int argc, char* argv[]) {
     // Print initial conditions
     std::cout << "Initial conditions:\n";
     for (int i = 0; i < mySys.neqs && i < 10; ++i) {
-        std::cout << "  y[" << i << "] = " << std::setprecision(10) << y0[static_cast<size_t>(i)] << "\n";
+        std::cout << "  nden[" << i << "] = " << std::setprecision(10) << y0[static_cast<size_t>(i)] << "\n";
     }
     if (mySys.neqs > 10) {
         std::cout << "  ... (showing first 10 species)\n";
@@ -83,7 +83,7 @@ int main(int argc, char* argv[]) {
     // Print final solution
     std::cout << "\nFinal solution at t = " << t_end << " seconds:\n";
     for (int i = 0; i < mySys.neqs && i < 10; ++i) {
-        std::cout << "  y[" << i << "] = " << std::setprecision(10) << state.y[static_cast<size_t>(i)] << "\n";
+        std::cout << "  nden[" << i << "] = " << std::setprecision(10) << state.y[static_cast<size_t>(i)] << "\n";
     }
     if (mySys.neqs > 10) {
         std::cout << "  ... (showing first 10 species)\n";
