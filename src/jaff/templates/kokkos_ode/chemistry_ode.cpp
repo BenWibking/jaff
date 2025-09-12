@@ -18,8 +18,35 @@ int main(int argc, char* argv[]) {
     Real t_end = 3.15576e9; // 100 years in seconds default
 
     // Parse command line arguments
-    if (argc > 1) {
-        t_end = std::stod(argv[1]);
+    // Positional args (in order): t_end [ic_file] [out_file]
+    // Flags (any position): --analytic-jac | --numerical-jac | --help
+    bool analytic_jac = false; // default to numerical Jacobian for robustness
+    int positional = 0;
+    std::string ic_path;
+    std::string out_path;
+    for (int i = 1; i < argc; ++i) {
+        std::string arg(argv[i]);
+        if (arg == "--help" || arg == "-h") {
+            std::cout << "Usage: chemistry_ode [t_end] [ic_file] [out_file] [--analytic-jac|--numerical-jac]\n";
+            return 0;
+        } else if (arg == "--analytic-jac") {
+            analytic_jac = true;
+        } else if (arg == "--numerical-jac") {
+            analytic_jac = false;
+        } else if (!arg.empty() && arg[0] == '-') {
+            std::cerr << "Unknown option: " << arg << "\n";
+            return 1;
+        } else {
+            // positional
+            if (positional == 0) {
+                t_end = std::stod(arg);
+            } else if (positional == 1) {
+                ic_path = arg;
+            } else if (positional == 2) {
+                out_path = arg;
+            }
+            positional++;
+        }
     }
 
     std::cout << "Solving Chemistry ODE System (header-only integrators)\n";
@@ -43,13 +70,13 @@ int main(int argc, char* argv[]) {
         y0[0] = 1.0e-6;
     }
 
-    // Read initial conditions from file if provided
-    if (argc > 2) {
-        std::ifstream ic_file(argv[2]);
+    // Read initial conditions from file if provided (2nd positional arg)
+    if (!ic_path.empty()) {
+        std::ifstream ic_file(ic_path);
         if (ic_file.is_open()) {
             for (int i = 0; i < mySys.neqs && (ic_file >> y0[static_cast<size_t>(i)]); ++i) {}
             ic_file.close();
-            std::cout << "Initial conditions loaded from " << argv[2] << "\n";
+            std::cout << "Initial conditions loaded from " << ic_path << "\n";
         }
     }
 
@@ -73,7 +100,9 @@ int main(int argc, char* argv[]) {
     state.rtol = 1.e-8;
     state.atol = 1.e-20; // chemistry can have very small values
     state.max_steps = 200000;
-    state.jacobian_analytic = true; // we generate an analytic Jacobian
+    state.jacobian_analytic = analytic_jac;
+
+    std::cout << "Jacobian: " << (state.jacobian_analytic ? "analytic" : "numerical") << "\n";
 
     // Problem state (reserved for problem parameters; unused here)
     ChemistryODE::state_type problem_state{};
@@ -89,15 +118,15 @@ int main(int argc, char* argv[]) {
         std::cout << "  ... (showing first 10 species)\n";
     }
 
-    // Write solution to file if output path provided
-    if (argc > 3) {
-        std::ofstream out_file(argv[3]);
+    // Write solution to file if output path provided (3rd positional arg)
+    if (!out_path.empty()) {
+        std::ofstream out_file(out_path);
         if (out_file.is_open()) {
             for (int i = 0; i < mySys.neqs; ++i) {
                 out_file << std::setprecision(17) << state.y[static_cast<size_t>(i)] << "\n";
             }
             out_file.close();
-            std::cout << "\nSolution written to " << argv[3] << "\n";
+            std::cout << "\nSolution written to " << out_path << "\n";
         }
     }
 
@@ -116,6 +145,27 @@ int main(int argc, char* argv[]) {
 
     if (result != IntegratorResult::SUCCESS) {
         std::cerr << "\nIntegration did not succeed. Error code = " << static_cast<int>(result) << "\n";
+        // Diagnostics: print failed step index and key integrator state
+        auto dump_state = [](const VODEState<static_cast<size_type>(ChemistryODE::neqs)>& s) {
+            std::cerr.setf(std::ios::scientific, std::ios::floatfield);
+            std::cerr.precision(17);
+            std::cerr << "Failure diagnostics:" << '\n';
+            std::cerr << "  failed_at_step = " << (s.n_step + 1) << " (completed=" << s.n_step << ")" << '\n';
+            std::cerr << "  t = " << s.t << ", tn = " << s.tn << ", tout = " << s.tout << '\n';
+            std::cerr << "  H = " << s.H << ", NQ = " << int(s.NQ) << ", L = " << int(s.L) << '\n';
+            std::cerr << "  ETA = " << s.ETA << ", RC = " << s.RC << ", ETAMAX = " << s.ETAMAX << '\n';
+            std::cerr << "  err_fails = " << s.err_fails << ", n_rhs = " << s.n_rhs << ", n_jac = " << s.n_jac << '\n';
+            std::cerr << "  flags: ICF=" << int(s.ICF) << ", IPUP=" << int(s.IPUP) << ", JCUR=" << int(s.JCUR)
+                      << ", NEWH=" << int(s.NEWH) << ", NEWQ=" << int(s.NEWQ) << ", NQWAIT=" << int(s.NQWAIT) << '\n';
+            std::cerr << "  norms: acnrm_last = " << s.acnrm_last
+                      << ", TQ2 = " << s.tq[1] << ", TQ3 = " << s.tq[2]
+                      << ", TQ4 = " << s.tq[3] << ", TQ5 = " << s.tq[4] << '\n';
+            std::cerr << "  y[0:5] = ";
+            for (int i = 0; i < std::min(5, ChemistryODE::neqs); ++i) {
+                std::cerr << s.y[static_cast<size_t>(i)] << (i < 4 ? ", " : "\n");
+            }
+        };
+        dump_state(state);
         return 2;
     }
 
