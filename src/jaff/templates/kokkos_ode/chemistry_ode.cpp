@@ -60,7 +60,6 @@ int main(int argc, char* argv[]) {
 
     // Initial conditions
     ChemistryODE::state_type y0{};
-    ChemistryODE::state_type y{};
 
     // Default: all species start at 1e-10 except first species
     for (int i = 0; i < mySys.neqs; ++i) {

@@ -670,13 +670,41 @@ class Network:
                 # Apply CSE to all valid expressions
                 indices, exprs = zip(*valid_exprs)
                 replacements, reduced_exprs = cse(exprs, optimizations='basic')
+
+                # Prune unused CSE temporaries based on actually emitted rate expressions
+                # Build the set of CSE symbols that appear in the reduced expressions
+                if replacements:
+                    cse_syms = [var for var, _ in replacements]
+                    cse_set = set(cse_syms)
+                    used = set()
+                    for e in reduced_exprs:
+                        used |= (e.free_symbols & cse_set)
+                    # Propagate dependencies transitively
+                    dep_map = {var: expr for var, expr in replacements}
+                    changed = True
+                    while changed:
+                        changed = False
+                        addl = set()
+                        for v in list(used):
+                            ev = dep_map.get(v)
+                            if ev is None:
+                                continue
+                            deps = ev.free_symbols & cse_set
+                            new_deps = deps - used
+                            if new_deps:
+                                addl |= new_deps
+                        if addl:
+                            used |= addl
+                            changed = True
+                    # Keep replacements in original order
+                    replacements = [(var, dep_map[var]) for var, _ in replacements if var in used]
                 
-                # Generate code for common subexpressions
+                # Generate code for common subexpressions (only those actually used)
                 if replacements:
                     rates += "// Common subexpressions\n"
-                for i, (var, expr) in enumerate(replacements):
-                    cpp_expr = cxxcode(expr, strict=False).replace("std::", "Kokkos::")
-                    rates += f"const double {var} = {cpp_expr};\n"
+                    for i, (var, expr) in enumerate(replacements):
+                        cpp_expr = cxxcode(expr, strict=False).replace("std::", "Kokkos::")
+                        rates += f"const double {var} = {cpp_expr};\n"
                 
                 if replacements:
                     rates += "\n// Rate calculations using common subexpressions\n"
@@ -894,24 +922,53 @@ class Network:
             all_exprs = list(ode_symbols) + list(jacobian_matrix)
             replacements, reduced_exprs = cse(all_exprs, symbols=numbered_symbols("cse"))
             
-            # Generate CSE assignments
-            cse_code = ""
-            for i, (var, expr) in enumerate(replacements):
-                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
-                # Map temporary y_i back to nden[i] in emitted code
-                import re as _re
-                for j in range(n_species):
-                    expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
-                # Replace array brackets in the expression (safety)
-                expr_str = expr_str.replace('[', lb).replace(']', rb)
-                cse_code += f"const double {var} {assignment_op} {expr_str}{line_end}\n"
-            
             # Split reduced expressions back
             ode_reduced = reduced_exprs[:n_species]
             jac_reduced = reduced_exprs[n_species:]
             
-            # Generate ODE code with CSE
-            ode_code = cse_code
+            # Helper: prune CSE replacements down to those used by a set of expressions
+            def _prune_cse(_repls, _exprs):
+                if not _repls:
+                    return []
+                _cse_syms = [v for v, _ in _repls]
+                _cse_set = set(_cse_syms)
+                _used = set()
+                for _e in _exprs:
+                    _used |= (_e.free_symbols & _cse_set)
+                if not _used:
+                    return []
+                _dep_map = {v: e for v, e in _repls}
+                _changed = True
+                while _changed:
+                    _changed = False
+                    _addl = set()
+                    for _v in list(_used):
+                        _ev = _dep_map.get(_v)
+                        if _ev is None:
+                            continue
+                        _deps = _ev.free_symbols & _cse_set
+                        _new = _deps - _used
+                        if _new:
+                            _addl |= _new
+                    if _addl:
+                        _used |= _addl
+                        _changed = True
+                return [(v, _dep_map[v]) for v, _ in _repls if v in _used]
+
+            # Build separate CSE blocks for RHS and Jacobian
+            repls_ode = _prune_cse(replacements, ode_reduced)
+            repls_jac = _prune_cse(replacements, jac_reduced)
+
+            # Generate ODE code with only the needed CSE assignments
+            ode_code = ""
+            for i, (var, expr) in enumerate(repls_ode):
+                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                import re as _re
+                for j in range(n_species):
+                    expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
+                expr_str = expr_str.replace('[', lb).replace(']', rb)
+                ode_code += f"const double {var} {assignment_op} {expr_str}{line_end}\n"
+
             for i, expr in enumerate(ode_reduced):
                 expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
                 import re as _re
@@ -920,8 +977,15 @@ class Network:
                 expr_str = expr_str.replace('[', lb).replace(']', rb)
                 ode_code += f"f{lb}{i}{rb} {assignment_op} {expr_str}{line_end}\n"
             
-            # Generate Jacobian code with CSE (include CSE variable definitions)
-            jac_code = cse_code  # Include the CSE variable definitions
+            # Generate Jacobian code with only the needed CSE assignments
+            jac_code = ""
+            for i, (var, expr) in enumerate(repls_jac):
+                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                import re as _re
+                for j in range(n_species):
+                    expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
+                expr_str = expr_str.replace('[', lb).replace(']', rb)
+                jac_code += f"const double {var} {assignment_op} {expr_str}{line_end}\n"
             for i in range(n_species):
                 for j in range(n_species):
                     idx = i * n_species + j
