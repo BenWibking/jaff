@@ -5,7 +5,7 @@ def main(network, path_template, path_build=None):
 
     p = Preprocessor()
 
-    ## Generate C++ code for Kokkos
+    ## Generate C++ code using header-only integrators (VODE)
 
     # Get species indices and counts with C++ formatting
     scommons = network.get_commons(idx_offset=0, idx_prefix="", definition_prefix="static constexpr int ")
@@ -27,9 +27,15 @@ static constexpr double DEFAULT_CRATE = 1.3e-17;      // Default cosmic ray ioni
     
     # Get reaction rates with C++ syntax and CSE optimization
     rates = network.get_rates(idx_offset=0, rate_variable="k", language="c++", use_cse=True)
+    # Ensure we use standard <cmath> namespace, not Kokkos math wrappers
+    rates = rates.replace("Kokkos::", "std::")
     
     # Generate symbolic ODE and analytical Jacobian
     sode, jacobian = network.get_symbolic_ode_and_jacobian(idx_offset=0, use_cse=True, language="c++")
+    # Convert Jacobian indexing from J(i, j) (Kokkos view style) to J[i][j] (std::array style)
+    # This keeps the network generator stable while adapting to header-only integrators API
+    import re
+    jacobian = re.sub(r"J\((\d+)\s*,\s*(\d+)\)", r"J[\1][\2]", jacobian)
     
     # Generate temperature variable definitions for C++
     # These variables are commonly used in chemistry rate expressions
