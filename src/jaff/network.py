@@ -7,7 +7,7 @@ import os
 from tqdm import tqdm
 import sympy
 from sympy import parse_expr, symbols, sympify, lambdify, srepr, \
-    IndexedBase, Idx, Function, Piecewise
+    MatrixSymbol, Idx, Function, Piecewise
 from sympy.core.function import UndefinedFunction
 import h5py
 from .parsers import parse_kida, parse_udfa, parse_prizmo, parse_krome, parse_uclchem, f90_convert
@@ -326,7 +326,7 @@ class Network:
         # Now that we have loaded all rates, apply replacement rules
         # to replace standard symbols appearing in rates with terms
         # involving known species
-        nden = IndexedBase('nden')
+        nden = MatrixSymbol('nden', len(self.species), 1)
         for rea in self.reactions:
             free_symbols = list(rea.rate.free_symbols)
             for fs in free_symbols:
