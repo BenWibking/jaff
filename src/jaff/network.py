@@ -805,66 +805,76 @@ class Network:
         import sympy as sp
         from sympy import symbols, Matrix, diff, cse, numbered_symbols
         
-        # Create symbolic variables for species concentrations
-        # Use nden[i] instead of y[i] to be consistent with
-        # number density notation in rates and templates
+        # Create symbolic variables representing species concentrations for Jacobian
+        # We use temporary scalar symbols y_i for robust SymPy manipulation, then
+        # remap names to `nden[i]` at codegen time to match templates.
         n_species = len(self.species)
-        nden_symbols = [symbols(f'nden[{i}]') for i in range(n_species)]
-        
-        # Create symbolic variables for reaction rates
-        n_reactions = len(self.reactions)
-        k_symbols = [symbols(f'k[{i}]') for i in range(n_reactions)]
-        
-        # Build symbolic flux expressions
-        flux_symbols = []
+        y_syms = [symbols(f'y_{i}') for i in range(n_species)]
+
+        # Build mapping to replace any Indexed occurrences of nden[...] in rate expressions
+        # with the corresponding scalar y_i symbols.
+        from sympy import Indexed, IndexedBase, Idx
+        nden_base = IndexedBase('nden')
+        nden_to_y = {}
+        for i in range(n_species):
+            # Support both nden[i] and nden[Idx(i)] forms
+            nden_to_y[Indexed(nden_base, i)] = y_syms[i]
+            nden_to_y[Indexed(nden_base, Idx(i))] = y_syms[i]
+
+        # Precompute rate expressions with nden[...] mapped to y_i
+        k_exprs = [rea.rate.xreplace(nden_to_y) for rea in self.reactions]
+
+        # Build symbolic flux expressions using the full SymPy rate
+        # so that dependencies k(y) contribute via the chain rule.
+        flux_exprs = []
         for i, rea in enumerate(self.reactions):
-            flux_expr = k_symbols[i]
+            rate_expr = k_exprs[i]
+            # Replace any symbolic k[i] occurrences with the full rate expr, defensively
+            rate_symbol = symbols(f'k[{i}]')
+            rate_expr = rate_expr.xreplace({rate_symbol: k_exprs[i]})
+            flux = rate_expr
+            # Multiply by reactant concentrations (as y_syms)
             for rr in rea.reactants:
-                # Handle both integer indices and string identifiers like "idx_Hj"
                 if isinstance(rr.fidx, str):
                     if rr.fidx.startswith("idx_"):
-                        # The fidx format replaces + with j and - with k
-                        # So we need to look up the species by its actual name
-                        idx = rr.index  # Use the species index directly
+                        idx = rr.index
                     else:
                         idx = int(rr.fidx)
                 else:
                     idx = int(rr.fidx)
-                flux_expr *= nden_symbols[idx]
-            flux_symbols.append(flux_expr)
-        
-        # Build symbolic ODE expressions (RHS)
+                flux *= y_syms[idx]
+            flux_exprs.append(flux)
+
+        # Build symbolic ODE RHS using flux expressions
         ode_symbols = [sp.Integer(0) for _ in range(n_species)]
         for i, rea in enumerate(self.reactions):
             # Subtract flux from reactants
             for rr in rea.reactants:
-                # Handle both integer indices and string identifiers like "idx_Hj"
                 if isinstance(rr.fidx, str):
                     if rr.fidx.startswith("idx_"):
-                        # The fidx format replaces + with j and - with k
-                        # So we need to look up the species by its actual name
-                        idx = rr.index  # Use the species index directly
+                        idx = rr.index
                     else:
                         idx = int(rr.fidx)
                 else:
                     idx = int(rr.fidx)
-                ode_symbols[idx] -= flux_symbols[i]
+                ode_symbols[idx] -= flux_exprs[i]
             # Add flux to products
             for pp in rea.products:
-                # Handle both integer indices and string identifiers like "idx_Hj"
                 if isinstance(pp.fidx, str):
                     if pp.fidx.startswith("idx_"):
-                        # The fidx format replaces + with j and - with k
-                        # So we need to look up the species by its actual name
-                        idx = pp.index  # Use the species index directly
+                        idx = pp.index
                     else:
                         idx = int(pp.fidx)
                 else:
                     idx = int(pp.fidx)
-                ode_symbols[idx] += flux_symbols[i]
-        
-        # Compute the Jacobian matrix
-        jacobian_matrix = Matrix(ode_symbols).jacobian(nden_symbols)
+                ode_symbols[idx] += flux_exprs[i]
+
+        # Replace any remaining k[i] symbols defensively before differentiating
+        subs_k = {symbols(f'k[{i}]'): k_exprs[i] for i in range(len(self.reactions))}
+        ode_symbols = [expr.xreplace(subs_k) for expr in ode_symbols]
+
+        # Compute the Jacobian matrix d(f)/d(y)
+        jacobian_matrix = Matrix(ode_symbols).jacobian(y_syms)
         
         # Generate code strings
         if language in ["c++", "cpp", "cxx"]:
@@ -888,7 +898,11 @@ class Network:
             cse_code = ""
             for i, (var, expr) in enumerate(replacements):
                 expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
-                # Replace array brackets in the expression
+                # Map temporary y_i back to nden[i] in emitted code
+                import re as _re
+                for j in range(n_species):
+                    expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
+                # Replace array brackets in the expression (safety)
                 expr_str = expr_str.replace('[', lb).replace(']', rb)
                 cse_code += f"const double {var} {assignment_op} {expr_str}{line_end}\n"
             
@@ -900,6 +914,9 @@ class Network:
             ode_code = cse_code
             for i, expr in enumerate(ode_reduced):
                 expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                import re as _re
+                for j in range(n_species):
+                    expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace('[', lb).replace(']', rb)
                 ode_code += f"f{lb}{i}{rb} {assignment_op} {expr_str}{line_end}\n"
             
@@ -911,6 +928,9 @@ class Network:
                     expr = jac_reduced[idx]
                     if expr != 0:
                         expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                        import re as _re
+                        for m in range(n_species):
+                            expr_str = _re.sub(rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str)
                         expr_str = expr_str.replace('[', lb).replace(']', rb)
                         # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
                         if language in ["c++", "cpp", "cxx"]:
@@ -922,6 +942,9 @@ class Network:
             ode_code = ""
             for i, expr in enumerate(ode_symbols):
                 expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                import re as _re
+                for j in range(n_species):
+                    expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace('[', lb).replace(']', rb)
                 ode_code += f"f{lb}{i}{rb} {assignment_op} {expr_str}{line_end}\n"
             
@@ -932,13 +955,16 @@ class Network:
                     expr = jacobian_matrix[i, j]
                     if expr != 0:
                         expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                        import re as _re
+                        for m in range(n_species):
+                            expr_str = _re.sub(rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str)
                         expr_str = expr_str.replace('[', lb).replace(']', rb)
                         # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
                         if language in ["c++", "cpp", "cxx"]:
                             jac_code += f"J({i}, {j}) {assignment_op} {expr_str}{line_end}\n"
                         else:
                             jac_code += f"J{lb}{i}{rb}{lb}{j}{rb} {assignment_op} {expr_str}{line_end}\n"
-        
+
         return ode_code, jac_code
 
     # *****************

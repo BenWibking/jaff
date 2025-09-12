@@ -51,6 +51,13 @@ struct ChemistryODE {
         // Alias species concentrations to `nden` to match generated code
         const auto& nden = y;
 
+        // Zero the Jacobian matrix before filling non-zero entries
+        for (int ii = 0; ii < neqs; ++ii) {
+            for (int jj = 0; jj < neqs; ++jj) {
+                J[static_cast<size_t>(ii)][static_cast<size_t>(jj)] = 0.0;
+            }
+        }
+
         // Compute reaction rates (needed for Jacobian evaluation)
         // PREPROCESS_NUM_REACTIONS
         double k[0];
