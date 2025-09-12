@@ -81,11 +81,8 @@ int main(int argc, char* argv[]) {
 
     // Print initial conditions
     std::cout << "Initial conditions:\n";
-    for (int i = 0; i < mySys.neqs && i < 10; ++i) {
+    for (int i = 0; i < mySys.neqs; ++i) {
         std::cout << "  nden[" << i << "] = " << std::setprecision(10) << y0[static_cast<size_t>(i)] << "\n";
-    }
-    if (mySys.neqs > 10) {
-        std::cout << "  ... (showing first 10 species)\n";
     }
 
     // Set up integrator (VODE BDF)
@@ -96,7 +93,7 @@ int main(int argc, char* argv[]) {
     state.t = t_start;
     state.tout = t_end;
     for (size_t i = 0; i < static_cast<size_t>(ChemistryODE::neqs); ++i) state.y[i] = y0[i];
-    state.rtol = 1.e-8;
+    state.rtol = 1.e-5;
     state.atol = 1.e-20; // chemistry can have very small values
     state.max_steps = 200000;
     state.jacobian_analytic = analytic_jac;
@@ -110,11 +107,8 @@ int main(int argc, char* argv[]) {
 
     // Print final solution
     std::cout << "\nFinal solution at t = " << t_end << " seconds:\n";
-    for (int i = 0; i < mySys.neqs && i < 10; ++i) {
+    for (int i = 0; i < mySys.neqs; ++i) {
         std::cout << "  nden[" << i << "] = " << std::setprecision(10) << state.y[static_cast<size_t>(i)] << "\n";
-    }
-    if (mySys.neqs > 10) {
-        std::cout << "  ... (showing first 10 species)\n";
     }
 
     // Write solution to file if output path provided (3rd positional arg)
