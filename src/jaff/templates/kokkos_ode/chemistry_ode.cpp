@@ -130,17 +130,51 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // Simple conservation check
-    double sum_initial = 0.0, sum_final = 0.0;
-    for (int i = 0; i < mySys.neqs; ++i) {
-        sum_initial += y0[static_cast<size_t>(i)];
-        sum_final += state.y[static_cast<size_t>(i)];
-    }
-    std::cout << "\nConservation check:\n";
-    std::cout << "  Initial sum: " << sum_initial << "\n";
-    std::cout << "  Final sum:   " << sum_final << "\n";
-    if (sum_initial != 0.0) {
-        std::cout << "  Relative change: " << (sum_final - sum_initial) / sum_initial << "\n";
+    // Removed legacy raw-sum conservation check (not a true invariant)
+
+    // Element and charge conservation report
+    // The codegen may inject species-element stoichiometry and charges here.
+    // Expected injected definitions (all constexpr/static):
+    //   JAFF_HAS_CONSERVATION_METADATA = true
+    //   n_elements (int), element_names[n_elements] (const char*),
+    //   species_charge[ChemistryODE::neqs] (int),
+    //   elem_matrix[n_elements][ChemistryODE::neqs] (int counts per species)
+    // If not provided, we skip this report gracefully.
+    // PREPROCESS_CONSERVATION_METADATA
+    // PREPROCESS_END
+    
+    #ifndef JAFF_HAS_CONSERVATION_METADATA
+    constexpr bool JAFF_HAS_CONSERVATION_METADATA = false;
+    #endif
+    if constexpr (JAFF_HAS_CONSERVATION_METADATA) {
+        std::cout << "\nElement/charge conservation:\n";
+        // Elements
+        for (int e = 0; e < n_elements; ++e) {
+            long double init = 0.0L, fin = 0.0L;
+            for (int j = 0; j < ChemistryODE::neqs; ++j) {
+                init += static_cast<long double>(elem_matrix[e][j]) * static_cast<long double>(y0[static_cast<size_t>(j)]);
+                fin  += static_cast<long double>(elem_matrix[e][j]) * static_cast<long double>(state.y[static_cast<size_t>(j)]);
+            }
+            const long double rel = (init != 0.0L) ? (fin - init) / init : 0.0L;
+            std::cout.setf(std::ios::scientific, std::ios::floatfield);
+            std::cout.precision(10);
+            std::cout << "  " << element_names[e]
+                      << ": init=" << static_cast<double>(init)
+                      << ", final=" << static_cast<double>(fin)
+                      << ", rel_delta=" << static_cast<double>(rel) << "\n";
+        }
+        // Net charge
+        long double q_init = 0.0L, q_fin = 0.0L;
+        for (int j = 0; j < ChemistryODE::neqs; ++j) {
+            q_init += static_cast<long double>(species_charge[j]) * static_cast<long double>(y0[static_cast<size_t>(j)]);
+            q_fin  += static_cast<long double>(species_charge[j]) * static_cast<long double>(state.y[static_cast<size_t>(j)]);
+        }
+        const long double q_rel = (q_init != 0.0L) ? (q_fin - q_init) / q_init : 0.0L;
+        std::cout << "  net_charge: init=" << static_cast<double>(q_init)
+                  << ", final=" << static_cast<double>(q_fin)
+                  << ", rel_delta=" << static_cast<double>(q_rel) << "\n";
+    } else {
+        std::cout << "\n(Element/charge conservation metadata not available in this build)\n";
     }
 
     if (result != IntegratorResult::SUCCESS) {
@@ -168,6 +202,10 @@ int main(int argc, char* argv[]) {
         dump_state(state);
         return 2;
     }
+
+    // Success: print integrator statistics
+    std::cout << "\nIntegrator stats:\n";
+    std::cout << "  Steps taken: " << state.n_step << "\n";
 
     return 0;
 }

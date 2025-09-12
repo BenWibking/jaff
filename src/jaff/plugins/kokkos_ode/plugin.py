@@ -55,6 +55,45 @@ const double crate = DEFAULT_CRATE;  // Cosmic ray ionization rate
     # When using CSE, we don't need the flux array
     num_reactions_decl = f"double k[{num_reactions}];"
     
+    # Build conservation metadata for C++ template injection
+    # Elements present across species (exclude non-atomic tokens and electrons)
+    import re
+    element_keys = []
+    for sp in network.species:
+        # sp.exploded contains atomic symbols and possible tokens; filter later
+        for atom in sp.exploded:
+            if re.match(r"^[A-Z][a-z]?$", atom):
+                if atom not in element_keys:
+                    element_keys.append(atom)
+    # Deterministic order
+    element_keys.sort()
+
+    # Species charges
+    charges = [str(int(sp.charge)) for sp in network.species]
+
+    # Element-species count matrix
+    elem_rows = []
+    for elem in element_keys:
+        counts = []
+        for sp in network.species:
+            counts.append(str(sp.exploded.count(elem)))
+        elem_rows.append("{" + ", ".join(counts) + "}")
+
+    # C++ metadata block
+    if element_keys:
+        element_names_cpp = ", ".join([f'"{e}"' for e in element_keys])
+        conservation_metadata = []
+        conservation_metadata.append("#define JAFF_HAS_CONSERVATION_METADATA 1")
+        conservation_metadata.append(f"constexpr int n_elements = {len(element_keys)};")
+        conservation_metadata.append(f"constexpr const char* element_names[n_elements] = {{{element_names_cpp}}};")
+        conservation_metadata.append(f"constexpr int species_charge[ChemistryODE::neqs] = {{{', '.join(charges)}}};")
+        conservation_metadata.append(
+            f"constexpr int elem_matrix[n_elements][ChemistryODE::neqs] = {{{', '.join(elem_rows)}}};"
+        )
+        conservation_metadata_cpp = "\n".join(conservation_metadata)
+    else:
+        conservation_metadata_cpp = ""  # no elements – skip injection
+
     # Process all files with auto-detected comment styles
     p.preprocess(path_template,
                  ["chemistry_ode.hpp", "chemistry_ode.cpp", "CMakeLists.txt"],
@@ -63,7 +102,8 @@ const double crate = DEFAULT_CRATE;  // Cosmic ray ionization rate
                    "NUM_REACTIONS": num_reactions_decl, "TEMP_VARS": temp_vars},
                   {"COMMONS": scommons, "RATES": rates, "ODE": sode, "JACOBIAN": jacobian,
                    "NUM_SPECIES": f"static constexpr int neqs = {num_species};",
-                   "NUM_REACTIONS": num_reactions, "TEMP_VARS": temp_vars},
+                   "NUM_REACTIONS": num_reactions, "TEMP_VARS": temp_vars,
+                   "CONSERVATION_METADATA": conservation_metadata_cpp},
                   {"NUM_SPECIES": num_species}],
                  comment="auto",
                  path_build=path_build)
