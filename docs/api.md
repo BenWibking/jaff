@@ -9,14 +9,20 @@ The main class for loading and working with chemical networks.
 ```python
 from jaff import Network
 
-# Initialize a network
-network = Network("networks/react_COthin", errors=False, label=None)
+# Initialize a network (optionally pass an auxiliary functions file)
+network = Network(
+    "networks/react_COthin",
+    errors=False,
+    label=None,
+    funcfile=None,   # or path to a functions file, or 'none'
+)
 ```
 
 **Parameters:**
 - `fname` (str): Path to the network file
 - `errors` (bool): If True, exit on validation errors (default: False)
 - `label` (str): Custom label for the network (default: filename)
+- `funcfile` (str|None): Optional auxiliary functions file. If `None`, JAFF will look for a file named `fname + "_functions"`. If `'none'`, auxiliary function parsing is disabled. Any functions found are substituted into rate expressions before processing.
 
 ### Species Access
 
@@ -173,9 +179,17 @@ builder.build(template="python_solve_ivp")
 
 # Generate Fortran solver code
 builder.build(template="fortran_dlsodes")
+
+# Generate C++ solver (header-only integrators)
+builder.build(template="kokkos_ode")
 ```
 
 Generated code is placed in the `builds/` directory.
+
+### Analytical Jacobian and CSE
+
+- `Network.get_symbolic_ode_and_jacobian(idx_offset=0, use_cse=True, language="c++")` returns strings for ODE RHS and analytic Jacobian, with optional common subexpression elimination (CSE) and language-specific indexing.
+- `Network.get_rates(idx_offset=0, rate_variable="k", language="python|f90|c++", use_cse=True)` generates rate coefficient code for the selected language. CSE significantly reduces redundant computations in C++ codegen.
 
 ## Photochemistry
 

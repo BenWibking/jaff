@@ -26,13 +26,24 @@ The development installation includes:
 ```
 src/jaff/
 ├── __init__.py          # Package initialization
-├── cli.py              # Command-line interface
-├── network.py          # Main Network class
-├── parsers.py          # Format-specific parsers
-├── reaction.py         # Reaction class
-├── species.py          # Species class
+├── cli.py               # Command-line interface
+├── network.py           # Main Network class
+├── parsers.py           # Format-specific parsers
+├── reaction.py          # Reaction class
+├── species.py           # Species class
+├── builder.py           # Code generation entry (templates/plugins)
+├── preprocessor.py      # Template preprocessor
+├── function_parser.py   # Auxiliary functions file parser
 └── data/
-    └── atom_mass.dat   # Atomic mass data
+    └── atom_mass.dat    # Atomic mass data
+templates/
+  ├── python_solve_ivp/
+  ├── fortran_dlsodes/
+  └── kokkos_ode/
+plugins/
+  ├── python_solve_ivp/
+  ├── fortran_dlsodes/
+  └── kokkos_ode/
 ```
 
 ### Key Components
@@ -41,6 +52,9 @@ src/jaff/
 - **Species**: Represents individual chemical species with mass, charge, composition
 - **Reaction**: Represents chemical reactions with rate expressions
 - **Parsers**: Format-specific parsing functions for different network types
+- **Builder/Plugins**: Code generation entry point and per-template plugins
+- **Preprocessor**: Lightweight preprocessor to inject generated code into templates
+- **Function Parser**: Parser for optional auxiliary function files
 
 ## Testing
 

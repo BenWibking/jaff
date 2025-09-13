@@ -1,5 +1,16 @@
 # Examples
 
+## Code Generation (C++)
+
+```python
+from jaff import Network
+from jaff.builder import Builder
+
+network = Network("networks/react_COthin")
+Builder(network).build(template="kokkos_ode")
+# Use CMake in the output directory to build and run the generated code
+```
+
 ## Loading Different Network Formats
 
 ### KIDA Format

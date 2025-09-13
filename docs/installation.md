@@ -2,8 +2,8 @@
 
 ## Requirements
 
-- Python 3.11 or higher
-- Dependencies: numpy, sympy, tqdm
+- Python 3.9 or higher
+- Runtime dependencies: numpy, sympy, scipy, tqdm, h5py
 
 ## From Source
 
@@ -54,3 +54,7 @@ jaff --help
 ```
 
 You should see the command-line help output showing available options.
+
+## Notes for C++ Code Generation
+
+The `kokkos_ode` template uses a header-only integrators dependency. By default, its CMake project fetches this via `FetchContent`. In offline environments, configure CMake with `-DUSE_SYSTEM_INTEGRATORS=ON` and ensure the `integrators` package is installed and discoverable via `find_package`.

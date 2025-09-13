@@ -13,7 +13,7 @@ JAFF is a Python library designed to parse and analyze astrochemical reaction ne
 - Temperature-dependent rate coefficient calculations
 - Exporting reaction rate tables in text and HDF5 formats
 - Handling photochemical reactions with cross-section data
-- Generating ODE solver code from templates
+- Generating ODE solver code from templates (Python, Fortran, C++)
 
 ## Key Features
 
@@ -24,7 +24,10 @@ JAFF is a Python library designed to parse and analyze astrochemical reaction ne
 - **ODE generation**: Creates differential equations for chemical kinetics modeling
 - **Table export**: Write reaction rate tables in text or HDF5 format with Quokka compatibility
 - **Photochemistry**: Support for photoionization and photodissociation with cross-section data
-- **Code generation**: Plugin-based system to generate ODE solver code in Python or Fortran
+- **Code generation**: Plugin-based system to generate ODE solver code in Python, Fortran (DLSODES), and C++ (header-only integrators)
+- **Analytical Jacobian**: Generate and use analytic Jacobians for stiff solvers
+- **CSE optimization**: Common subexpression elimination for efficient generated code
+- **Auxiliary functions**: Parse optional external function files and substitute into rates
 
 ## Quick Example
 
@@ -48,6 +51,10 @@ network.write_table("rates.hdf5", T_min=10, T_max=1000, fast_log=True)
 # Generate ODE solver code
 builder = Builder(network)
 builder.build(template="python_solve_ivp")
+
+# Or generate Fortran (DLSODES) or C++ (header-only integrators)
+# builder.build(template="fortran_dlsodes")
+# builder.build(template="kokkos_ode")
 ```
 
 ## Getting Started
@@ -68,3 +75,5 @@ JAFF can automatically detect and parse the following reaction network formats:
 - **UCLCHEM**: Comma-separated with `,NAN,` marker
 
 Learn more about [supported formats](formats.md).
+
+For optional auxiliary function files and syntax, see [Auxiliary Functions](aux-functions.md).
