@@ -1,0 +1,8 @@
+E + H+ -> H       []      2e-12 * tgas**0.5 * exp(-100/tgas)
+E + He+ -> He     []      3e-12 * tgas**0.5 * exp(-100/tgas)
+E + C+ -> C       []      4e-12 * tgas**0.5 * exp(-200/tgas)
+E + O+ -> O       []      5e-12 * tgas**0.5 * exp(-200/tgas)
+H + H -> H2       []      1e-17 * tgas**(-0.5) * exp(-1000/tgas)
+H + He -> HeH+    []      2e-17 * tgas**(-0.5) * exp(-1000/tgas)
+C + O -> CO       []      3e-17 * tgas**(-0.5) * exp(-2000/tgas)
+C + C -> C2       []      4e-17 * tgas**(-0.5) * exp(-2000/tgas)

@@ -270,7 +270,7 @@ def parse_krome(line, fmt):
                     tmax = tmax.replace(k, v)
                 tmax = float(tmax)
         elif x == "rate":
-            rate = arow[i].strip().lower()
+            rate = arow[i].strip()
         elif x == "idx":
             pass
         else:
