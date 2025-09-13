@@ -136,10 +136,17 @@ class Reaction:
         return NumPyPrinter().doprint(self.rate).replace("numpy.", "np.")
 
     def get_c(self):
-        return sympy.ccode(self.rate,strict=False)
+        return sympy.ccode(self.get_sympy(),strict=False)
+    
+    def get_cpp(self):
+        # Use C++ code generation
+        cpp_code = sympy.cxxcode(self.get_sympy(), strict=False)
+        # Replace std:: prefix with Kokkos:: for math functions
+        cpp_code = cpp_code.replace("std::", "Kokkos::")
+        return cpp_code
 
     def get_f90(self):
-        return sympy.fcode(self.rate,strict=False)
+        return sympy.fcode(self.get_sympy(),strict=False)
 
     def get_sympy(self):
         return sympy.sympify(self.rate)

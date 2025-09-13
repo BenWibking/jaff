@@ -1,6 +1,6 @@
 import os
 
-def main(network, path_template):
+def main(network, path_template, path_build=None):
     from jaff.preprocessor import Preprocessor
 
     p = Preprocessor()
@@ -19,5 +19,6 @@ def main(network, path_template):
                    {"RATES": rates},
                    {"FLUXES": sflux},
                    {"ODE": sode}],
-                   comment="#")
+                   comment="#",
+                   path_build=path_build)
 

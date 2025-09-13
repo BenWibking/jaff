@@ -26,7 +26,7 @@ class Species:
     def get_fidx(self):
         if self.name == "e-":
             return "idx_e"
-        return "idx_" + self.name.replace("+", "j").replace("-", "k").strip()
+        return "idx_" + self.name.replace("+", "j").replace("-", "k").strip().lower()
 
     # ********************
     def serialize(self):

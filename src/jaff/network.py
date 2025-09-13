@@ -212,13 +212,13 @@ class Network:
 
             # use lowercase for rate
             rate = rate.lower().strip()
-
+            
             # parse rate with sympy
             # photo-chemistry
-            if("photo" in rate):
+            if("photo" in rate.lower()):
                 # Extract arguments from photo(arg1, arg2) format
                 import re
-                match = re.match(r'photo\((.*)\)', rate)
+                match = re.match(r'(?i)photo\((.*)\)', rate)
                 if match:
                     args_str = match.group(1)
                     photo_args = [arg.strip() for arg in args_str.split(',')]
@@ -626,11 +626,14 @@ class Network:
         return scommons
 
     # ****************
-    def get_rates(self, rate_variable="k", language="python"):
+    def get_rates(self, idx_offset=0, rate_variable="k", language="python", use_cse=True):
 
         if language in ["fortran", "f90"]:
             brackets = "()"
-            idx_offset = 1
+            if idx_offset == 0:
+                idx_offset = 1
+        elif language in ["c++", "cpp", "cxx"]:
+            brackets = "[]"
         else:
             brackets = "[]"
             idx_offset = 0
@@ -638,14 +641,124 @@ class Network:
         lb, rb = brackets[0], brackets[1]
 
         rates = ""
-        for i, rea in enumerate(self.reactions):
-            if language in ["python", "py"]:
-                rate = rea.get_python()
-            if language in ["fortran", "f90"]:
-                rate = rea.get_f90()
-            if rea.guess_type() == "photo":
-                rate = rate.replace("#IDX#", str(idx_offset + i))
-            rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate}\n"
+        
+        # For C++ with CSE enabled, collect all rate expressions and apply CSE
+        if language in ["c++", "cpp", "cxx"] and use_cse:
+            from sympy import cse, cxxcode, Function
+            
+            # Collect all rate expressions as SymPy objects
+            rate_exprs = []
+            photo_indices = []
+            for i, rea in enumerate(self.reactions):
+                if type(rea.rate) is str:
+                    # String rates are kept as-is (will be handled separately)
+                    rate_exprs.append(None)
+                elif hasattr(rea.rate, 'func') and isinstance(rea.rate.func, type(Function('f'))):
+                    if rea.rate.func.__name__ == 'photorates':
+                        # Photorates are handled specially
+                        rate_exprs.append(None)
+                        photo_indices.append(i)
+                    else:
+                        rate_exprs.append(rea.rate)
+                else:
+                    rate_exprs.append(rea.rate)
+            
+            # Filter out None values for CSE
+            valid_exprs = [(i, expr) for i, expr in enumerate(rate_exprs) if expr is not None]
+            
+            if valid_exprs:
+                # Apply CSE to all valid expressions
+                indices, exprs = zip(*valid_exprs)
+                replacements, reduced_exprs = cse(exprs, optimizations='basic')
+
+                # Prune unused CSE temporaries based on actually emitted rate expressions
+                # Build the set of CSE symbols that appear in the reduced expressions
+                if replacements:
+                    cse_syms = [var for var, _ in replacements]
+                    cse_set = set(cse_syms)
+                    used = set()
+                    for e in reduced_exprs:
+                        used |= (e.free_symbols & cse_set)
+                    # Propagate dependencies transitively
+                    dep_map = {var: expr for var, expr in replacements}
+                    changed = True
+                    while changed:
+                        changed = False
+                        addl = set()
+                        for v in list(used):
+                            ev = dep_map.get(v)
+                            if ev is None:
+                                continue
+                            deps = ev.free_symbols & cse_set
+                            new_deps = deps - used
+                            if new_deps:
+                                addl |= new_deps
+                        if addl:
+                            used |= addl
+                            changed = True
+                    # Keep replacements in original order
+                    replacements = [(var, dep_map[var]) for var, _ in replacements if var in used]
+                
+                # Generate code for common subexpressions (only those actually used)
+                if replacements:
+                    rates += "// Common subexpressions\n"
+                    for i, (var, expr) in enumerate(replacements):
+                        cpp_expr = cxxcode(expr, strict=False).replace("std::", "Kokkos::")
+                        rates += f"const double {var} = {cpp_expr};\n"
+                
+                if replacements:
+                    rates += "\n// Rate calculations using common subexpressions\n"
+                
+                # Generate code for reduced rate expressions
+                expr_dict = dict(zip(indices, reduced_exprs))
+                
+                # Generate all rate assignments
+                for i, rea in enumerate(self.reactions):
+                    if i in expr_dict:
+                        # Use CSE-optimized expression
+                        cpp_code = cxxcode(expr_dict[i], strict=False).replace("std::", "Kokkos::")
+                        rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {cpp_code};\n"
+                    elif type(rea.rate) is str:
+                        # String rate
+                        rate = rea.rate
+                        if rea.guess_type() == "photo":
+                            rate = rate.replace("#IDX#", str(idx_offset + i))
+                        rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate};\n"
+                    elif i in photo_indices:
+                        # Photorates
+                        rate = f"photorates(#IDX#, {', '.join(str(arg) for arg in rea.rate.args[1:])})"
+                        rate = rate.replace("#IDX#", str(idx_offset + i))
+                        rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate};\n"
+                    else:
+                        # Fallback to regular code generation
+                        rate = rea.get_cpp()
+                        if rea.guess_type() == "photo":
+                            rate = rate.replace("#IDX#", str(idx_offset + i))
+                        rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate};\n"
+            else:
+                # No valid expressions for CSE, use regular generation
+                for i, rea in enumerate(self.reactions):
+                    rate = rea.get_cpp()
+                    if rea.guess_type() == "photo":
+                        rate = rate.replace("#IDX#", str(idx_offset + i))
+                    rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate};\n"
+        else:
+            # Original behavior for non-C++ or CSE disabled
+            for i, rea in enumerate(self.reactions):
+                if language in ["python", "py"]:
+                    rate = rea.get_python()
+                elif language in ["fortran", "f90"]:
+                    rate = rea.get_f90()
+                elif language in ["c++", "cpp", "cxx"]:
+                    rate = rea.get_cpp()
+                else:
+                    rate = rea.get_python()
+                if rea.guess_type() == "photo":
+                    rate = rate.replace("#IDX#", str(idx_offset + i))
+                if language in ["c++", "cpp", "cxx"]:
+                    rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate};\n"
+                else:
+                    rates += f"{rate_variable}{lb}{idx_offset+i}{rb} = {rate}\n"
 
         return rates
 
@@ -664,16 +777,17 @@ class Network:
         fluxes = ""
         for i, rea in enumerate(self.reactions):
             flux = rea.get_flux(idx=idx_offset+i, rate_variable=rate_variable, species_variable=species_variable, brackets=brackets, idx_prefix=idx_prefix)
-            fluxes += f"flux{lb}{idx_offset+i}{rb} = {flux}\n"
+            fluxes += f"flux{lb}{idx_offset+i}{rb} = {flux};\n"
 
         return fluxes
 
     # ****************
-    def get_ode(self, flux_variable="flux", species_variable="y", derivative_variable="None", idx_prefix="", language="python"):
+    def get_ode(self, idx_offset=0, flux_variable="flux", brackets="[]", species_variable="y", idx_prefix="", derivative_prefix="d", derivative_variable=None, language="python"):
 
         if language in ["fortran", "f90"]:
             brackets = "()"
-            idx_offset = 1
+            if idx_offset == 0:
+                idx_offset = 1
         else:
             brackets = "[]"
             idx_offset = 0
@@ -696,10 +810,226 @@ class Network:
         sode = ""
         for name, expr in ode.items():
             if derivative_variable is None:
-                derivative_variable = f"d{species_variable}"
-            sode += f"{derivative_variable}{lb}{name}{rb} = {expr}\n"
+                derivative_var = f"{derivative_prefix}{species_variable}"
+            else:
+                derivative_var = derivative_variable
+            if language in ["c++", "cpp", "cxx"]:
+                sode += f"{derivative_var}{lb}{name}{rb} = {expr};\n"
+            else:
+                sode += f"{derivative_var}{lb}{name}{rb} = {expr}\n"
 
         return sode
+
+    # *****************
+    def get_symbolic_ode_and_jacobian(self, idx_offset=0, use_cse=True, language="c++"):
+        """
+        Generate symbolic ODE expressions and compute the analytical Jacobian.
+        
+        Returns:
+            tuple: (ode_expressions, jacobian_expressions)
+                - ode_expressions: string containing the ODE expressions
+                - jacobian_expressions: string containing the Jacobian matrix elements
+        """
+        import sympy as sp
+        from sympy import symbols, Matrix, diff, cse, numbered_symbols
+        
+        # Create symbolic variables representing species concentrations for Jacobian
+        # We use temporary scalar symbols y_i for robust SymPy manipulation, then
+        # remap names to `nden[i]` at codegen time to match templates.
+        n_species = len(self.species)
+        y_syms = [symbols(f'y_{i}') for i in range(n_species)]
+
+        # Build mapping to replace any Indexed occurrences of nden[...] in rate expressions
+        # with the corresponding scalar y_i symbols.
+        from sympy import Indexed, IndexedBase, Idx
+        nden_base = IndexedBase('nden')
+        nden_to_y = {}
+        for i in range(n_species):
+            # Support both nden[i] and nden[Idx(i)] forms
+            nden_to_y[Indexed(nden_base, i)] = y_syms[i]
+            nden_to_y[Indexed(nden_base, Idx(i))] = y_syms[i]
+
+        # Precompute rate expressions with nden[...] mapped to y_i
+        k_exprs = [rea.rate.xreplace(nden_to_y) for rea in self.reactions]
+
+        # Build symbolic flux expressions using the full SymPy rate
+        # so that dependencies k(y) contribute via the chain rule.
+        flux_exprs = []
+        for i, rea in enumerate(self.reactions):
+            rate_expr = k_exprs[i]
+            # Replace any symbolic k[i] occurrences with the full rate expr, defensively
+            rate_symbol = symbols(f'k[{i}]')
+            rate_expr = rate_expr.xreplace({rate_symbol: k_exprs[i]})
+            flux = rate_expr
+            # Multiply by reactant concentrations (as y_syms)
+            for rr in rea.reactants:
+                if isinstance(rr.fidx, str):
+                    if rr.fidx.startswith("idx_"):
+                        idx = rr.index
+                    else:
+                        idx = int(rr.fidx)
+                else:
+                    idx = int(rr.fidx)
+                flux *= y_syms[idx]
+            flux_exprs.append(flux)
+
+        # Build symbolic ODE RHS using flux expressions
+        ode_symbols = [sp.Integer(0) for _ in range(n_species)]
+        for i, rea in enumerate(self.reactions):
+            # Subtract flux from reactants
+            for rr in rea.reactants:
+                if isinstance(rr.fidx, str):
+                    if rr.fidx.startswith("idx_"):
+                        idx = rr.index
+                    else:
+                        idx = int(rr.fidx)
+                else:
+                    idx = int(rr.fidx)
+                ode_symbols[idx] -= flux_exprs[i]
+            # Add flux to products
+            for pp in rea.products:
+                if isinstance(pp.fidx, str):
+                    if pp.fidx.startswith("idx_"):
+                        idx = pp.index
+                    else:
+                        idx = int(pp.fidx)
+                else:
+                    idx = int(pp.fidx)
+                ode_symbols[idx] += flux_exprs[i]
+
+        # Replace any remaining k[i] symbols defensively before differentiating
+        subs_k = {symbols(f'k[{i}]'): k_exprs[i] for i in range(len(self.reactions))}
+        ode_symbols = [expr.xreplace(subs_k) for expr in ode_symbols]
+
+        # Compute the Jacobian matrix d(f)/d(y)
+        jacobian_matrix = Matrix(ode_symbols).jacobian(y_syms)
+        
+        # Generate code strings
+        if language in ["c++", "cpp", "cxx"]:
+            brackets = "[]"
+            assignment_op = "="
+            line_end = ";"
+        else:  # Default to Python/Fortran style
+            brackets = "[]" if language == "python" else "()"
+            assignment_op = "="
+            line_end = ""
+        
+        lb, rb = brackets[0], brackets[1]
+        
+        # Apply common subexpression elimination if requested
+        if use_cse:
+            # Collect all expressions for CSE
+            all_exprs = list(ode_symbols) + list(jacobian_matrix)
+            replacements, reduced_exprs = cse(all_exprs, symbols=numbered_symbols("cse"))
+            
+            # Split reduced expressions back
+            ode_reduced = reduced_exprs[:n_species]
+            jac_reduced = reduced_exprs[n_species:]
+            
+            # Helper: prune CSE replacements down to those used by a set of expressions
+            def _prune_cse(_repls, _exprs):
+                if not _repls:
+                    return []
+                _cse_syms = [v for v, _ in _repls]
+                _cse_set = set(_cse_syms)
+                _used = set()
+                for _e in _exprs:
+                    _used |= (_e.free_symbols & _cse_set)
+                if not _used:
+                    return []
+                _dep_map = {v: e for v, e in _repls}
+                _changed = True
+                while _changed:
+                    _changed = False
+                    _addl = set()
+                    for _v in list(_used):
+                        _ev = _dep_map.get(_v)
+                        if _ev is None:
+                            continue
+                        _deps = _ev.free_symbols & _cse_set
+                        _new = _deps - _used
+                        if _new:
+                            _addl |= _new
+                    if _addl:
+                        _used |= _addl
+                        _changed = True
+                return [(v, _dep_map[v]) for v, _ in _repls if v in _used]
+
+            # Build separate CSE blocks for RHS and Jacobian
+            repls_ode = _prune_cse(replacements, ode_reduced)
+            repls_jac = _prune_cse(replacements, jac_reduced)
+
+            # Generate ODE code with only the needed CSE assignments
+            ode_code = ""
+            for i, (var, expr) in enumerate(repls_ode):
+                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                import re as _re
+                for j in range(n_species):
+                    expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
+                expr_str = expr_str.replace('[', lb).replace(']', rb)
+                ode_code += f"const double {var} {assignment_op} {expr_str}{line_end}\n"
+
+            for i, expr in enumerate(ode_reduced):
+                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                import re as _re
+                for j in range(n_species):
+                    expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
+                expr_str = expr_str.replace('[', lb).replace(']', rb)
+                ode_code += f"f{lb}{i}{rb} {assignment_op} {expr_str}{line_end}\n"
+            
+            # Generate Jacobian code with only the needed CSE assignments
+            jac_code = ""
+            for i, (var, expr) in enumerate(repls_jac):
+                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                import re as _re
+                for j in range(n_species):
+                    expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
+                expr_str = expr_str.replace('[', lb).replace(']', rb)
+                jac_code += f"const double {var} {assignment_op} {expr_str}{line_end}\n"
+            for i in range(n_species):
+                for j in range(n_species):
+                    idx = i * n_species + j
+                    expr = jac_reduced[idx]
+                    if expr != 0:
+                        expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                        import re as _re
+                        for m in range(n_species):
+                            expr_str = _re.sub(rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str)
+                        expr_str = expr_str.replace('[', lb).replace(']', rb)
+                        # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
+                        if language in ["c++", "cpp", "cxx"]:
+                            jac_code += f"J({i}, {j}) {assignment_op} {expr_str}{line_end}\n"
+                        else:
+                            jac_code += f"J{lb}{i}{rb}{lb}{j}{rb} {assignment_op} {expr_str}{line_end}\n"
+        else:
+            # Generate ODE code without CSE
+            ode_code = ""
+            for i, expr in enumerate(ode_symbols):
+                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                import re as _re
+                for j in range(n_species):
+                    expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
+                expr_str = expr_str.replace('[', lb).replace(']', rb)
+                ode_code += f"f{lb}{i}{rb} {assignment_op} {expr_str}{line_end}\n"
+            
+            # Generate Jacobian code without CSE
+            jac_code = ""
+            for i in range(n_species):
+                for j in range(n_species):
+                    expr = jacobian_matrix[i, j]
+                    if expr != 0:
+                        expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                        import re as _re
+                        for m in range(n_species):
+                            expr_str = _re.sub(rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str)
+                        expr_str = expr_str.replace('[', lb).replace(']', rb)
+                        # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
+                        if language in ["c++", "cpp", "cxx"]:
+                            jac_code += f"J({i}, {j}) {assignment_op} {expr_str}{line_end}\n"
+                        else:
+                            jac_code += f"J{lb}{i}{rb}{lb}{j}{rb} {assignment_op} {expr_str}{line_end}\n"
+
+        return ode_code, jac_code
 
     # *****************
     def get_number_of_species(self):
