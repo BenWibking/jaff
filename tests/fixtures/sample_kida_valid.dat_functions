@@ -15,7 +15,7 @@
 # b Doppler parameter, in units of cm/s
 
 # Free-space dissociation rate corresponding to chi = 1
-Rfree = 5.7e-11 * chi
+Rfree = 5.7e-11
 
 # Draine & Bertoldi shielding function
 x = 2e-15 * H2_colden  # Normalized column density
@@ -26,7 +26,7 @@ fself = 0.965 / (1 + x/b5)**2 + 0.035 / sqrt(1 + x) * exp(max(-8.5e-4 * sqrt(1+x
 fdust = exp(-4.18 * av)
 
 # Final dissociation rate including shielding
-rate = Rfree * fdust * fself
+rate = Rfree * chi * fdust * fself
 
 # Return
 return rate
