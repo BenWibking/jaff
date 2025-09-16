@@ -1,0 +1,32 @@
+# ABOUTME: A special function file to go with sample_kida_valid.dat
+# ABOUTME: Contains an implementation of an H2 self-shielding function
+
+
+# Sample function override format
+@ratefunction1(chi, av, colden_H2, b)
+# This provides a function for the H2 dissociation rate given the
+# ISRF strength, extinction, H2 column, and Doppler parameter, which
+# overrides the expression provided in the network definition file.
+# This particular implementation of H2 self-shielding is based on
+# the Draine & Bertoldi (1996) model
+# chi The ISRF strength normalized to the Draine field
+# av Dust extinction at V band, in units of magnitudes
+# colden_H2 H2 column density, in cm^-2
+# b Doppler parameter, in units of cm/s
+
+# Free-space dissociation rate corresponding to chi = 1
+Rfree = 5.7e-11 * chi
+
+# Draine & Bertoldi shielding function
+x = 2e-15 * H2_colden  # Normalized column density
+b5 = 1e-5 * b          # Normalized doppler broadening
+fself = 0.965 / (1 + x/b5)**2 + 0.035 / sqrt(1 + x) * exp(max(-8.5e-4 * sqrt(1+x), -250.))
+
+# Dust shielding factor
+fdust = exp(-4.18 * av)
+
+# Final dissociation rate including shielding
+rate = Rfree * fdust * fself
+
+# Return
+return rate

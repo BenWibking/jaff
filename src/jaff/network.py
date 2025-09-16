@@ -292,17 +292,32 @@ class Network:
             for to_repl, repl in zip(expr_to_repl, expr_repl):
                 rate = rate.subs( to_repl, repl )  # Make replacement
 
-            # Apply the replacement rules for custom functions
-            funcs = [f for f in rate.atoms(Function) 
-                     if type(f.func) is UndefinedFunction ] # Grab undefined functions
-            for f in funcs:
-                if f.name in aux_funcs.keys():
-                    # Grab function definition and substitute in arguments
-                    fdef = aux_funcs[f.name]["def"]
-                    for a1, a2 in zip(aux_funcs[f.name]["args"], f.args):
-                        fdef = fdef.subs(a1, a2)
-                    # Substitute function into rate
-                    rate = rate.subs(f, fdef)
+            # Apply the replacement rules for custom "ratefucntions",
+            # which are functions that directly override rates
+            ratefunc_name = "ratefunction{:d}".format(len(self.reactions))
+            if ratefunc_name in aux_funcs.keys():
+                rate = aux_funcs[ratefunc_name]["def"]
+
+            # Apply the replacement rules for all other custom
+            # functions; do this in a loop until no replacements are
+            # made so that we can fully substitute for nested functions
+            while True:
+                funcs = [f for f in rate.atoms(Function) 
+                         if type(f.func) is UndefinedFunction ] # Grab undefined functions
+                did_replace = False
+                for f in funcs:
+                    if f.name in aux_funcs.keys():
+                        # Grab function definition and substitute in arguments
+                        fdef = aux_funcs[f.name]["def"]
+                        for a1, a2 in zip(aux_funcs[f.name]["args"], f.args):
+                            fdef = fdef.subs(a1, a2)
+                        # Substitute function into rate
+                        rate = rate.subs(f, fdef)
+                        # Flag that we did a replacement
+                        did_replace = True
+                # End if no replacements done
+                if not did_replace:
+                    break
 
             # convert reactants and products to Species objects
             for s in rr + pp:

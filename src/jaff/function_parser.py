@@ -74,11 +74,15 @@ def parse_func_declaration(line):
     """
 
     # Make sure the line starts correctly
-    if not line.startswith("@function"):
+    if not line.startswith("@function") and \
+        not line.startswith("@ratefunction"):
          raise ValueError
 
-    # We have found a valid function declaration
-    funcstring = line[len("@function"):].strip()
+    # Remove leading @function or @
+    if line.startswith("@function"):
+        funcstring = line[len("@function"):].strip()
+    else:
+        funcstring = line[1:].strip()
 
     # Strip any trailing comments
     funcstring = strip_trailing_comments(funcstring)
@@ -149,7 +153,8 @@ def parse_funcfile(fname):
                 # start a function declaration
                 if line[0] == '#':
                     continue   # Comment line
-                elif not line.startswith("@function"):
+                elif not line.startswith("@function") and \
+                    not line.startswith("@ratefunction"):
                     parse_error(line, fname)
                 else:
                     try:
