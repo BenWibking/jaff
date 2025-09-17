@@ -50,7 +50,8 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "Solving Chemistry ODE System (header-only integrators)\n";
-    std::cout << "Number of species: " << mySys.neqs << "\n";
+    std::cout << "Number of species: " << mySys.nspecs << "\n";
+    std::cout << "Number of variables: " << mySys.nvars << "\n";
     std::cout << "Number of reactions: " << 
 // PREPROCESS_NUM_REACTIONS
 0
@@ -62,18 +63,20 @@ int main(int argc, char* argv[]) {
     ChemistryODE::state_type y0{};
 
     // Default: all species start at 1e-10 except first species
-    for (int i = 0; i < mySys.neqs; ++i) {
+    for (int i = 0; i < mySys.nspecs; ++i) {
         y0[static_cast<size_t>(i)] = 1.0e-10;
     }
-    if (mySys.neqs > 0) {
+    if (mySys.nspecs > 0) {
         y0[0] = 1.0e-6;
     }
+    // Set internal energy consistent with default temperature and composition
+    y0[static_cast<size_t>(ChemistryODE::idx_eint)] = ChemistryODE::compute_internal_energy(y0, DEFAULT_TEMPERATURE);
 
     // Read initial conditions from file if provided (2nd positional arg)
     if (!ic_path.empty()) {
         std::ifstream ic_file(ic_path);
         if (ic_file.is_open()) {
-            for (int i = 0; i < mySys.neqs && (ic_file >> y0[static_cast<size_t>(i)]); ++i) {}
+            for (int i = 0; i < mySys.nvars && (ic_file >> y0[static_cast<size_t>(i)]); ++i) {}
             ic_file.close();
             std::cout << "Initial conditions loaded from " << ic_path << "\n";
         }
@@ -81,18 +84,18 @@ int main(int argc, char* argv[]) {
 
     // Print initial conditions
     std::cout << "Initial conditions:\n";
-    for (int i = 0; i < mySys.neqs; ++i) {
+    for (int i = 0; i < mySys.nvars; ++i) {
         std::cout << "  nden[" << i << "] = " << std::setprecision(10) << y0[static_cast<size_t>(i)] << "\n";
     }
 
     // Set up integrator (VODE BDF)
     auto integrator = VODE<ChemistryODE>{};
-    auto state = VODEState<static_cast<size_type>(ChemistryODE::neqs)>{};
+    auto state = VODEState<static_cast<size_type>(ChemistryODE::nvars)>{};
 
     // Configure state
     state.t = t_start;
     state.tout = t_end;
-    for (size_t i = 0; i < static_cast<size_t>(ChemistryODE::neqs); ++i) state.y[i] = y0[i];
+    for (size_t i = 0; i < static_cast<size_t>(ChemistryODE::nvars); ++i) state.y[i] = y0[i];
     state.rtol = 1.e-5;
     state.atol = 1.e-20; // chemistry can have very small values
     state.max_steps = 200000;
@@ -107,7 +110,7 @@ int main(int argc, char* argv[]) {
 
     // Print final solution
     std::cout << "\nFinal solution at t = " << t_end << " seconds:\n";
-    for (int i = 0; i < mySys.neqs; ++i) {
+    for (int i = 0; i < mySys.nvars; ++i) {
         std::cout << "  nden[" << i << "] = " << std::setprecision(10) << state.y[static_cast<size_t>(i)] << "\n";
     }
 
@@ -115,7 +118,7 @@ int main(int argc, char* argv[]) {
     if (!out_path.empty()) {
         std::ofstream out_file(out_path);
         if (out_file.is_open()) {
-            for (int i = 0; i < mySys.neqs; ++i) {
+            for (int i = 0; i < mySys.nvars; ++i) {
                 out_file << std::setprecision(17) << state.y[static_cast<size_t>(i)] << "\n";
             }
             out_file.close();
@@ -130,8 +133,8 @@ int main(int argc, char* argv[]) {
     // Expected injected definitions (all constexpr/static):
     //   JAFF_HAS_CONSERVATION_METADATA = true
     //   n_elements (int), element_names[n_elements] (const char*),
-    //   species_charge[ChemistryODE::neqs] (int),
-    //   elem_matrix[n_elements][ChemistryODE::neqs] (int counts per species)
+    //   species_charge[ChemistryODE::nspecs] (int),
+    //   elem_matrix[n_elements][ChemistryODE::nspecs] (int counts per species)
     // If not provided, we skip this report gracefully.
     // PREPROCESS_CONSERVATION_METADATA
     // PREPROCESS_END
@@ -144,7 +147,7 @@ int main(int argc, char* argv[]) {
         // Elements
         for (int e = 0; e < n_elements; ++e) {
             long double init = 0.0L, fin = 0.0L;
-            for (int j = 0; j < ChemistryODE::neqs; ++j) {
+            for (int j = 0; j < ChemistryODE::nspecs; ++j) {
                 init += static_cast<long double>(elem_matrix[e][j]) * static_cast<long double>(y0[static_cast<size_t>(j)]);
                 fin  += static_cast<long double>(elem_matrix[e][j]) * static_cast<long double>(state.y[static_cast<size_t>(j)]);
             }
@@ -158,7 +161,7 @@ int main(int argc, char* argv[]) {
         }
         // Net charge
         long double q_init = 0.0L, q_fin = 0.0L;
-        for (int j = 0; j < ChemistryODE::neqs; ++j) {
+        for (int j = 0; j < ChemistryODE::nspecs; ++j) {
             q_init += static_cast<long double>(species_charge[j]) * static_cast<long double>(y0[static_cast<size_t>(j)]);
             q_fin  += static_cast<long double>(species_charge[j]) * static_cast<long double>(state.y[static_cast<size_t>(j)]);
         }
@@ -173,7 +176,7 @@ int main(int argc, char* argv[]) {
     if (result != IntegratorResult::SUCCESS) {
         std::cerr << "\nIntegration did not succeed. Error code = " << static_cast<int>(result) << "\n";
         // Diagnostics: print failed step index and key integrator state
-        auto dump_state = [](const VODEState<static_cast<size_type>(ChemistryODE::neqs)>& s) {
+        auto dump_state = [](const VODEState<static_cast<size_type>(ChemistryODE::nvars)>& s) {
             std::cerr.setf(std::ios::scientific, std::ios::floatfield);
             std::cerr.precision(17);
             std::cerr << "Failure diagnostics:" << '\n';
@@ -188,7 +191,7 @@ int main(int argc, char* argv[]) {
                       << ", TQ2 = " << s.tq[1] << ", TQ3 = " << s.tq[2]
                       << ", TQ4 = " << s.tq[3] << ", TQ5 = " << s.tq[4] << '\n';
             std::cerr << "  y[0:5] = ";
-            for (int i = 0; i < std::min(5, ChemistryODE::neqs); ++i) {
+            for (int i = 0; i < std::min(5, ChemistryODE::nvars); ++i) {
                 std::cerr << s.y[static_cast<size_t>(i)] << (i < 4 ? ", " : "\n");
             }
         };

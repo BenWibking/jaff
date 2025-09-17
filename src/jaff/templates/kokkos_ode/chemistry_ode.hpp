@@ -9,14 +9,14 @@
 #include <integrators/integrators.hpp>
 
 struct ChemistryODE {
-    // Number of species in the chemical network
+    // Problem sizes
     // PREPROCESS_NUM_SPECIES
-    static constexpr int neqs = 0;
+    static constexpr int nspecs = 0; static constexpr int nvars = nspecs + 1; static constexpr int idx_eint = nspecs;
     // PREPROCESS_END
 
-    using state_type = std::array<integrators::Real, neqs>;
-    using rhs_type = std::array<integrators::Real, neqs>;
-    using jacobian_type = std::array<std::array<integrators::Real, neqs>, neqs>;
+    using state_type = std::array<integrators::Real, nvars>;
+    using rhs_type = std::array<integrators::Real, nvars>;
+    using jacobian_type = std::array<std::array<integrators::Real, nvars>, nvars>;
 
     // Species indices and common constants
     // PREPROCESS_COMMONS
@@ -28,11 +28,11 @@ struct ChemistryODE {
 
     // Evaluate the ODE right-hand side: dy/dt = f(t, y)
     static void rhs(const integrators::Real /*t*/, const state_type& y, rhs_type& f) {
-        // PREPROCESS_TEMP_VARS
-        // PREPROCESS_END
-
         // Alias species concentrations to `nden` to match generated code
         const auto& nden = y;
+
+        // PREPROCESS_TEMP_VARS
+        // PREPROCESS_END
 
         // Compute reaction rates
         // PREPROCESS_NUM_REACTIONS
@@ -49,15 +49,15 @@ struct ChemistryODE {
 
     // Evaluate the Jacobian matrix: J_ij = df_i/dy_j
     static void jacobian(const integrators::Real /*t*/, const state_type& y, jacobian_type& J) {
-        // PREPROCESS_TEMP_VARS
-        // PREPROCESS_END
-
         // Alias species concentrations to `nden` to match generated code
         const auto& nden = y;
 
+        // PREPROCESS_TEMP_VARS
+        // PREPROCESS_END
+
         // Zero the Jacobian matrix before filling non-zero entries
-        for (int ii = 0; ii < neqs; ++ii) {
-            for (int jj = 0; jj < neqs; ++jj) {
+        for (int ii = 0; ii < nvars; ++ii) {
+            for (int jj = 0; jj < nvars; ++jj) {
                 J[static_cast<size_t>(ii)][static_cast<size_t>(jj)] = 0.0;
             }
         }

@@ -24,7 +24,10 @@ static constexpr double K_BOLTZ = 1.380649e-16;       // Boltzmann constant [erg
 static constexpr double M_H = 1.6735575e-24;          // Hydrogen mass [g]
 """
     
-    # Combine species indices with chemistry variables
+    # Combine species indices with chemistry variables, but avoid redefining nspecs here
+    scommons_lines = scommons.split("\n")
+    scommons_lines = [ln for ln in scommons_lines if not ln.strip().startswith("static constexpr int nspecs ")]
+    scommons = "\n".join(scommons_lines)
     scommons = scommons + "\n" + chemistry_vars
     
     # Get reaction rates with C++ syntax and CSE optimization
@@ -39,12 +42,11 @@ static constexpr double M_H = 1.6735575e-24;          // Hydrogen mass [g]
     import re
     jacobian = re.sub(r"J\((\d+)\s*,\s*(\d+)\)", r"J[\1][\2]", jacobian)
     
-    # Generate temperature variable definitions for C++
-    # These variables are commonly used in chemistry rate expressions
+    # Generate temperature variable definitions for C++ from internal energy
     temp_vars = """// Temperature and environment variables used in chemical reactions
-// T is expected to be passed as a parameter or computed from the state
-const double tgas = DEFAULT_TEMPERATURE;
-const double tdust = DEFAULT_TEMPERATURE;
+// Compute gas temperature from internal energy and composition
+const double tgas = compute_temperature(y[static_cast<size_t>(idx_eint)], y);
+const double tdust = tgas; // simple assumption; adjust as needed
 const double av = DEFAULT_AV;  // Visual extinction
 const double crate = DEFAULT_CRATE;  // Cosmic ray ionization rate
 """
@@ -58,11 +60,11 @@ const double crate = DEFAULT_CRATE;  // Cosmic ray ionization rate
 //  - polyatomic (>=3 atoms): cv/kB = 3,   cp/kB = 4   -> gamma = 4/3
 static inline double compute_gamma(const state_type& nden) {
     double ntot = 0.0;
-    for (int i = 0; i < neqs; ++i) ntot += nden[static_cast<size_t>(i)];
+    for (int i = 0; i < nspecs; ++i) ntot += nden[static_cast<size_t>(i)];
     if (ntot <= 0.0) return NAN; // undefined mixture
     double cp_over_k = 0.0;
     double cv_over_k = 0.0;
-    for (int i = 0; i < neqs; ++i) {
+    for (int i = 0; i < nspecs; ++i) {
         const auto ni = nden[static_cast<size_t>(i)];
         const double xi = ni / ntot; // number fraction
         // Determine species class by atom count
@@ -89,7 +91,7 @@ static inline double compute_gamma(const state_type& nden) {
 static inline double compute_temperature(double eint, const state_type& nden) {
     double ntot = 0.0;
     double rho = 0.0; // mass density [g cm^-3]
-    for (int i = 0; i < neqs; ++i) {
+    for (int i = 0; i < nspecs; ++i) {
         const auto ni = nden[static_cast<size_t>(i)];
         ntot += ni;
         rho  += ni * species_mass[static_cast<size_t>(i)];
@@ -106,7 +108,7 @@ static inline double compute_temperature(double eint, const state_type& nden) {
 // Returns NAN if inputs are not physically meaningful.
 static inline double compute_internal_energy(const state_type& nden, double T) {
     double ntot = 0.0;
-    for (int i = 0; i < neqs; ++i) {
+    for (int i = 0; i < nspecs; ++i) {
         ntot += nden[static_cast<size_t>(i)];
     }
     if (ntot <= 0.0) return NAN;
@@ -156,9 +158,9 @@ static inline double compute_internal_energy(const state_type& nden, double T) {
         conservation_metadata.append("#define JAFF_HAS_CONSERVATION_METADATA 1")
         conservation_metadata.append(f"constexpr int n_elements = {len(element_keys)};")
         conservation_metadata.append(f"constexpr const char* element_names[n_elements] = {{{element_names_cpp}}};")
-        conservation_metadata.append(f"constexpr int species_charge[ChemistryODE::neqs] = {{{', '.join(charges)}}};")
+        conservation_metadata.append(f"constexpr int species_charge[ChemistryODE::nspecs] = {{{', '.join(charges)}}};")
         conservation_metadata.append(
-            f"constexpr int elem_matrix[n_elements][ChemistryODE::neqs] = {{{', '.join(elem_rows)}}};"
+            f"constexpr int elem_matrix[n_elements][ChemistryODE::nspecs] = {{{', '.join(elem_rows)}}};"
         )
         conservation_metadata_cpp = "\n".join(conservation_metadata)
     else:
@@ -166,7 +168,7 @@ static inline double compute_internal_energy(const state_type& nden, double T) {
 
     # Species mass array (g per particle) for mean molecular weight computation
     masses = [f"{sp.mass:.10e}" for sp in network.species]
-    species_mass_cpp = f"static constexpr double species_mass[ChemistryODE::neqs] = {{{', '.join(masses)}}};"
+    species_mass_cpp = f"static constexpr double species_mass[ChemistryODE::nspecs] = {{{', '.join(masses)}}};"
     # Species atom counts (used to infer per-species heat capacities and gamma)
     natoms_list = []
     for sp in network.species:
@@ -177,17 +179,20 @@ static inline double compute_internal_energy(const state_type& nden, double T) {
         if count <= 0:
             count = 1
         natoms_list.append(str(count))
-    species_natoms_cpp = f"static constexpr int species_natoms[ChemistryODE::neqs] = {{{', '.join(natoms_list)}}};"
+    species_natoms_cpp = f"static constexpr int species_natoms[ChemistryODE::nspecs] = {{{', '.join(natoms_list)}}};"
 
     # Process all files with auto-detected comment styles
+    # Append an internal energy equation (placeholder: zero RHS) so energy is carried in state
+    sode_with_eint = sode + "f[idx_eint] = 0.0;\n"
+
     p.preprocess(path_template,
                  ["chemistry_ode.hpp", "chemistry_ode.cpp", "CMakeLists.txt"],
-                 [{"COMMONS": scommons + "\n" + species_mass_cpp + "\n" + species_natoms_cpp, "RATES": rates, "ODE": sode, "JACOBIAN": jacobian,
-                   "NUM_SPECIES": f"static constexpr int neqs = {num_species};",
+                 [{"COMMONS": scommons + "\n" + species_mass_cpp + "\n" + species_natoms_cpp, "RATES": rates, "ODE": sode_with_eint, "JACOBIAN": jacobian,
+                   "NUM_SPECIES": f"static constexpr int nspecs = {num_species};\nstatic constexpr int nvars = nspecs + 1;\nstatic constexpr int idx_eint = nspecs;",
                    "NUM_REACTIONS": num_reactions_decl, "TEMP_VARS": temp_vars,
                    "TEMPERATURE_FUNC": temperature_func},
-                  {"COMMONS": scommons + "\n" + species_mass_cpp + "\n" + species_natoms_cpp, "RATES": rates, "ODE": sode, "JACOBIAN": jacobian,
-                   "NUM_SPECIES": f"static constexpr int neqs = {num_species};",
+                  {"COMMONS": scommons + "\n" + species_mass_cpp + "\n" + species_natoms_cpp, "RATES": rates, "ODE": sode_with_eint, "JACOBIAN": jacobian,
+                   "NUM_SPECIES": f"static constexpr int nspecs = {num_species};\nstatic constexpr int nvars = nspecs + 1;\nstatic constexpr int idx_eint = nspecs;",
                    "NUM_REACTIONS": num_reactions, "TEMP_VARS": temp_vars,
                    "CONSERVATION_METADATA": conservation_metadata_cpp,
                    "TEMPERATURE_FUNC": temperature_func},
