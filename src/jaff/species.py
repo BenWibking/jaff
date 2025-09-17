@@ -45,6 +45,8 @@ class Species:
             pname = pname.replace(a, "$" + proxy[a] + "$")
 
         def is_number(s):
+            if s == 'x':
+                return True
             try:
                 float(s)
                 return True
@@ -58,7 +60,8 @@ class Species:
             if not is_number(p):
                 expl += [p]
             else:
-                expl += [pold] * max(int(p)-1, 1)
+                if p != 'x':
+                    expl += [pold] * max(int(p)-1, 1)
             pold = p
         self.exploded = sorted([proxy_rev[x] for x in expl])
         self.mass = sum([mass_dict[x] for x in self.exploded])
