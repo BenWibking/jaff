@@ -306,10 +306,10 @@ class Network:
                          if type(f.func) is UndefinedFunction ] # Grab undefined functions
                 did_replace = False
                 for f in funcs:
-                    if f.name in aux_funcs.keys():
+                    if f.name.lower() in aux_funcs.keys():
                         # Grab function definition and substitute in arguments
-                        fdef = aux_funcs[f.name]["def"]
-                        for a1, a2 in zip(aux_funcs[f.name]["args"], f.args):
+                        fdef = aux_funcs[f.name.lower()]["def"]
+                        for a1, a2 in zip(aux_funcs[f.name.lower()]["args"], f.args):
                             fdef = fdef.subs(a1, a2)
                         # Substitute function into rate
                         rate = rate.subs(f, fdef)
