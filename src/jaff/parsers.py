@@ -125,9 +125,8 @@ def parse_kida(line):
         if kc != 0e0:
             rate += " * (1e0 + 0.0967 * %.2e * sqrt(3e2 / tgas + %e * 3e2 / 10.526 / tgas))" % (kc, kc**2)
     else:
-        print("WARNING: KIDA formula %d not implemented, rate coefficient set to 0e0" % formula)
+        #print("WARNING: KIDA formula %d not implemented, rate coefficient set to 0e0" % formula)
         rate = "0e0"
-        #sys.exit(1)
 
     rr = [x.strip() for x in rr if x.strip() not in ignore]
     pp = [x.strip() for x in pp if x.strip() not in ignore]
