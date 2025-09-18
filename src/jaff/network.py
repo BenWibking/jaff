@@ -77,7 +77,21 @@ class Network:
         symbolically differentiated when computing the Jacobian.
         """
         if isinstance(expr, str):
-            expr = parse_expr(expr, evaluate=False)
+            # Support array-like indexing nden[i] using IndexedBase
+            from sympy import IndexedBase, Symbol, sqrt, Max, Min
+            local_dict = {
+                'nden': IndexedBase('nden'),
+                'tgas': Symbol('tgas'),
+                'tdust': Symbol('tdust'),
+                'eint': Symbol('eint'),
+                'sqrt': sympy.sqrt,  # ensure sqrt is available
+                'log': sympy.log,
+                'log10': sympy.log,  # will be converted elsewhere if needed
+                'exp': sympy.exp,
+                'Max': sympy.Max, 'max': sympy.Max,
+                'Min': sympy.Min, 'min': sympy.Min,
+            }
+            expr = parse_expr(expr, evaluate=False, local_dict=local_dict)
         self.energy_rhs_terms.append(expr)
 
     # ****************
@@ -899,8 +913,25 @@ class Network:
             nden_to_y[Indexed(nden_base, i)] = y_syms[i]
             nden_to_y[Indexed(nden_base, Idx(i))] = y_syms[i]
 
-        # Precompute rate expressions with nden[...] mapped to y_i
-        k_exprs = [rea.rate.xreplace(nden_to_y) for rea in self.reactions]
+        # Build a symbolic expression for gas temperature T(eint, nden)
+        # Use gamma = 5/3 as in the Kokkos backend and keep Boltzmann as a symbol
+        K_BOLTZ_sym = symbols('K_BOLTZ')
+        gamma = sp.Rational(5, 3)
+        tgas_sym = symbols('tgas')
+        tdust_sym = symbols('tdust')
+        if n_species > 0:
+            ntot_expr = sum(y_syms[:n_species])
+            tgas_expr = (gamma - 1) * y_syms[n_vars - 1] / (K_BOLTZ_sym * ntot_expr)
+        else:
+            # Degenerate case: no species; leave as independent symbol
+            tgas_expr = tgas_sym
+
+        # Precompute rate expressions with nden[...] mapped to y_i and T substituted
+        k_exprs = []
+        for _rea in self.reactions:
+            _k = _rea.rate.xreplace(nden_to_y)
+            _k = _k.xreplace({tgas_sym: tgas_expr, tdust_sym: tgas_expr})
+            k_exprs.append(_k)
 
         # Build symbolic flux expressions using the full SymPy rate
         # so that dependencies k(y) contribute via the chain rule.
@@ -959,11 +990,26 @@ class Network:
             e_rhs = sp.Integer(0)
             for term in energy_rhs_terms:
                 term_expr = term
-                # Parse strings just in case
+                # Parse strings just in case, with support for nden[i]
                 if isinstance(term_expr, str):
-                    term_expr = parse_expr(term_expr, evaluate=False)
+                    from sympy import IndexedBase, Symbol
+                    local_dict = {
+                        'nden': IndexedBase('nden'),
+                        'tgas': Symbol('tgas'),
+                        'tdust': Symbol('tdust'),
+                        'eint': Symbol('eint'),
+                        'sqrt': sympy.sqrt,
+                        'log': sympy.log,
+                        'log10': sympy.log,
+                        'exp': sympy.exp,
+                        'Max': sympy.Max, 'max': sympy.Max,
+                        'Min': sympy.Min, 'min': sympy.Min,
+                    }
+                    term_expr = parse_expr(term_expr, evaluate=False, local_dict=local_dict)
                 # Replace nden[...] and eint symbol with y variables
                 term_expr = term_expr.xreplace(nden_to_y).xreplace({eint_sym: y_syms[n_vars-1]})
+                # Ensure temperature dependence propagates via eint and nden
+                term_expr = term_expr.xreplace({tgas_sym: tgas_expr, tdust_sym: tgas_expr})
                 e_rhs += term_expr
         else:
             e_rhs = sp.Integer(0)
