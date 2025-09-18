@@ -86,6 +86,17 @@ The following variables are recognized in rate expressions:
 
 Example network files can be found in the `networks/` directory.
 
+### Internal Energy RHS Terms (Cooling/Heating)
+
+You can add arbitrary symbolic terms to the internal energy equation RHS (d e_int / dt) and have them included in codegen and analytically differentiated in the Jacobian.
+
+- API:
+  - `Network.add_internal_energy_term(expr)` — add a SymPy expression or parsable string; may reference `nden[i]`, `tgas`, and `eint`.
+  - `Network.clear_internal_energy_terms()` — remove previously added terms.
+
+- Example notebook: `examples/energy_terms_option_a.ipynb`
+  - Demonstrates Option A: attach terms via the `Network` object and then run the Kokkos ODE code generator.
+
 ## Development
 
 To contribute or modify JAFF:

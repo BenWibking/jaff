@@ -1,6 +1,6 @@
 import os
 
-def main(network, path_template, path_build=None):
+def main(network, path_template, path_build=None, energy_rhs_terms=None):
     from jaff.preprocessor import Preprocessor
 
     p = Preprocessor()
@@ -35,8 +35,8 @@ static constexpr double M_H = 1.6735575e-24;          // Hydrogen mass [g]
     # Ensure we use standard <cmath> namespace, not Kokkos math wrappers
     rates = rates.replace("Kokkos::", "std::")
     
-    # Generate symbolic ODE and analytical Jacobian
-    sode, jacobian = network.get_symbolic_ode_and_jacobian(idx_offset=0, use_cse=True, language="c++")
+    # Generate symbolic ODE and analytical Jacobian, including optional internal energy RHS terms
+    sode, jacobian = network.get_symbolic_ode_and_jacobian(idx_offset=0, use_cse=True, language="c++", energy_rhs_terms=energy_rhs_terms)
     # Convert Jacobian indexing from J(i, j) (Kokkos view style) to J[i][j] (std::array style)
     # This keeps the network generator stable while adapting to header-only integrators API
     import re
@@ -139,16 +139,14 @@ static inline double compute_internal_energy(const state_type& nden, double T) {
     masses = [f"{sp.mass:.10e}" for sp in network.species]
     species_mass_cpp = f"static constexpr double species_mass[ChemistryODE::nspecs] = {{{', '.join(masses)}}};"
     # Process all files with auto-detected comment styles
-    # Append an internal energy equation (placeholder: zero RHS) so energy is carried in state
-    sode_with_eint = sode + "f[idx_eint] = 0.0;\n"
 
     p.preprocess(path_template,
                  ["chemistry_ode.hpp", "chemistry_ode.cpp", "CMakeLists.txt"],
-                 [{"COMMONS": scommons + "\n" + species_mass_cpp, "RATES": rates, "ODE": sode_with_eint, "JACOBIAN": jacobian,
+                 [{"COMMONS": scommons + "\n" + species_mass_cpp, "RATES": rates, "ODE": sode, "JACOBIAN": jacobian,
                    "NUM_SPECIES": f"static constexpr int nspecs = {num_species};\nstatic constexpr int nvars = nspecs + 1;\nstatic constexpr int idx_eint = nspecs;",
                    "NUM_REACTIONS": num_reactions_decl, "TEMP_VARS": temp_vars,
                    "TEMPERATURE_FUNC": temperature_func},
-                  {"COMMONS": scommons + "\n" + species_mass_cpp, "RATES": rates, "ODE": sode_with_eint, "JACOBIAN": jacobian,
+                  {"COMMONS": scommons + "\n" + species_mass_cpp, "RATES": rates, "ODE": sode, "JACOBIAN": jacobian,
                    "NUM_SPECIES": f"static constexpr int nspecs = {num_species};\nstatic constexpr int nvars = nspecs + 1;\nstatic constexpr int idx_eint = nspecs;",
                    "NUM_REACTIONS": num_reactions, "TEMP_VARS": temp_vars,
                    "CONSERVATION_METADATA": conservation_metadata_cpp,
