@@ -1,0 +1,396 @@
+# This file contains special function definitions for the GOW network.
+# The functions here are sympy translations of the implementation in
+# https://github.com/PrincetonUniversity/athena/blob/chemistry_zsfr/src/chemistry/network/kida_network_files/gow17/kida_gow17.cpp
+
+# A note to help interpret these rate coefficient expressions: 
+# rates in JAFF are always computed as k * n1 * n2 * ...,
+# where n1, n2, ... are the number densities of the reactants. This
+# is the correct expression most of the time, but some reactions
+# scale with number density differently; for example, grain-assisted
+# reactions generally have rates that go like n1 * nH * d2g, where
+# nH = total H nucleus number density and d2g = dust to gas ratio.
+# For these reactions, the rate coefficient expressions must be
+# derived by solving k * n1 * n2 * ... = true rate, which is why
+# we sometimes have number densities in the denominators for these
+# reactions.
+
+@function kcr_H_fac(nH, nH0, nH2)
+    # Ratio of total to primary H ionization rate
+    # nH Number density of H nuclei in cm^-3
+    # nH0 Number densty of H0 atoms in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+    return 2.3 * (nH2/nH) + 1.5 * (nH0/nH)
+
+@ratefunction0(crate, nH, nH0, nH2)
+    # Reaction 0: H + CR -> H+ + e-
+    # crate Primary photoionization rate per H nucleon in s^-1
+    # nH Number density of H nuclei in cm^-3
+    # nH0 Number densty of H0 atoms in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+    return kcr_H_fac(nH, nH0, nH2) * crate
+
+@ratefunction1(crate, nH, nH0, nH2)
+    # Reaction 1: H2 + CR -> H2+ + e-
+    # crate Primary photoionization rate per H nucleon in s^-1
+    # nH Number density of H nuclei in cm^-3
+    # nH0 Number densty of H0 atoms in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+    return 2 * kcr_H_fac(nH, nH0, nH2) * crate
+
+@ratefunction4(crate, nH0)
+    # Reaction 4: CO + H -> HCO+ + e^-
+    # nH0 Number densty of H0 atoms in cm^-3
+    # This is a composite reaction that is actually a proxy for
+    # CO + CR -> CO+ + e^- followed by CO+ + H -> HCO+. The
+    # true reaction rate per unit volume is 6.52 * crate * nCO,
+    # so as noted above we derive the rate coefficient k by solving
+    # 6.52 * crate * nCO = k * nH0 * nCO.
+    return 6.52 * crate / nH0
+
+@ratefunction14(d2g, nH, nH0)
+    # Reaction 14: H + H -> H2 (grain-assisted)
+    # d2g Dust to gas mass ratio
+    # nH Number density of H nuclei in cm^-3
+    # nH0 Number densty of H0 atoms in cm^-3
+    # True rate = 3e-17 * nH0 * nH * (d2g / 0.01)
+    return 3.0e-17 * (d2g/0.01) * (nH / nH0)
+
+@function kgr_gong(tgas, chi, av, ne, c0, c1, c2, c3, c4, c5, c6)
+    # This function implements Gong et al's expression for
+    # grain-assisted rate coefficients, k_gr
+
+    # Gong's psi factor
+    psi = 1.7 * chi * exp(-1.87*av) * sqrt(tgas) / ne
+
+    # Gong's k_gr
+    logT = log(tgas) / log(10)
+    k_gr = 1e-14 * c0 / (1 + c1 * psi**c2 * (1 + c3 * tgas**c4 * psi**(-c5-c6*logT)))
+
+    # Return
+    return k_gr
+
+
+@ratefunction15(d2g, tgas, chi, av, nH, ne)
+    # Reaction 15: H+ + e- -> H (grain-assisted)
+    # d2g Dust to gas mass ratio
+    # tgas Gas temperature in K
+    # chi ISRF strength normalized to the Draine (1978) field
+    # av Visual extinction in magnitudes
+    # nH Number density of H nuclei in cm^-3
+    # ne Number density of free electrons in cm^-3
+    # This is a grain-assisted reaction for which the true rate
+    # is k_gr(av, ne, tgas) * (d2g / 0.01) * nH+ * nH, where
+    # k_gr(av, ne, tgas) is a specified function.
+    
+    # Gong's coefficients for H+
+    c0 = 12.25
+    c1 = 8.074e-6
+    c2 = 1.378
+    c3 = 5.087e2
+    c4 = 1.586e-2
+    c5 = 0.4723
+    c6 = 1.102e-5
+
+    # Compute final rate
+    return kgr_gong(tgas, chi, av, c0, c1, c2, c3, c4, c5, c6) * (d2g / 0.01) * nH/ne
+
+@ratefunction16(d2g, tgas, chi, av, nH, ne)
+    # Reaction 16: C+ + e- -> C (grain-assisted)
+    # d2g Dust to gas mass ratio
+    # tgas Gas temperature in K
+    # chi ISRF strength normalized to the Draine (1978) field
+    # av Visual extinction in magnitudes
+    # nH Number density of H nuclei in cm^-3
+    # ne Number density of free electrons in cm^-3
+    # This is a grain-assisted reaction for which the true rate
+    # is k_gr(av, ne, tgas) * (d2g / 0.01) * nC+ * nH, where
+    # k_gr(av, ne, tgas) is a specified function.
+
+    # Gong's coefficients for C+
+    c0 = 45.58
+    c1 = 6.089e-3
+    c2 = 1.128
+    c3 = 4.331e2
+    c4 = 4.845e-2
+    c5 = 0.8120
+    c6 = 1.333e-4
+
+    # Compute final rate
+    return kgr_gong(tgas, chi, av, c0, c1, c2, c3, c4, c5, c6) * (d2g / 0.01) * nH/ne
+
+@ratefunction17(d2g, tgas, chi, av, nH, ne)
+    # Reaction 17: He+ + e- -> He (grain-assisted)
+    # d2g Dust to gas mass ratio
+    # tgas Gas temperature in K
+    # chi ISRF strength normalized to the Draine (1978) field
+    # av Visual extinction in magnitudes
+    # nH Number density of H nuclei in cm^-3
+    # ne Number density of free electrons in cm^-3
+    # This is a grain-assisted reaction for which the true rate
+    # is k_gr(av, ne, tgas) * (d2g / 0.01) * nHe+ * nH, where
+    # k_gr(av, ne, tgas) is a specified function.
+
+    # Gong's coefficients for He+
+    c0 = 5.572
+    c1 = 3.185e-7
+    c2 = 1.512
+    c3 = 5.115e3
+    c4 = 3.903e-7
+    c5 = 0.4956
+    c6 = 5.494e-7
+
+    # Compute final rate
+    return kgr_gong(tgas, chi, av, c0, c1, c2, c3, c4, c5, c6) * (d2g / 0.01) * nH/ne
+
+@ratefunction18(d2g, tgas, chi, av, nH, ne)
+    # Reaction 18: Si+ + e- -> Si (grain-assisted)
+    # d2g Dust to gas mass ratio
+    # tgas Gas temperature in K
+    # chi ISRF strength normalized to the Draine (1978) field
+    # av Visual extinction in magnitudes
+    # nH Number density of H nuclei in cm^-3
+    # ne Number density of free electrons in cm^-3
+    # This is a grain-assisted reaction for which the true rate
+    # is k_gr(av, ne, tgas) * (d2g / 0.01) * nSi+ * nH, where
+    # k_gr(av, ne, tgas) is a specified function.
+
+    # Gong's coefficients for Si+
+    c0 = 2.166
+    c1 = 5.678e-8
+    c2 = 1.874
+    c3 = 4.375e4
+    c4 = 1.635e-6
+    c5 = 0.8964
+    c6 = 7.538e-5
+
+    # Compute final rate
+    return kgr_gong(tgas, chi, av, c0, c1, c2, c3, c4, c5, c6) * (d2g / 0.01) * nH/ne
+
+@ratefunction19(tgas, ne)
+    # Reaction 19: C + H3+ + e- -> H2 + CHx
+    # tgas Gas temperature in K
+    # ne Number density of free electrons in cm^-3
+    # This is a composite reaction for H3+ + C -> CH+ + H2
+    # followed by CH+ + e^- -> CH. The true rate is
+    # k(tgas) * nC * nH3+, so we deduce the rate coefficient
+    # k_JAFF in JAFF by setting this equal to k_JAFF ne nC nH3+
+
+    # Constants appearing in Gong's function
+    n_kCHx = 2.31e-3
+    A_kCHx = 1.04e-9
+    c0 = 3.4e-8
+    c1 = 6.97e-9
+    c2 = 1.31e-8
+    c3 = 1.51e-4
+    T0 = 7.62
+    T1 = 1.38
+    T2 = 2.66e1
+    T3 = 8.11e3
+
+    # Rate coefficient fitting functions
+    k1 = A_kCHx * (300/tgas)**n_kCHx
+    k2 = c0 * exp(-T1/tgas) + c1 * exp(-T2/tgas) + c2 * exp(-T2/tgas) + c3 * exp(-T3/tgas)
+
+    # Final rate coefficient
+    k = (k1 + tgas**-1.5 * k2) / ne
+    return k
+
+@ratefunction20(tgas, ne, nH2)
+    # Reaction 20: O + H3+ + e- -> H2 + OHx
+    # tgas Gas temperature in K
+    # ne Number density of free electrons in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+    # This is a composite reaction. The true rate is
+    # k(tgas) * nO * nH3+, so we
+    # deduce the rate coefficient k_JAFF in JAFF by setting this
+    # equal to k_JAFF ne nO nH3+
+
+    # Branching ratios
+    H2Oplus_ratio = Min(6e-10 / (5.3e-6 / sqrt(tgas)) * (nH2/ne), 1e10)
+    fac_H2Oplus_H2 = H2Oplus_ratio / (H2Oplus_ratio + 1)
+    fac_H2Oplus_e = 1 / (H2Oplus_ratio + 1)
+
+    # Rate coefficient
+    k = 1.99e-9 * tgas**-0.19 * fac_H2Oplus_H2 / ne
+    return k
+
+@ratefunction21(tgas, ne, nH2)
+    # Reaction 21: O + H3+ + e- -> H2 + O + H
+    # tgas Gas temperature in K
+    # ne Number density of free electrons in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+    # This is a composite reaction. The true rate is
+    # k(tgas) * nO * nH3+, so we
+    # deduce the rate coefficient k_JAFF in JAFF by setting this
+    # equal to k_JAFF ne nO nH3+
+
+    # Branching ratios
+    H2Oplus_ratio = Min(6e-10 / (5.3e-6 / sqrt(tgas)) * (nH2/ne), 1e10)
+    fac_H2Oplus_H2 = H2Oplus_ratio / (H2Oplus_ratio + 1)
+    fac_H2Oplus_e = 1 / (H2Oplus_ratio + 1)
+
+    # Rate coefficient
+    k = 1.99e-9 * tgas**-0.19 * fac_H2Oplus_e / ne
+    return k
+
+@ratefunction22(tgas, ne, nH2)
+    # Reaction 22: H2 + O+ + e- -> H + OHx
+    # tgas Gas temperature in K
+    # ne Number density of free electrons in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+    # This is a composite reaction. The true rate is
+    # k(tgas) * nO+ * nH2, so we
+    # deduce the rate coefficient k_JAFF in JAFF by setting this
+    # equal to k_JAFF ne nH2 nO+
+
+    # Branching ratios
+    H2Oplus_ratio = Min(6e-10 / (5.3e-6 / sqrt(tgas)) * (nH2/ne), 1e10)
+    fac_H2Oplus_H2 = H2Oplus_ratio / (H2Oplus_ratio + 1)
+    fac_H2Oplus_e = 1 / (H2Oplus_ratio + 1)
+
+    # Rate coefficient
+    k = 1.6e-9 * fac_H2Oplus_H2 / ne
+    return k
+
+@ratefunction23(tgas, ne, nH2)
+    # Reaction 23: H2 + O+ + e- -> H + H + O
+    # tgas Gas temperature in K
+    # ne Number density of free electrons in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+    # This is a composite reaction. The true rate is
+    # k(tgas) * nO+ * nH2, so we
+    # deduce the rate coefficient k_JAFF in JAFF by setting this
+    # equal to k_JAFF ne nH2 nO+
+
+    # Branching ratios
+    H2Oplus_ratio = Min(6e-10 / (5.3e-6 / sqrt(tgas)) * (nH2/ne), 1e10)
+    fac_H2Oplus_H2 = H2Oplus_ratio / (H2Oplus_ratio + 1)
+    fac_H2Oplus_e = 1 / (H2Oplus_ratio + 1)
+
+    # Rate coefficient
+    k = 1.6e-9 * fac_H2Oplus_e / ne
+    return k
+
+@ratefunction27(tgas, ne)
+    # Reaction 27: H2 + C+ + e- -> CHx + H
+    # tgas Gas temperature in K
+    # ne Number density of free electrons in cm^-3
+    # This is a composite reaction. The true rate is
+    # k(tgas) * nC+ * nH2, so we
+    # deduce the rate coefficient k_JAFF in JAFF by setting this
+    # equal to k_JAFF ne nH2 nC+
+
+    return 2.31e-13 * tgas**-1.3 * exp(-23/tgas) / ne
+
+@ratefunction28(tgas, ne)
+    # Reaction 28: H2 + C+ + e- -> CH + H + H
+    # tgas Gas temperature in K
+    # ne Number density of free electrons in cm^-3
+    # This is a composite reaction. The true rate is
+    # k(tgas) * nC+ * nH2, so we
+    # deduce the rate coefficient k_JAFF in JAFF by setting this
+    # equal to k_JAFF ne nH2 nC+
+
+    return 0.99e-13 * tgas**-1.3 * exp(-23/tgas) / ne
+
+@ratefunction33(tgas)
+    # Reaction 33: He+ + e- -> He
+    # tgas Gas temperature in K
+
+    logT = log(tgas) / log(10)
+    return 1e-11 * tgas**-0.5 * (11.19 + (-1.676 + (-0.2852 + 0.04433 * logT) * logT) * logT)
+
+@ratefunction36(tgas)
+    # Reaction 36: C+ + e- -> c
+    # tgas Gas temperature in K
+
+    # Constants in Gong's function for C+ reaction rate
+    A = 2.995e-9
+    B = 0.7849
+    T0 = 1.943e6
+    T1 = 1.943e6
+    C = 0.1597
+    T2 = 4.955e4
+
+    # Gong's formula
+    BN = B + C * exp(-T2/tgas)
+    term1 = sqrt(tgas / T0)
+    term2 = sqrt(tgas / T1)
+    alpharr = A / ( term1 * (1+term1)**(1-BN) * (1+term2)**(1+BN) )
+    alphadr = tgas**(-3/2) * (6.346e-9 * exp(-1.217e1/tgas) + 9.793e-9 * exp(-7.38e1/tgas) + 1.634e-6 * exp(-1.523e4/tgas))
+
+    # Return
+    return alpharr + alphadr
+
+@ratefunction38(tgas)
+    # Reaction 38: H2 + H2+ -> H + H3+
+    # tgas Gas temperature in K
+
+    return 1.76e-9 * tgas**0.042 * exp(-tgas / 46600.)
+
+@ratefunction40(tgas)
+    # Reaction 40: H+ + e- -> H
+    # tgas Gas temperature in K
+
+    return 2.753e-14 * (315614/tgas)**1.5 * (1 + (115188./tgas)**0.407)**-2.242
+
+@function n2ncr(tgas, nH, nH0, nH2)
+    # Ratio of density to critical density
+    # tgas Gas temperature in K
+    # nH Number density of H nuclei in cm^-3
+    # nH0 Number density of atomic H in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+
+    logT4 = log(tgas/10**4) / log(10)
+    ncrH = 10**(3 - 0.416 * logT4 - 0.327 * logT4**2)
+    ncrH2 = 10**(4.845 - 1.3 * logT4 + 1.62 * logT4**2)
+    ncr = Min(1 / ( (nH0/nH) / ncrH + (nH2/nH) / ncrH2 ), 1e100)
+    n2ncr = nH / ncr
+    return n2ncr
+
+@ratefunction41(tgas, nH, nH0, nH2)
+    # Reaction 41: H2 + H -> H + H + H
+    # tgas Gas temperature in K
+    # nH Number density of H nuclei in cm^-3
+    # nH0 Number density of atomic H in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+
+    k9l = 6.67e-12 * sqrt(tgas) * exp(-(1 + 63590/tgas))
+    k9h = 3.52e-9 * exp(-43900/tgas)
+    logk9l = log(k9l) / log(10)
+    logk9h = log(k9h) / log(10)
+    n2ncr_ = n2ncr(tgas, nH, nH0, nH2)
+    return Piecewise((10**(logk9h * n2ncr_ / (1 + n2ncr_) + logk9l / (1 + n2ncr_)), tgas > 7.0e2), (0, True))
+
+@ratefunction42(tgas, nH, nH0, nH2)
+    # Reaction 42: H2 + H2 -> H + H + H2
+    # tgas Gas temperature in K
+    # nH Number density of H nuclei in cm^-3
+    # nH0 Number density of atomic H in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+
+    k10l = 5.996e-30 * tgas**4.1881 / (1 + 6.761e-6*tgas)**5.6881 * exp(-54657.4/tgas)
+    k10h = 1.3e-9 * exp(-53300/tgas)
+    logk10l = log(k10l) / log(10)
+    logk10h = log(k10h) / log(10)
+    n2ncr_ = n2ncr(tgas, nH, nH0, nH2)
+    return Piecewise((10**(logk10h * n2ncr_ / (1 + n2ncr_) + logk10l / (1 + n2ncr_)), tgas > 7.0e2), (0, True))
+
+@ratefunction43(tgas)
+    # Reaction 43: H + e- -> H+ + e- + e-
+    # tgas Gas temperature in K
+
+    lnTe = log(tgas * 8.6173e-5)
+    return Piecewise((exp(-3.271396786e1 + 1.35365560e1 * lnTe - 5.73932875 * lnTe**2 + 1.56315498 * lnTe**3 - 2.877056e-1 * lnTe**4 + 3.48255977e-2 * lnTe**5 - 2.63197617e-3 * lnTe**6 + 1.11954395e-4 * lnTe**7 - 2.03914985e-6 * lnTe**8), tgas > 7.0e2), (0, True))
+
+@ratefunction49(tgas)
+    # Reaction 49: O + H+ -> O+ + H
+    # tgas Gas temperature in K
+
+    return (1e-11 * tgas**0.517 + 4.0e-10 * tgas**6.69e-3 ) * exp(-227/tgas)
+
+@ratefunction50(tgas)
+    # Reaction 50: O+ + H -> O + H+
+    # tgas Gas temperature in K
+
+    return 4.99e-11 * tgas**0.405 + 7.5e-10 * tgas**-0.458

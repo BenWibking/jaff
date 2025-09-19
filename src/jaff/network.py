@@ -242,7 +242,7 @@ class Network:
                 # convert it to a symbol
                 if hasattr(rate, '__name__') and rate.__name__ in [v[0] for v in variables_sympy]:
                     rate = symbols(rate.__name__)
-            print(rate)
+            #print(rate)
                
             # use sympy to replace custom variables into the rate expression
             # note: reverse order to allow for nested variable replacement
@@ -306,10 +306,10 @@ class Network:
                          if type(f.func) is UndefinedFunction ] # Grab undefined functions
                 did_replace = False
                 for f in funcs:
-                    if f.name in aux_funcs.keys():
+                    if f.name.lower() in aux_funcs.keys():
                         # Grab function definition and substitute in arguments
-                        fdef = aux_funcs[f.name]["def"]
-                        for a1, a2 in zip(aux_funcs[f.name]["args"], f.args):
+                        fdef = aux_funcs[f.name.lower()]["def"]
+                        for a1, a2 in zip(aux_funcs[f.name.lower()]["args"], f.args):
                             fdef = fdef.subs(a1, a2)
                         # Substitute function into rate
                         rate = rate.subs(f, fdef)
@@ -365,7 +365,11 @@ class Network:
                 elif fs.name.lower() == "nh2":
                     # Number density of H2 nuclei
                     repl = nden[self.species_dict['H2']]
-                elif fs.name.lower() == 'ntot':
+                elif fs.name.lower() == "ne":
+                    repl = nden[self.species_dict['e-']]
+                elif fs.name.lower() == "nhp":
+                    repl = nden[self.species_dict['H+']]
+                elif fs.name.lower() == "ntot":
                     # Total number density of all free particles
                     for i in range(len(self.species)):
                         if i == 0:
