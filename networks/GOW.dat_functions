@@ -2,7 +2,30 @@
 # The functions here are sympy translations of the implementation in
 # https://github.com/PrincetonUniversity/athena/blob/chemistry_zsfr/src/chemistry/network/kida_network_files/gow17/kida_gow17.cpp
 
-# A note to help interpret these rate coefficient expressions: 
+# There are two main types of functions found in this file:
+# 1. Rate coefficient functions with names of the form @ratefunctionN
+# where N indicates which reaction in the reaction list this rate
+# coefficient is for (starting the count at N = 0), and
+# 2. Change in thermal energy functions with names of the form @deltaEN,
+# which give the change in gas thermal energy per occurence of reaction N,
+# in units of eV, so positive values correspond to exothermic reactions
+# and negative values to endothemic ones.
+
+# Note that not every reaction is represented in this file. If there
+# is no @ratefunction function for a given reaction number, that means
+# the reaction rate does not use a customized functional form, and
+# is instead derived from the standard chemical network format. If there
+# is no deltaE function for a given reaction, that means that the change
+# in gas thermal energy associated with that reaction is neglected and
+# treated as approximately zero -- this might for example be the
+# situation for an exothermic reaction but one where all the excess
+# energy is given to a photon that then escapes.
+
+# There are also other functions with names of the form @XXXX, which
+# are helper functions that will be substituted into the expressions
+# used in the @ratefunction and @deltaE functions. 
+
+# A note to help interpret the rate coefficient functions: 
 # rates in JAFF are always computed as k * n1 * n2 * ...,
 # where n1, n2, ... are the number densities of the reactants. This
 # is the correct expression most of the time, but some reactions
@@ -29,6 +52,38 @@
     # nH2 Number density of H2 molecules in cm^-3
     return kcr_H_fac(nH, nH0, nH2) * crate
 
+@function qcr(nH, ne, nH0, nH2)
+    # This is the mean energy in eV delivered to the gas per
+    # primary CR ionization. The model here follows the approach
+    # in DESPOTIC (Krumholz 2014), which involes a weighted average
+    # between the results of Dalgarno & McCray (1972) for atomic
+    # gas and Glassgold+ (2012) for molecular gas.
+    # nH Number density of H nuclei in cm^-3
+    # ne Number density of free electrons in cm^-3
+    # nH0 Number densty of H0 atoms in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+    xe = ne / nH
+    xH0 = nH0 / nH
+    xH2 = nH2 / nH
+    logn = log(nH) / log(10)
+    qcrH = 6.5 + 26.4 * (xe / (xe + 0.07))**0.5
+    qcrH2 = Piecewise((10, logn < 2), (10 + 3*(logn-2)/2, (logn >=2) & (logn < 4)), (13 + 4*(logn-4)/3, (logn >= 4) & (logn < 7)), (17 + (logn-7)/3, (logn >= 7) & (logn < 10)), (18, True))
+    return xH * qcrH + xH2 * qcrH2
+
+@deltaE0(nH, ne, nH0, nH2)
+    # Reaction 0: H + CR -> H+ + e-
+    # nH Number density of H nuclei in cm^-3
+    # ne Number density of free electrons in cm^-3
+    # nH0 Number densty of H0 atoms in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+    # The energy change here is Draine (2011)'s fit to
+    # Note that qCR is energy change per primary ionization,
+    # while our rate coefficient expressions also include secondaries,
+    # so we need to divide those out to get the right energy
+    # deposition per primary.
+    sec_per_prim = kcr_H_fac(nH, nH0, nH2)
+    return qcr(nH, ne, nH0, nH2) / sec_per_prim
+
 @ratefunction1(crate, nH, nH0, nH2)
     # Reaction 1: H2 + CR -> H2+ + e-
     # crate Primary photoionization rate per H nucleon in s^-1
@@ -36,6 +91,32 @@
     # nH0 Number densty of H0 atoms in cm^-3
     # nH2 Number density of H2 molecules in cm^-3
     return 2 * kcr_H_fac(nH, nH0, nH2) * crate
+
+@deltaE1(nH, nH0, nH2)
+    # Reaction 1: H2 + CR -> H2+ + e-
+    # nH Number density of H nuclei in cm^-3
+    # nH0 Number densty of H0 atoms in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+    # The energy change here is Krumholz (2014)'s fit to results
+    # from Glassgold+ (2012). Note that this fit is energy
+    # change per primary ionization, while our rate coefficient
+    # expressions also include secondaries, so we need to divide
+    # those out to get the right energy deposition per primary.
+    sec_per_prim = kcr_H_fac(nH, nH0, nH2)
+    return qcr(nH, ne, nH0, nH2) / sec_per_prim
+
+@deltaE1(nH, nH0, nH2)
+    # Reaction 2: He + CR -> He+ + e-
+    # nH Number density of H nuclei in cm^-3
+    # nH0 Number densty of H0 atoms in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+    # The energy change here is Krumholz (2014)'s fit to results
+    # from Glassgold+ (2012). Note that this fit is energy
+    # change per primary ionization, while our rate coefficient
+    # expressions also include secondaries, so we need to divide
+    # those out to get the right energy deposition per primary.
+    sec_per_prim = kcr_H_fac(nH, nH0, nH2)
+    return qcr(nH, ne, nH0, nH2) / sec_per_prim
 
 @ratefunction4(crate, nH0)
     # Reaction 4: CO + H -> HCO+ + e^-
@@ -47,6 +128,34 @@
     # 6.52 * crate * nCO = k * nH0 * nCO.
     return 6.52 * crate / nH0
 
+@function ncrH2(tgas, nH, nH0, nH2)
+    # Critical density of excited H2
+    # tgas Gas temperature in K
+    # nH Number density of H nuclei in cm^-3
+    # nH0 Number densty of H0 atoms in cm^-3
+    # nH2 Number densty of H2 molecules in cm^-3
+    # This is an approximate critical density for excited H2, used
+    # to determine partition of energies of excited H2 between collisional
+    # and radiative losses. Taken from Hollenbach & McKee (1979).
+    xH = nH0 / nH
+    xH2 = nH2 / nH
+    return 1e6 * tgas**(-1/2) / (1.6 * xH * exp(-(400/tgas)**2) + 1.4 * xH2 * exp( -12000/(tgas + 1200)))
+
+@deltaE13(tgas, nH, nH0, nH2)
+    # Reaction 13: H2 + photon -> H + H
+    # tgas Gas temperature in K
+    # nH Number density of H nuclei in cm^-3
+    # nH0 Number densty of H0 atoms in cm^-3
+    # nH2 Number densty of H2 molecules in cm^-3
+    # This energy combines two distinct heating sources. One is the
+    # excess kinetic energy of dissociated H2, and the other is
+    # FUV pumping: absorptions of FUV by H2 that results in excitation
+    # but not photodissociation, but where some of the associated
+    # energy is desposited to the gas as thermal energy by collisions.
+    # The result is from Hollenbach & McKee (1979), their equation 6.46
+    # and the preceding paragraph of text.
+    return 0.4 + 9 * 2.2 / (1 + ncrH2(tgas, nH, nH0, nH2) / nH)
+
 @ratefunction14(d2g, nH, nH0)
     # Reaction 14: H + H -> H2 (grain-assisted)
     # d2g Dust to gas mass ratio
@@ -54,6 +163,16 @@
     # nH0 Number densty of H0 atoms in cm^-3
     # True rate = 3e-17 * nH0 * nH * (d2g / 0.01)
     return 3.0e-17 * (d2g/0.01) * (nH / nH0)
+
+@deltaE14(tgas, nH, nH0, nH2)
+    # Reaction 14: H + H -> H2 (grain-assisted)
+    # tgas Gas temperature in K
+    # nH Number density of H nuclei in cm^-3
+    # nH0 Number densty of H0 atoms in cm^-3
+    # nH2 Number densty of H2 molecules in cm^-3
+    # Energy released by H2 formation on grains; the model impelemented
+    # here is equation 6.43 of Hollenbach & McKee (1979)
+    return 0.2 + 4.2 / (1 + ncrH2(tgas, nH, nH0, nH2) / nH)
 
 @function kgr_gong(tgas, chi, av, ne, c0, c1, c2, c3, c4, c5, c6)
     # This function implements Gong et al's expression for
@@ -68,7 +187,6 @@
 
     # Return
     return k_gr
-
 
 @ratefunction15(d2g, tgas, chi, av, nH, ne)
     # Reaction 15: H+ + e- -> H (grain-assisted)
@@ -92,7 +210,7 @@
     c6 = 1.102e-5
 
     # Compute final rate
-    return kgr_gong(tgas, chi, av, c0, c1, c2, c3, c4, c5, c6) * (d2g / 0.01) * nH/ne
+    return kgr_gong(tgas, chi, av, ne, c0, c1, c2, c3, c4, c5, c6) * (d2g / 0.01) * nH/ne
 
 @ratefunction16(d2g, tgas, chi, av, nH, ne)
     # Reaction 16: C+ + e- -> C (grain-assisted)
@@ -116,7 +234,7 @@
     c6 = 1.333e-4
 
     # Compute final rate
-    return kgr_gong(tgas, chi, av, c0, c1, c2, c3, c4, c5, c6) * (d2g / 0.01) * nH/ne
+    return kgr_gong(tgas, chi, av, ne, c0, c1, c2, c3, c4, c5, c6) * (d2g / 0.01) * nH/ne
 
 @ratefunction17(d2g, tgas, chi, av, nH, ne)
     # Reaction 17: He+ + e- -> He (grain-assisted)
@@ -140,7 +258,7 @@
     c6 = 5.494e-7
 
     # Compute final rate
-    return kgr_gong(tgas, chi, av, c0, c1, c2, c3, c4, c5, c6) * (d2g / 0.01) * nH/ne
+    return kgr_gong(tgas, chi, av, ne, c0, c1, c2, c3, c4, c5, c6) * (d2g / 0.01) * nH/ne
 
 @ratefunction18(d2g, tgas, chi, av, nH, ne)
     # Reaction 18: Si+ + e- -> Si (grain-assisted)
@@ -164,7 +282,7 @@
     c6 = 7.538e-5
 
     # Compute final rate
-    return kgr_gong(tgas, chi, av, c0, c1, c2, c3, c4, c5, c6) * (d2g / 0.01) * nH/ne
+    return kgr_gong(tgas, chi, av, ne, c0, c1, c2, c3, c4, c5, c6) * (d2g / 0.01) * nH/ne
 
 @ratefunction19(tgas, ne)
     # Reaction 19: C + H3+ + e- -> H2 + CHx
@@ -362,6 +480,10 @@
     n2ncr_ = n2ncr(tgas, nH, nH0, nH2)
     return Piecewise((10**(logk9h * n2ncr_ / (1 + n2ncr_) + logk9l / (1 + n2ncr_)), tgas > 7.0e2), (0, True))
 
+@deltaE41()
+    # Reaction 41: H2 + H -> H + H + H
+    return -4.48
+
 @ratefunction42(tgas, nH, nH0, nH2)
     # Reaction 42: H2 + H2 -> H + H + H2
     # tgas Gas temperature in K
@@ -376,12 +498,20 @@
     n2ncr_ = n2ncr(tgas, nH, nH0, nH2)
     return Piecewise((10**(logk10h * n2ncr_ / (1 + n2ncr_) + logk10l / (1 + n2ncr_)), tgas > 7.0e2), (0, True))
 
+@deltaE42()
+    # Reaction 42: H2 + H2 -> H + H + H2
+    return -4.48
+
 @ratefunction43(tgas)
     # Reaction 43: H + e- -> H+ + e- + e-
     # tgas Gas temperature in K
 
     lnTe = log(tgas * 8.6173e-5)
     return Piecewise((exp(-3.271396786e1 + 1.35365560e1 * lnTe - 5.73932875 * lnTe**2 + 1.56315498 * lnTe**3 - 2.877056e-1 * lnTe**4 + 3.48255977e-2 * lnTe**5 - 2.63197617e-3 * lnTe**6 + 1.11954395e-4 * lnTe**7 - 2.03914985e-6 * lnTe**8), tgas > 7.0e2), (0, True))
+
+@deltaE43()
+    # Reaction 43: H + e- -> H+ + e- + e-
+    return -13.6
 
 @ratefunction49(tgas)
     # Reaction 49: O + H+ -> O+ + H

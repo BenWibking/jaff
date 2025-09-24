@@ -19,7 +19,7 @@ class Network:
 
     # ****************
     def __init__(self, fname, errors=False, label=None,
-                 funcfile=None):
+                 funcfile=None, replace_nH=True):
 
         self.motd()
 
@@ -31,6 +31,7 @@ class Network:
         self.reactions_dict = {}
         self.reactions = []
         self.rlist = self.plist = None
+        self.dEdt_chem = parse_expr('0')
         self.file_name = fname
         self.label = label if label else os.path.basename(fname).split(".")[0]
 
@@ -39,7 +40,7 @@ class Network:
 
         self.photochemistry = Photochemistry()
 
-        self.load_network(fname, funcfile)
+        self.load_network(fname, funcfile, replace_nH)
 
         self.check_sink_sources(errors)
         self.check_recombinations(errors)
@@ -78,7 +79,7 @@ class Network:
         return mass_dict
 
     # ****************
-    def load_network(self, fname, funcfile):
+    def load_network(self, fname, funcfile, replace_nH):
 
         default_species = [] # ["dummy", "CR", "CRP", "Photon"]
         self.species = [Species(s, self.mass_dict, i) for i, s in enumerate(default_species)]
@@ -330,12 +331,43 @@ class Network:
             rr = [self.species[species_names.index(x)] for x in rr]
             pp = [self.species[species_names.index(x)] for x in pp]
 
+            # If there is a deltaE function describing change in
+            # chemical energy associated with this reaction, add
+            # an appropriate term to the dEdt_chem for this network.
+            deltaE_name = "deltaE{:d}".format(len(self.reactions))
+            deltaE = parse_expr('0')
+            if deltaE_name.lower() in aux_funcs.keys():
+
+                # deltaE
+                deltaE = aux_funcs[deltaE_name.lower()]["def"]
+
+                # Apply the replacement rules for all custom
+                # functions in dEdt
+                while True:
+                    funcs = [f for f in deltaE.atoms(Function) 
+                             if type(f.func) is UndefinedFunction ] # Grab undefined functions
+                    did_replace = False
+                    for f in funcs:
+                        if f.name.lower() in aux_funcs.keys():
+                            # Grab function definition and substitute in arguments
+                            fdef = aux_funcs[f.name.lower()]["def"]
+                            for a1, a2 in zip(aux_funcs[f.name.lower()]["args"], f.args):
+                                fdef = fdef.subs(a1, a2)
+                            # Substitute function into dEdt
+                            deltaE = deltaE.subs(f, fdef)
+                            # Flag that we did a replacement
+                            did_replace = True
+                    # End if no replacements done
+                    if not did_replace:
+                        break
+
             # create a Reaction object
-            rea = Reaction(rr, pp, rate, tmin, tmax, srow)
+            rea = Reaction(rr, pp, rate, tmin, tmax, deltaE, srow)
 
             if rea.guess_type() == "photo":
                 rea.xsecs = self.photochemistry.get_xsec(rea)
 
+            # Save to reaction list
             self.reactions.append(rea)
 
         # Now that we have loaded all rates, apply replacement rules
@@ -343,12 +375,13 @@ class Network:
         # involving known species
         nden = MatrixSymbol('nden', len(self.species), 1)
         for rea in self.reactions:
-            free_symbols = list(rea.rate.free_symbols)
+            free_symbols = list(rea.rate.free_symbols) + \
+                list(rea.dE.free_symbols)
             for fs in free_symbols:
 
                 # Construct replacement expression
                 repl = None
-                if fs.name.lower() == "nh":
+                if fs.name.lower() == "nh" and replace_nH:
                     # Number density of H nuclei in all forms
                     for spec in self.species:
                         count = spec.exploded.count('H')
@@ -380,6 +413,7 @@ class Network:
                 # Apply replacement expression
                 if repl is not None:
                     rea.rate = rea.rate.subs(fs, repl)
+                    rea.dE = rea.dE.subs(fs, repl)
 
             # Append any remaining un-replaced quantities to list
             # of free symbols, removing nden's
@@ -404,6 +438,12 @@ class Network:
             print("WARNING: found undefined functions ", undef_funcs)
             print("   some functionality will not be available as a result")
 
+        # Generate the dE/dt expression from rates and deltaE's
+        for r in self.reactions:
+            dE_dt = r.dE * r.rate
+            for s in r.reactants:
+                dE_dt *= nden[self.species_dict[s.name]]
+            self.dEdt_chem += dE_dt
 
     # ****************
     def read_aux_funcs(self, funcfile):
