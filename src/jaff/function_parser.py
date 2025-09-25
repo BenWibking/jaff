@@ -22,17 +22,17 @@ def parse_error(line, fname, funcname=None):
         Nothing
 
     Raises:
-        IOError
+        ValueError
     """
 
     if funcname is None:
-        errstr = "file {:s}: encountered error when parsing" \
+        errstr = "file {:s}: encountered error when parsing " \
             "line\n{:s}".format(fname, line)
     else:
         errstr = "file {:s}: encountered error in parsing "\
              "function {:s}; unparseable line\n" \
             "{:s}".format(fname, funcname, line)
-    raise IOError(errstr)
+    raise ValueError(errstr)
 
 
 def strip_trailing_comments(line):
@@ -75,7 +75,8 @@ def parse_func_declaration(line):
 
     # Make sure the line starts correctly
     if not line.startswith("@function") and \
-        not line.startswith("@ratefunction"):
+        not line.startswith("@ratefunction") and \
+        not line.startswith("@deltaE"):
          raise ValueError
 
     # Remove leading @function or @
@@ -100,7 +101,8 @@ def parse_func_declaration(line):
 
     # Extract list of arguments
     funcargs = funcstring[firstparen+1:-1].split(',')
-    funcargs = [parse_expr(f.strip()) for f in funcargs]
+    funcargs = [parse_expr(f.strip()) for f in funcargs
+                if len(f.strip()) > 0]
 
     # Return
     return funcname, funcargs
@@ -154,7 +156,8 @@ def parse_funcfile(fname):
                 if line[0] == '#':
                     continue   # Comment line
                 elif not line.startswith("@function") and \
-                    not line.startswith("@ratefunction"):
+                    not line.startswith("@ratefunction") and \
+                    not line.startswith("@deltaE"):
                     parse_error(line, fname)
                 else:
                     try:
@@ -195,8 +198,8 @@ def parse_funcfile(fname):
                     # Strip trailing comments
                     line = strip_trailing_comments(line)
 
-                    # Split line at = sign
-                    splitline = line.split('=')
+                    # Split line at first = sign
+                    splitline = line.split('=', maxsplit=1)
                     if len(splitline) != 2:
                         parse_error(line, fname, funcname)
                     try:
