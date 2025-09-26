@@ -204,8 +204,12 @@ def parse_funcfile(fname):
                         parse_error(line, fname, funcname)
                     try:
                         subst_symbols.append(parse_expr(splitline[0]))
-                        subst_rules.append(parse_expr(splitline[1]))
+                        subst_rules.append(
+                            parse_expr(splitline[1],
+                                       local_dict={str(k) : v for k, v in 
+                                                   zip(subst_symbols[:-1], subst_rules)}))
                     except:
+                        import pdb; pdb.set_trace()
                         parse_error(line, fname, funcname)
                     
                 else:
@@ -220,7 +224,9 @@ def parse_funcfile(fname):
                     line = strip_trailing_comments(line)
 
                     # Construct function definition
-                    funcdef = parse_expr(line[len("return"):].strip())
+                    funcdef = parse_expr(line[len("return"):].strip(),
+                                         local_dict={str(k) : v for k, v in 
+                                                     zip(subst_symbols, subst_rules)})
 
                     # Apply substitution rules, starting from final one and
                     # working backwards
