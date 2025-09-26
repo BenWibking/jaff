@@ -61,7 +61,7 @@
     xe = ne / nH
     xH0 = nH0 / nH
     xH2 = nH2 / nH
-    logn = log(nH) / log(10)
+    logn = log(nH, 10)
     qcrH = 6.5 + 26.4 * (xe / (xe + 0.07))**0.5
     qcrH2 = Piecewise((10, logn < 2), (10 + 3*(logn-2)/2, (logn >=2) & (logn < 4)), (13 + 4*(logn-4)/3, (logn >= 4) & (logn < 7)), (17 + (logn-7)/3, (logn >= 7) & (logn < 10)), (18, True))
     return xH * qcrH + xH2 * qcrH2
@@ -80,6 +80,18 @@
     return 1e6 * tgas**(-1/2) / (1.6 * xH * exp(-(400/tgas)**2) + 1.4 * xH2 * exp( -12000/(tgas + 1200)))
 
 @function kgr_gong(tgas, chi, av, ne, c0, c1, c2, c3, c4, c5, c6)
+    # tgas Gas temperature in K
+    # chi Radiation field strength in Draine (1972) units
+    # av V-band extinction in magnitudes
+    # ne Free electron number density in cm^-3
+    # c0 Fitting coefficient
+    # c1 Fitting coefficient
+    # c2 Fitting coefficient
+    # c3 Fitting coefficient
+    # c4 Fitting coefficient
+    # c5 Fitting coefficient
+    # c6 Fitting coefficient
+
     # This function implements Gong et al's expression for
     # grain-assisted rate coefficients, k_gr
 
@@ -87,7 +99,7 @@
     psi = 1.7 * chi * exp(-1.87*av) * sqrt(tgas) / ne
 
     # Gong's k_gr
-    logT = log(tgas) / log(10)
+    logT = log(tgas, 10)
     k_gr = 1e-14 * c0 / (1 + c1 * psi**c2 * (1 + c3 * tgas**c4 * psi**(-c5-c6*logT)))
 
     # Return
@@ -101,7 +113,7 @@
     # nH0 Number density of atomic H in cm^-3
     # nH2 Number density of H2 molecules in cm^-3
 
-    logT4 = log(tgas/10**4) / log(10)
+    logT4 = log(tgas/10**4, 10)
     ncrH = 10**(3 - 0.416 * logT4 - 0.327 * logT4**2)
     ncrH2 = 10**(4.845 - 1.3 * logT4 + 1.62 * logT4**2)
     ncr = Min(1 / ( (nH0/nH) / ncrH + (nH2/nH) / ncrH2 ), 1e100)
@@ -374,7 +386,7 @@
     # Reaction 33: He+ + e- -> He
     # tgas Gas temperature in K
 
-    logT = log(tgas) / log(10)
+    logT = log(tgas, 10)
     return 1e-11 * tgas**-0.5 * (11.19 + (-1.676 + (-0.2852 + 0.04433 * logT) * logT) * logT)
 
 @ratefunction36(tgas)
@@ -509,8 +521,8 @@
 
     k9l = 6.67e-12 * sqrt(tgas) * exp(-(1 + 63590/tgas))
     k9h = 3.52e-9 * exp(-43900/tgas)
-    logk9l = log(k9l) / log(10)
-    logk9h = log(k9h) / log(10)
+    logk9l = log(k9l, 10)
+    logk9h = log(k9h, 10)
     n2ncr_ = n2ncr(tgas, nH, nH0, nH2)
     return Piecewise((10**(logk9h * n2ncr_ / (1 + n2ncr_) + logk9l / (1 + n2ncr_)), tgas > 7.0e2), (0, True))
 
@@ -527,8 +539,8 @@
 
     k10l = 5.996e-30 * tgas**4.1881 / (1 + 6.761e-6*tgas)**5.6881 * exp(-54657.4/tgas)
     k10h = 1.3e-9 * exp(-53300/tgas)
-    logk10l = log(k10l) / log(10)
-    logk10h = log(k10h) / log(10)
+    logk10l = log(k10l, 10)
+    logk10h = log(k10h, 10)
     n2ncr_ = n2ncr(tgas, nH, nH0, nH2)
     return Piecewise((10**(logk10h * n2ncr_ / (1 + n2ncr_) + logk10l / (1 + n2ncr_)), tgas > 7.0e2), (0, True))
 
@@ -540,3 +552,99 @@
     # Reaction 43: H + e- -> H+ + e- + e-
     return -13.6
 
+
+################################################################
+# Extra heating and cooling functions
+################################################################
+
+@function grainPE(chi, av, d2g, tgas, nH, ne)
+    # Grain photoelectric heating rate, in erg cm^-3 s^-1. The
+    # expression here comes from Weingartner & Draine (2001),
+    # their equation 44, using the coefficients from their Table 2
+    # for the R_V = 3.1, b_c = 4.0, ISRF case.
+    # chi Radiation field in Draine (1972) units
+    # av V-band extinction in magnitudes
+    # d2g Dust to gas mass ratio
+    # tgas Gas temperature in k
+    # nH Number density of H nuclei in cm^-3
+    # ne Number density of free electrons in cm^-3
+
+    # Fit coefficients
+    C = Array([5.22, 2.25, 0.04996, 0.00430, 0.147, 0.431, 0.692])
+
+    # Psi factor appearing in grain charging
+    psi = 1.7 * chi * exp(-1.87*av) * sqrt(tgas) / ne
+
+    # PE heating rate
+    return 1e-26 * 1.7 * chi * nH * (C[0] + C[1] * tgas**C[4]) / (1 + C[2] * psi**C[5] * (1 + C[3] * psi**C[6]))
+
+@function f_up_2level(T10, A10, g10, k10, tgas)
+    # Find level population in upper state for two-level atom
+    # T10 Energy difference between the levels in K
+    # A10 Einstein coefficient for the transition in s^-1
+    # g10 Ratio of degeneracies of upper and lower states
+    # k10 Total collisional de-excitation rate in s^-1
+    # tgas Gas temperature in K
+
+    # Collisional excitation rate coefficient
+    k01 = (g10) * exp(-T10/tgas) * k10
+
+    # Population ratio
+    n1_to_n0 = k01 / (k10 + A10)
+
+    # Final value
+    return n1_to_n0 / (1 + n1_to_n0)
+
+
+@function coolingCplus(n_Cp, n_H0, n_H2, n_e, tgas)
+    # Cooling rate due to C+ emission; C+ is treated as a two-level
+    # system and the cooling rate is computed assuming optically
+    # thin conditions. Collision rate coefficients come from
+    # the Leiden Atomic and Molecular Database, 
+    # https://home.strw.leidenuniv.nl/~moldata/datafiles/c+.dat
+    # n_Cp Number density of C+ ions, in cm^-3
+    # n_H0 Number density of neutral hydrogen atoms, in cm^-3
+    # n_H2 Number density of hydrogen molecules, in cm^-3
+    # n_e Number density of free electrons, in cm^-3
+    # tgas Gas temperature in k
+
+    # Constants
+    A = 2.300e-6        # Einstein A in s^-1
+    T10 = 91.21         # Energy of upper state in K
+    kB = 1.380649e-17   # Boltzmann's constant
+    OPR = 0.25          # Assumed ratio of ortho-H2 to para-H2
+    g0 = 2              # Degeneracy of lower state
+    g1 = 4              # Degeneracy of upper state
+
+    # Table of rate coefficients for collisional excitation of C+ by p-H2
+    pH2_logT = Array([-30, log(10,10), log(20,10), log(50,10), log(100,10), log(200,10), log(300,10), log(500,10), 1e6])
+    pH2_k = Array([4.36e-10, 4.36e-10, 4.53e-10, 4.63e-10, 4.72e-10, 5.13e-10, 5.55e-10, 6.01e-10, 6.01e-10])
+
+    # Table of rate coefficients for collisional excitation of C+ by o-H2
+    oH2_logT = Array([-30, log(10,10), log(20,10), log(50,10), log(100,10), log(200,10), log(300,10), log(500,10), 1e6])
+    oH2_k = Array([5.29e-10, 5.29e-10, 5.33e-10, 5.37e-10, 5.45e-10, 5.62e-10, 5.71e-10, 5.79e-10, 5.79e-10])
+
+    # Table of rate coefficients for collisional excitation of C+ by H
+    H_logT = Array([-30, log(20,10), log(40,10), log(60,10), log(80,10), log(100,10), log(140,10), log(200,10), log(300,10), log(400,10), log(600,10), log(800,10), log(1000,10), log(1500,10), log(2000,10), 1e6])
+    H_k = Array([5.96e-10, 5.96e-10, 6.79e-10, 7.19e-10, 7.42e-10, 7.58e-10, 7.84e-10, 8.17e-10, 8.63e-10, 9.02e-10, 9.67e-10, 1.02e-9, 1.066e-9, 1.158e-9, 1.231e-9, 1.231e-9])
+
+    # Table of rate coefficients for collisional excitation of C+ by e-
+    e_logT = Array([-30, log(10,10), log(20,10), log(50,10), log(100,10), log(316.2,10), log(1000,10), log(2000,10), log(10000,10), log(20000,10), 1e6])
+    e_k = Array([1.2e-6, 1.2e-06, 8.4e-07, 5.3e-07, 3.8e-07, 2.1e-07, 1.2e-07, 8.6e-08, 4.8e-08, 3.7e-08, 3.7e-8])
+
+    # Get rate coefficients for all species
+    logT = log(tgas, 10)
+    k_pH2 = interpolating_spline(1, logT, pH2_logT, pH2_k)
+    k_oH2 = interpolating_spline(1, logT, oH2_logT, oH2_k)
+    k_H2 = OPR / (1 + OPR) * k_oH2 + 1 / (1 + OPR) * k_pH2
+    k_H = interpolating_spline(1, logT, H_logT, H_k)
+    k_e = interpolating_spline(1, logT, e_logT, e_k)
+
+    # Get total collisional de-excitation rate coefficient
+    k10 = k_e * n_e + k_H * n_H + k_H2 * nH2
+
+    # Get fraction in upper state
+    f_up = f_up_2level(T10, A10, g1/g0, k10, tgas)
+
+    # Final cooling rate
+    return n_Cp * f_up * A10 * kB * T10
