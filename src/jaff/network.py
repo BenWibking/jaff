@@ -32,6 +32,7 @@ class Network:
         self.reactions = []
         self.rlist = self.plist = None
         self.dEdt_chem = parse_expr('0')
+        self.dEdt_other = parse_expr('0')
         self.file_name = fname
         self.label = label if label else os.path.basename(fname).split(".")[0]
 
@@ -438,12 +439,36 @@ class Network:
             print("WARNING: found undefined functions ", undef_funcs)
             print("   some functionality will not be available as a result")
 
-        # Generate the dE/dt expression from rates and deltaE's
+        # Generate the chemical dE/dt expression from rates and deltaE's
         for r in self.reactions:
             dE_dt = r.dE * r.rate
             for s in r.reactants:
                 dE_dt *= nden[self.species_dict[s.name]]
             self.dEdt_chem += dE_dt
+
+        # Add chemical and non-chemical heating and cooling rates
+        if 'heating_cooling_rate' in aux_funcs.keys():
+            self.dEdt_other = aux_funcs['heating_cooling_rate']["def"]
+
+            # Apply the replacement rules for all custom
+            # functions in dEdt
+            while True:
+                funcs = [f for f in self.dEdt_other.atoms(Function) 
+                         if type(f.func) is UndefinedFunction ] # Grab undefined functions
+                did_replace = False
+                for f in funcs:
+                    if f.name.lower() in aux_funcs.keys():
+                        # Grab function definition and substitute in arguments
+                        fdef = aux_funcs[f.name.lower()]["def"]
+                        for a1, a2 in zip(aux_funcs[f.name.lower()]["args"], f.args):
+                            fdef = fdef.subs(a1, a2)
+                        # Substitute function into dEdt
+                        self.dEdt_other = self.dEdt_other.subs(f, fdef)
+                        # Flag that we did a replacement
+                        did_replace = True
+                # End if no replacements done
+                if not did_replace:
+                    break
 
     # ****************
     def read_aux_funcs(self, funcfile):

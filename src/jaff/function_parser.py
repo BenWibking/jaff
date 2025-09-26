@@ -76,7 +76,8 @@ def parse_func_declaration(line):
     # Make sure the line starts correctly
     if not line.startswith("@function") and \
         not line.startswith("@ratefunction") and \
-        not line.startswith("@deltaE"):
+        not line.startswith("@deltaE") and \
+        not line.startswith("@heating_cooling_rate"):
          raise ValueError
 
     # Remove leading @function or @
@@ -157,7 +158,8 @@ def parse_funcfile(fname):
                     continue   # Comment line
                 elif not line.startswith("@function") and \
                     not line.startswith("@ratefunction") and \
-                    not line.startswith("@deltaE"):
+                    not line.startswith("@deltaE") and \
+                    not line.startswith("@heating_cooling_rate"):
                     parse_error(line, fname)
                 else:
                     try:
