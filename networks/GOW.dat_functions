@@ -595,7 +595,6 @@
     # Final value
     return n1_to_n0 / (1 + n1_to_n0)
 
-
 @function coolingCplus(n_Cp, n_H0, n_H2, n_e, tgas)
     # Cooling rate due to C+ emission; C+ is treated as a two-level
     # system and the cooling rate is computed assuming optically
@@ -648,3 +647,17 @@
 
     # Final cooling rate
     return n_Cp * f_up * A10 * kB * T10
+
+@heating_cooling_rate(chi, av, d2g, tgas, n_H, n_H0, n_H2, n_e, n_Cp)
+    # Total heating - cooling rate from all processes
+    # chi Radiation field in Draine (1972) units
+    # av V-band extinction in magnitudes
+    # d2g Dust to gas mass ratio
+    # tgas Gas temperature in k
+    # n_H Number density of H nuclei, in cm^-3
+    # n_H0 Number density of neutral hydrogen atoms, in cm^-3
+    # n_H2 Number density of hydrogen molecules, in cm^-3
+    # n_e Number density of free electrons, in cm^-3
+    # n_Cp Number density of C+ ions, in cm^-3
+
+    return grainPE(chi, av, d2g, tgas, n_H, n_e) - coolingCplus(n_Cp, n_H0, n_H2, n_e, tgas)
