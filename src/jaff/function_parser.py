@@ -141,6 +141,7 @@ def parse_funcfile(fname):
     global_rules = []
 
     # Read through file
+    acc_line = ""
     with open(fname) as fp:
         funcname = None
         for line in fp:
@@ -151,6 +152,16 @@ def parse_funcfile(fname):
             # Skip blank lines
             if len(line) == 0:
                 continue
+
+            # Check if this line ends with a backslash, indicating
+            # continuation onto the next line; if so, just accumulate
+            # and go to next line
+            if line.endswith("\\"):
+                acc_line += line[:-1] + " "
+                continue
+            else:
+                line = acc_line + line
+                acc_line = ""
 
             # Are we inside a function definition or not?
             if funcname is None:
