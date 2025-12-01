@@ -136,6 +136,10 @@ def parse_funcfile(fname):
     # Prepare empty function and variables lists to return
     funcs = {}
 
+    # Empty list of global variables to substitute
+    global_symbols = []
+    global_rules = []
+
     # Read through file
     with open(fname) as fp:
         funcname = None
@@ -156,12 +160,11 @@ def parse_funcfile(fname):
                 # start a function declaration
                 if line[0] == '#':
                     continue   # Comment line
-                elif not line.startswith("@function") and \
-                    not line.startswith("@ratefunction") and \
-                    not line.startswith("@deltaE") and \
-                    not line.startswith("@heating_cooling_rate"):
-                    parse_error(line, fname)
-                else:
+                elif line.startswith("@function") or \
+                    line.startswith("@ratefunction") or \
+                    line.startswith("@deltaE") or \
+                    line.startswith("@heating_cooling_rate"):
+                    # Function declaration line
                     try:
                         funcname, funcargs \
                             = parse_func_declaration(line)
@@ -170,6 +173,32 @@ def parse_funcfile(fname):
                         subst_rules = []
                     except ValueError:
                         parse_error(line, fname)
+                elif line.startswith("@var"):
+                    # Global variable declaration line
+                    try:
+                        # Strip trailing comments
+                        line = strip_trailing_comments(line)
+
+                        # Strip the beginning @var
+                        line = line[len("@var"):].strip()
+
+                        # Split line at first = sign
+                        splitline = line.split('=', maxsplit=1)
+                        if len(splitline) != 2:
+                            parse_error(line, fname, funcname)
+
+                        # Construct global substitution rule
+                        global_symbols.append(parse_expr(splitline[0]))
+                        local_dict = {str(k) : v for k, v in 
+                                      zip(global_symbols[:-1], global_rules)}
+                        global_rules.append(
+                            parse_expr(splitline[1],
+                                       local_dict=local_dict))
+                    except:
+                        parse_error(line, fname, funcname)
+
+                else:
+                    parse_error(line, fname)
 
             else:
 
@@ -207,7 +236,7 @@ def parse_funcfile(fname):
                     try:
                         subst_symbols.append(parse_expr(splitline[0]))
                         local_dict = {str(k) : v for k, v in 
-                                                   zip(subst_symbols[:-1], subst_rules)}
+                                      zip(subst_symbols[:-1], subst_rules)}
                         subst_rules.append(
                             parse_expr(splitline[1],
                                        local_dict=local_dict))
@@ -234,6 +263,10 @@ def parse_funcfile(fname):
                     # working backwards
                     for ss, sr in zip(subst_symbols[::-1], subst_rules[::-1]):
                         funcdef = funcdef.subs(ss, sr)
+
+                    # Substitute in global variables
+                    for ss, sr in zip(global_symbols[::-1], global_rules[::-1]):
+                        funcdef = funcdef.subs(ss, sr)                    
 
                     # Record final results
                     funcs[funcname.lower()] = { 
