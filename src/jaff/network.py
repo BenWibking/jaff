@@ -244,7 +244,6 @@ class Network:
                 # convert it to a symbol
                 if hasattr(rate, '__name__') and rate.__name__ in [v[0] for v in variables_sympy]:
                     rate = symbols(rate.__name__)
-            #print(rate)
                
             # use sympy to replace custom variables into the rate expression
             # note: reverse order to allow for nested variable replacement
@@ -374,77 +373,29 @@ class Network:
         # Now that we have loaded all rates, apply replacement rules
         # to replace standard symbols appearing in rates with terms
         # involving known species
-        nden = MatrixSymbol('nden', len(self.species), 1)
         for rea in self.reactions:
-            free_symbols = list(rea.rate.free_symbols) + \
-                list(rea.dE.free_symbols)
-            for fs in free_symbols:
-
-                # Construct replacement expression
-                repl = None
-                if fs.name.lower() == "nh" and replace_nH:
-                    # Number density of H nuclei in all forms
-                    for spec in self.species:
-                        count = spec.exploded.count('H')
-                        if count > 0:
-                            if repl is None:
-                                repl = count * \
-                                    nden[Idx(self.species_dict[spec.name])]
-                            else:
-                                repl += count * \
-                                    nden[Idx(self.species_dict[spec.name])]
-                elif fs.name.lower() == "nh0":
-                    # Number density if neutral hydrogen atoms
-                    repl = nden[self.species_dict['H']]
-                elif fs.name.lower() == "nh2":
-                    # Number density of H2 nuclei
-                    repl = nden[self.species_dict['H2']]
-                elif fs.name.lower() == "ne":
-                    repl = nden[self.species_dict['e-']]
-                elif fs.name.lower() == "nhp":
-                    repl = nden[self.species_dict['H+']]
-                elif fs.name.lower() == "ntot":
-                    # Total number density of all free particles
-                    for i in range(len(self.species)):
-                        if i == 0:
-                            repl = nden[Idx(i)]
-                        else:
-                            repl += nden[Idx(i)]
-                
-                # Apply replacement expression
-                if repl is not None:
-                    rea.rate = rea.rate.subs(fs, repl)
-                    rea.dE = rea.dE.subs(fs, repl)
+            rea.rate = self.standardize_symbols(rea.rate, replace_nH)
+            rea.dE = self.standardize_symbols(rea.dE, replace_nH)
 
             # Append any remaining un-replaced quantities to list
             # of free symbols, removing nden's
             free_symbols_all += [
                 fs for fs in rea.rate.free_symbols
                 if not 'nden' in fs.name ]
-
-        # unique list of variables names found in the rate expressions
-        free_symbols_all = sorted([x.name for x in list(set(free_symbols_all))])
-
-        print("Variables found:", free_symbols_all)
-        print("Loaded %d reactions" % len(self.reactions))
-        print("Lodaded %d photo-chemistry reactions" % n_photo)
-
-        # Issue warning message if undefined functions remain
-        undef_funcs = []
-        for r in self.reactions:
-            for f in r.rate.atoms(Function):
-                if type(f.func) is UndefinedFunction and f.name not in undef_funcs:
-                    undef_funcs.append(f.name)
-        if len(undef_funcs) > 0:
-            print("WARNING: found undefined functions ", undef_funcs)
-            print("   some functionality will not be available as a result")
+            free_symbols_all += [
+                fs for fs in rea.dE.free_symbols
+                if not 'nden' in fs.name ]
 
         # Generate the chemical dE/dt expression from rates and deltaE's
+        nden = MatrixSymbol('nden', len(self.species), 1)
         for r in self.reactions:
             dE_dt = r.dE * r.rate
             for s in r.reactants:
                 dE_dt *= nden[self.species_dict[s.name]]
             self.dEdt_chem += dE_dt
+        self.dEdt_chem = self.standardize_symbols(self.dEdt_chem, replace_nH)
+        free_symbols_all += [ fs for fs in self.dEdt_chem.free_symbols
+            if not 'nden' in fs.name ]
 
         # Add chemical and non-chemical heating and cooling rates
         if 'heating_cooling_rate' in aux_funcs.keys():
@@ -469,6 +420,30 @@ class Network:
                 # End if no replacements done
                 if not did_replace:
                     break
+
+            # Standardize expression
+            self.dEdt_other = self.standardize_symbols(self.dEdt_other, replace_nH)
+
+            # Add symbols from dEdt_other to free symbol list
+            free_symbols_all += [ fs for fs in self.dEdt_other.free_symbols
+                if not 'nden' in fs.name ]
+
+        # Get unique list of variables names found in all expressions
+        free_symbols_all = sorted([x.name for x in list(set(free_symbols_all))])
+
+        print("Variables found:", free_symbols_all)
+        print("Loaded %d reactions" % len(self.reactions))
+        print("Lodaded %d photo-chemistry reactions" % n_photo)
+
+        # Issue warning message if undefined functions remain
+        undef_funcs = []
+        for r in self.reactions:
+            for f in r.rate.atoms(Function):
+                if type(f.func) is UndefinedFunction and f.name not in undef_funcs:
+                    undef_funcs.append(f.name)
+        if len(undef_funcs) > 0:
+            print("WARNING: found undefined functions ", undef_funcs)
+            print("   some functionality will not be available as a result")
 
     # ****************
     def read_aux_funcs(self, funcfile):
@@ -864,6 +839,123 @@ class Network:
             fluxes += f"flux{lb}{idx_offset+i}{rb} = {flux};\n"
 
         return fluxes
+
+    # ****************
+    def standardize_symbols(self, expr, replace_nH):
+        """
+        This routine applies a set of standard substitution rules to
+        standardize symbols.
+
+        Parameters:
+            expr : sympy object
+                A sympy object on which the standardiation is to be done;
+                must support the free_symbols method
+            replace_nH : bool
+                If True, expressions for the total number density of H and
+                He in all chemical states will be replaced with expressions
+                in terms of the species number densities; if False, they
+                will be changed to the symbols "nh" and "nhe"
+
+        Returns:
+            The expression with the substitution rules applied
+        """
+
+        # Construct the standard "nden" symbol we will use
+        nden = MatrixSymbol('nden', len(self.species), 1)
+
+        # Loop over free symbols
+        for fs in expr.free_symbols:
+            repl = None
+
+            # Check for defined symbols
+            if fs.name.lower() == "nh" and replace_nH:
+                # Number density of H nuclei in all forms
+                for spec in self.species:
+                    count = spec.exploded.count('H')
+                    if count > 0:
+                        if repl is None:
+                            repl = count * \
+                                nden[Idx(self.species_dict[spec.name])]
+                        else:
+                            repl += count * \
+                                nden[Idx(self.species_dict[spec.name])]
+            elif fs.name.lower() == "nh0":
+                # Number density if neutral hydrogen atoms
+                repl = nden[self.species_dict['H']]
+            elif fs.name.lower() == "nh2":
+                # Number density of H2 nuclei
+                repl = nden[self.species_dict['H2']]
+            elif fs.name.lower() == "ne":
+                repl = nden[self.species_dict['e-']]
+            elif fs.name.lower() == "nhp":
+                repl = nden[self.species_dict['H+']]
+            elif fs.name.lower() == "ntot":
+                # Total number density of all free particles
+                for i in range(len(self.species)):
+                    if i == 0:
+                        repl = nden[Idx(i)]
+                    else:
+                        repl += nden[Idx(i)]
+            elif fs.name.startswith('n_'):
+                    # Symbols of the form "n_"
+                    # Xp --> X+
+                    # X0 --> X
+                    # Xm --> X-
+                    # e --> e-
+                    # H --> sum over all H species
+                    # He --> sum over all He species
+                    spec_name = fs.name[2:]
+                    if spec_name.endswith('p'):
+                        spec_name = spec_name[:-1] + "+"
+                    elif spec_name.endswith('m'):
+                        spec_name = spec_name[:-1] + "-"
+                    elif spec_name.endswith('0'):
+                        spec_name = spec_name[:-1]
+                    elif spec_name == "e":
+                        spec_name = "e-"
+                    elif spec_name == "H":
+                        spec_name = "all_H"
+                    elif spec_name == "He":
+                        spec_name = "all_He"
+
+                    # Try replacing with nden symbol
+                    if spec_name in self.species_dict:
+                        repl = nden[Idx(self.species_dict[spec_name])]
+                    
+                    # Handle special cases
+                    if spec_name == "all_H":
+                        if replace_nH:
+                            for spec in self.species:
+                                count = spec.exploded.count('H')
+                                if count > 0:
+                                    if repl is None:
+                                        repl = count * \
+                                            nden[Idx(self.species_dict[spec.name])]
+                                    else:
+                                        repl += count * \
+                                            nden[Idx(self.species_dict[spec.name])]
+                        else:
+                            repl = parse_expr('nh')
+                    if spec_name == "all_He":
+                        if replace_nH:
+                            for spec in self.species:
+                                count = spec.exploded.count('H')
+                                if count > 0:
+                                    if repl is None:
+                                        repl = count * \
+                                            nden[Idx(self.species_dict[spec.name])]
+                                    else:
+                                        repl += count * \
+                                            nden[Idx(self.species_dict[spec.name])]
+                        else:
+                            repl = parse_expr('nhe')
+
+            # Apply replacement expression
+            if repl is not None:
+                expr = expr.subs(fs, repl)
+
+        # Return
+        return expr
 
     # ****************
     def get_ode(self, idx_offset=0, flux_variable="flux", brackets="[]", species_variable="y", idx_prefix="", derivative_prefix="d", derivative_variable=None, language="python"):
