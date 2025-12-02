@@ -41,10 +41,17 @@
 # Global constants
 ################################################################
 
+# Note -- all quantities in CGS units
 @var kB = 1.380649e-17   # Boltzmann's constant
 @var H2_OPR = 3.0        # Ratio of ortho-H2 to para-H2
-@var f_oH2 = H2_OPR / (H2_OPR + 1)
-@var f_pH2 = 1 - f_oH2
+@var f_oH2 = H2_OPR / (H2_OPR + 1)  # Fraction of ortho-H2
+@var f_pH2 = 1 - f_oH2   # Fraction of para-H2
+@var d2g_solar = 0.01    # "Solar" dust to gas ratio
+@var alpha_GD = 3.2e-34  # Dust-gas collisional coupling coefficient at Solar dust abundance
+@var sigma_d10 = 2e-25   # Dust cross section per H to 10 K thermal radiation at Solar dust abundance
+@var sigma_dISRF = 3e-22 # Dust cross section per H to ISRF radiation at Solar dust abundance
+@var TCMB = 2.73         # CMB temperature
+@var c_a = 2.27e-4       # c * a_R
 
 ################################################################
 # Helper functions used by other functions below
@@ -68,7 +75,7 @@
     # nH0 Number densty of H0 atoms in cm^-3
     # nH2 Number density of H2 molecules in cm^-3
     xe = ne / nH
-    xH0 = nH0 / nH
+    xH = nH0 / nH
     xH2 = nH2 / nH
     logn = log(nH, 10)
     qcrH = 6.5 + 26.4 * (xe / (xe + 0.07))**0.5
@@ -171,8 +178,8 @@
     # d2g Dust to gas mass ratio
     # nH Number density of H nuclei in cm^-3
     # nH0 Number densty of H0 atoms in cm^-3
-    # True rate = 3e-17 * nH0 * nH * (d2g / 0.01)
-    return 3.0e-17 * (d2g/0.01) * (nH / nH0)
+    # True rate = 3e-17 * nH0 * nH * (d2g / d2g_solar)
+    return 3.0e-17 * (d2g / d2g_solar) * (nH / nH0)
 
 @ratefunction15(d2g, tgas, chi, av, nH, ne)
     # Reaction 15: H+ + e- -> H (grain-assisted)
@@ -183,7 +190,7 @@
     # nH Number density of H nuclei in cm^-3
     # ne Number density of free electrons in cm^-3
     # This is a grain-assisted reaction for which the true rate
-    # is k_gr(av, ne, tgas) * (d2g / 0.01) * nH+ * nH, where
+    # is k_gr(av, ne, tgas) * (d2g / d2g_solar) * nH+ * nH, where
     # k_gr(av, ne, tgas) is a specified function.
     
     # Gong's coefficients for H+
@@ -197,7 +204,7 @@
 
     # Compute final rate
     return kgr_gong(tgas, chi, av, ne, c0, c1, c2, c3, c4, c5, c6) * \
-        (d2g / 0.01) * nH/ne
+        (d2g / d2g_solar) * nH/ne
 
 @ratefunction16(d2g, tgas, chi, av, nH, ne)
     # Reaction 16: C+ + e- -> C (grain-assisted)
@@ -208,7 +215,7 @@
     # nH Number density of H nuclei in cm^-3
     # ne Number density of free electrons in cm^-3
     # This is a grain-assisted reaction for which the true rate
-    # is k_gr(av, ne, tgas) * (d2g / 0.01) * nC+ * nH, where
+    # is k_gr(av, ne, tgas) * (d2g / d2g_solar) * nC+ * nH, where
     # k_gr(av, ne, tgas) is a specified function.
 
     # Gong's coefficients for C+
@@ -222,7 +229,7 @@
 
     # Compute final rate
     return kgr_gong(tgas, chi, av, ne, c0, c1, c2, c3, c4, c5, c6) * \
-        (d2g / 0.01) * nH/ne
+        (d2g / d2g_solar) * nH/ne
 
 @ratefunction17(d2g, tgas, chi, av, nH, ne)
     # Reaction 17: He+ + e- -> He (grain-assisted)
@@ -233,7 +240,7 @@
     # nH Number density of H nuclei in cm^-3
     # ne Number density of free electrons in cm^-3
     # This is a grain-assisted reaction for which the true rate
-    # is k_gr(av, ne, tgas) * (d2g / 0.01) * nHe+ * nH, where
+    # is k_gr(av, ne, tgas) * (d2g / d2g_solar) * nHe+ * nH, where
     # k_gr(av, ne, tgas) is a specified function.
 
     # Gong's coefficients for He+
@@ -247,7 +254,7 @@
 
     # Compute final rate
     return kgr_gong(tgas, chi, av, ne, c0, c1, c2, c3, c4, c5, c6) * \
-        (d2g / 0.01) * nH/ne
+        (d2g / d2g_solar) * nH/ne
 
 @ratefunction18(d2g, tgas, chi, av, nH, ne)
     # Reaction 18: Si+ + e- -> Si (grain-assisted)
@@ -258,7 +265,7 @@
     # nH Number density of H nuclei in cm^-3
     # ne Number density of free electrons in cm^-3
     # This is a grain-assisted reaction for which the true rate
-    # is k_gr(av, ne, tgas) * (d2g / 0.01) * nSi+ * nH, where
+    # is k_gr(av, ne, tgas) * (d2g / d2g_solar) * nSi+ * nH, where
     # k_gr(av, ne, tgas) is a specified function.
 
     # Gong's coefficients for Si+
@@ -272,7 +279,7 @@
 
     # Compute final rate
     return kgr_gong(tgas, chi, av, ne, c0, c1, c2, c3, c4, c5, c6) * \
-        (d2g / 0.01) * nH/ne
+        (d2g / d2g_solar) * nH/ne
 
 @ratefunction19(tgas, ne)
     # Reaction 19: C + H3+ + e- -> H2 + CHx
@@ -599,7 +606,7 @@
     # chi Radiation field in Draine (1972) units
     # av V-band extinction in magnitudes
     # d2g Dust to gas mass ratio
-    # tgas Gas temperature in k
+    # tgas Gas temperature in K
     # nH Number density of H nuclei in cm^-3
     # ne Number density of free electrons in cm^-3
 
@@ -617,15 +624,14 @@
 
 # Generic cooling solvers for 2- and 3-level systems
 
-@function cooling_2level(T10, A10, g0, g1, k10, tgas, abd)
-    # Optically thin collisional cooling rate for a two-level atom
+@function cooling_2level(T10, A10, g0, g1, k10, tgas)
+    # Optically thin collisional cooling rate per atom for a two-level atom
     # T10 Energy difference between the levels in K
     # A10 Einstein coefficient for the transition in s^-1
     # g0 Degeneracy of lower state
     # g1 Degeneracy of upper state
     # k10 Total collisional de-excitation rate in s^-1
     # tgas Gas temperature in K
-    # abd Abundance of cooling species (expressed as number per H nucleon)
 
     # Collisional excitation rate coefficient
     k01 = (g1/g0) * exp(-T10/tgas) * k10
@@ -637,10 +643,10 @@
     f_up = n1_to_n0 / (1 + n1_to_n0)
 
     # Final cooling rate
-    return abd * f_up * A10 * kB * T10
+    return f_up * A10 * kB * T10
 
-@function cooling_3level(T20, T21, A10, A20, A21, g0, g1, g2, k10, k20, k21, tgas, abd)
-    # Optically thin collisional cooling rate for a three-level atom
+@function cooling_3level(T20, T21, A10, A20, A21, g0, g1, g2, k10, k20, k21, tgas)
+    # Optically thin collisional cooling rate per atom for a three-level atom
     # T10 Energy difference between levels 1 and 0 in K
     # T21 Energy difference between levels 2 and 1 in K
     # A10 Einstein coefficient for the 1->0 transition in s^-1
@@ -653,9 +659,9 @@
     # k20 Total collisional de-excitation rate from 2->0 in s^-1
     # k21 Total collisional de-excitation rate from 2->1 in s^-1
     # tgas Gas temperature in K
-    # n Number density of cooling species (expressed as number per H nucleon)
 
     # Get collisional excitation rate coefficients
+    T10 = T20 - T21
     k01 = (g1/g0) * exp(-T10/tgas) * k10
     k02 = (g2/g0) * exp(-T20/tgas) * k20
     k12 = (g2/g1) * exp(-T21/tgas) * k21
@@ -667,7 +673,7 @@
 
     # Factors arising from linear system solution
     a0 = R10 * R20 + R10 * R21 + k12 * R20
-    a1 = k01 * R20 + k01 * R2 + k02 * R21
+    a1 = k01 * R20 + k01 * R21 + k02 * R21
     a2 = k02 * R10 + k02 * k12 + k12 * k01
     de = a0 + a1 + a2
 
@@ -676,7 +682,7 @@
     f2 = a2 / de
 
     # Total cooling rate
-    return n * kB * (f1 * A10 * T10 + f2 * (A20 * T20 + A21 * T21))
+    return kB * (f1 * A10 * T10 + f2 * (A20 * T20 + A21 * T21))
 
 # Cooling for hydrogenic species
 
@@ -687,17 +693,17 @@
     # tgas Gas temperature in K
 
     # Constants
-    A = 6.265e8         # Einstein A in s^-1
+    A10 = 6.265e8         # Einstein A in s^-1
     T10 = 1.184e5       # Energy of upper state in K
     g0 = 1              # Degeneracy of lower state
     g1 = 3              # Degeneracy of upper state
 
     # Get de-excitation rate coefficient
     T4 = tgas / 1e4
-    k10 = 1.77e-8 * t4**0.15 / (1 + (T4/5)**0.65) * n_e
+    k10 = 1.77e-8 * T4**0.15 / (1 + (T4/5)**0.65) * n_e
 
     # Compute cooling rate
-    return cooling_2level(T10, A10, g1, g0, k10, tgas, n_H0)
+    return n_H0 * cooling_2level(T10, A10, g1, g0, k10, tgas)
 
 @function cooling_H2(n_H2, n_H0, n_Hp, n_He, n_e, tgas)
     # Cooling rate for H2
@@ -776,8 +782,8 @@
     # Get LTE cooling rate from rotational and vibrational modes
     Lambda_LTE_rot = (9.5e-22*T3**3.76) / (1.+0.12*T3**2.1) \
         * exp(-(0.13/T3)**3) + 3.e-24*exp(-0.51/T3)
-    Lamba_LTE_vib = 6.7e-19*exp(-5.86/T3) + 1.6e-18*exp(-11.7/T3)
-    Lamba_LTE = Lambda_LTE_rot + Lambda_LTE_vib
+    Lambda_LTE_vib = 6.7e-19*exp(-5.86/T3) + 1.6e-18*exp(-11.7/T3)
+    Lambda_LTE = Lambda_LTE_rot + Lambda_LTE_vib
 
     # Get total cooling rate
     cool_rate = Piecewise( \
@@ -805,7 +811,7 @@
     A21 = 2.650e-07        # Einstein A for 2->1 in s^-1
     T10 = 23.62            # Energy of state 1 in K
     T20 = 62.46            # Energy of state 2 in K
-    T21 = T21 - T10        # Energy of state 3 in K
+    T21 = T20 - T10        # Energy of state 3 in K
     g0 = 1                 # Degeneracy of state 0
     g1 = 3                 # Degeneracy of state 1
     g2 = 5                 # Degeneracy of state 2
@@ -838,9 +844,9 @@
             True) \
         )
     efac = 8.629e-8 * sqrt(1e4/tgas)
-    q10_e = fac * exp(lngamma10e) / g1
-    q20_e = fac * exp(lngamma20e) / g2
-    q21_e = fac * exp(lngamma21e) / g2
+    q10_e = efac * exp(lngamma10e) / g1
+    q20_e = efac * exp(lngamma20e) / g2
+    q21_e = efac * exp(lngamma21e) / g2
 
     # Collision rate coefficients for neutral hydrogen
     q10_H0 = 1.26e-10 * T2**(0.115+0.057*lnT2)
@@ -865,11 +871,11 @@
     # Return total cooling rate
     cool_rate = Piecewise((\
         cooling_3level(T20, T21, A10, A20, A21, g0, g1, g2, \
-            k10, k20, k21, tgas, n_C0), \
+            k10, k20, k21, tgas), \
         tgas < 1e6), \
         (0, True) \
     )
-    return cool_rate
+    return n_C0 * cool_rate
 
 @function cooling_Cplus(n_Cp, n_H0, n_H2, n_e, tgas)
     # Cooling rate due to C+ emission; C+ is treated as a two-level
@@ -883,7 +889,7 @@
     # tgas Gas temperature in K
 
     # Constants
-    A = 2.300e-6        # Einstein A in s^-1
+    A10 = 2.300e-6      # Einstein A in s^-1
     T10 = 91.21         # Energy of upper state in K
     g0 = 2              # Degeneracy of lower state
     g1 = 4              # Degeneracy of upper state
@@ -898,10 +904,10 @@
         (3.88997286356e-10 * tgas**0.07, True))
 
     # Get total collisional de-excitation rate coefficient
-    k10 = k_e * n_e + k_H * n_H + (k_oH2 * f_oH2 + k_pH2 * f_pH2) * nH2
+    k10 = k_e * n_e + k_H * n_H + (k_oH2 * f_oH2 + k_pH2 * f_pH2) * n_H2
 
     # Compute cooling rate
-    return cooling_2level(T10, A10, g1, g0, k10, tgas, n_Cp)
+    return n_Cp * cooling_2level(T10, A10, g1, g0, k10, tgas)
 
 # Cooling for oxygen species
 
@@ -922,7 +928,7 @@
     A21 = 1.75e-5          # Einstein A for 2->1 in s^-1
     T10 = 227.8            # Energy of state 1 in K
     T20 = 326.6            # Energy of state 2 in K
-    T21 = T21 - T10        # Energy of state 3 in K
+    T21 = T20 - T10        # Energy of state 3 in K
     g0 = 5                 # Degeneracy of state 0
     g1 = 3                 # Degeneracy of state 1
     g2 = 1                 # Degeneracy of state 2
@@ -957,12 +963,52 @@
     k21 = q21_e * n_e + q21_H0 * n_H0 + (f_pH2 * q21_pH2 + f_oH2 * q21_oH2) * n_H2
 
     # Return total cooling rate
-    return cooling_3level(T20, T21, A10, A20, A21, g0, g1, g2, \
-            k10, k20, k21, tgas, n_O0)
+    return n_O0 * cooling_3level(T20, T21, A10, A20, A21, g0, g1, g2, \
+            k10, k20, k21, tgas)
+
+# Cooling for dust
+
+@function cooling_dust_coll(chi, av, av_per_NH, d2g, tgas, n_H)
+    # Collsional cooling rate for dust (though in principle could
+    # be heating as well)
+    # chi Radiation field in Draine (1972) units
+    # av V-band extinction in magnitudes
+    # av_per_NH Ratio of A_V to N_H, in mag / cm^-2
+    # d2g Dust to gas mass ratio
+    # tgas Gas temperature in k
+    # n_H Number density of H nuclei, in cm^-3
+
+    # Get cooling rate in the limit where dust temperature is set
+    # solely by gas collisions; in this gas the dust temperature is
+    # given implicitly by the solution to
+    #    0.01 * sigma_d10 * c * a * T_d**4 = 
+    #       alpha_GD * nH * T_g**(1/2) * (T_g - T_d)
+    # Since this is a 6th order equation in T_d, it does not have an
+    # analytic root, and thus the cooling rate cannot be written down
+    # explicity in SymPy. Instead, we introduce here an unspecified
+    # function of n_H and tgas, which the wrapping code will have to
+    # provide in the form of either a numerical solver or a table
+    # interpolation of the solution.
+    log_psi_coll = log_PsiGD_coll_wrapper(n_H, tgas)
+    cool_rate_coll = 10.**(-log_psi_coll) * d2g / d2g_solar
+
+    # Get dust heating rate from CMB and ISRF
+    heat_rate_CMB = sigma_d10 * 0.01 * c_a * TCMB**6
+    heat_rate_ISRF = 3.9e-24 * chi * exp(-sigma_dISRF * av / av_per_NH )
+
+    # Get dust temperature assuming radiative heating dominates
+    Td_rad = ( (heat_rate_CMB + heat_rate_ISRF) / (0.01 * sigma_d10 * c_a) )**(1/6)
+
+    # Get dust cooling rate assuming radiative heating sets dust temp
+    cool_rate_rad = alpha_GD * (d2g / d2g_solar) * n_H * sqrt(tgas) * (Td_rad - tgas)
+
+    # Return min cooling rate
+    return Min(cool_rate_coll, cool_rate_rad)
+
 
 #### Total heating and cooling rate ####
 
-@heating_cooling_rate(chi, av, d2g, tgas, n_H, n_H0, n_H2, n_e, n_Cp)
+@heating_cooling_rate(chi, av, av_per_NH, d2g, tgas, n_H, n_H0, n_H2, n_Cp, n_C0, n_O0, n_e)
     # Total heating - cooling rate from all processes
     # chi Radiation field in Draine (1972) units
     # av V-band extinction in magnitudes
@@ -971,12 +1017,19 @@
     # n_H Number density of H nuclei, in cm^-3
     # n_H0 Number density of neutral hydrogen atoms, in cm^-3
     # n_H2 Number density of hydrogen molecules, in cm^-3
-    # n_e Number density of free electrons, in cm^-3
     # n_Cp Number density of C+ ions, in cm^-3
+    # n_C0 Number density of atomic C, in cm^-3
+    # n_O0 Number density of atomic O, in cm^-3
+    # n_e Number density of free electrons, in cm^-3
 
-    return heating_grainPE(chi, av, d2g, tgas, n_H, n_e) - \
-        cooling_LyA(nH0, n_e, tgas) - \
-        cooling_H2(n_H2, n_H0, n_Hp, n_He, n_e, tgas) - \
-        cooling_Cplus(n_Cp, n_H0, n_H2, n_e, tgas) - \
-        cooling_C0(n_C0, n_H0, n_H2, n_e, tgas) - \
-        cooling_O0(n_O0, n_H0, n_H2, n_e, tgas)
+    # Note: heating by CR ionization is not included here because it is
+    # handled as chemical heating, since there is an associated chemical
+    # reaction
+
+    return heating_grainPE(chi, av, d2g, tgas, n_H, n_e) \
+        - cooling_LyA(n_H0, n_e, tgas) \
+        - cooling_H2(n_H2, n_H0, n_Hp, n_He, n_e, tgas) \
+        - cooling_Cplus(n_Cp, n_H0, n_H2, n_e, tgas) \
+        - cooling_C0(n_C0, n_H0, n_H2, n_e, tgas) \
+        - cooling_O0(n_O0, n_H0, n_H2, n_e, tgas) \
+        - cooling_dust_coll(chi, av, av_per_NH, d2g, tgas, n_H)
