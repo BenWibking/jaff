@@ -43,6 +43,7 @@
 
 # Note -- all quantities in CGS units
 @var kB = 1.380649e-17   # Boltzmann's constant
+@var eV = 1.602177e-12   # eV per erg
 @var H2_OPR = 3.0        # Ratio of ortho-H2 to para-H2
 @var f_oH2 = H2_OPR / (H2_OPR + 1)  # Fraction of ortho-H2
 @var f_pH2 = 1 - f_oH2   # Fraction of para-H2
@@ -86,19 +87,22 @@
         (18, True))
     return xH * qcrH + xH2 * qcrH2
 
-@function ncrH2(tgas, nH, nH0, nH2)
+@function ncrH2(tgas, nH, nH0, nH2, k_photo)
     # Critical density of excited H2
     # tgas Gas temperature in K
     # nH Number density of H nuclei in cm^-3
     # nH0 Number densty of H0 atoms in cm^-3
     # nH2 Number densty of H2 molecules in cm^-3
+    # k_photo Photodissocation rate per H2, in s^-1
     # This is an approximate critical density for excited H2, used
     # to determine partition of energies of excited H2 between collisional
-    # and radiative losses. Taken from Hollenbach & McKee (1979).
+    # and radiative losses. Taken from Visser et al. (2018).
     xH = nH0 / nH
     xH2 = nH2 / nH
-    return 1e6 * tgas**(-1/2) / (1.6 * xH * exp(-(400/tgas)**2) + \
-        1.4 * xH2 * exp( -12000/(tgas + 1200)))
+    t = 1 + tgas/1e3
+    geff_H = 10**(-11.06 + 0.0555/t - 2.390/t**2)
+    geff_H2 = 10**(-11.08 - 3.671/t - 2.023/t**2)
+    return (2e-7 + k_photo) / (geff_H * xH + geff_H2 * xH2)
 
 @function kgr_gong(tgas, chi, av, ne, c0, c1, c2, c3, c4, c5, c6)
     # tgas Gas temperature in K
@@ -149,7 +153,7 @@
 
 @ratefunction0(crate, nH, nH0, nH2)
     # Reaction 0: H + CR -> H+ + e-
-    # crate Primary photoionization rate per H nucleon in s^-1
+    # crate Primary ionization rate per H nucleon in s^-1
     # nH Number density of H nuclei in cm^-3
     # nH0 Number densty of H0 atoms in cm^-3
     # nH2 Number density of H2 molecules in cm^-3
@@ -157,7 +161,7 @@
 
 @ratefunction1(crate, nH, nH0, nH2)
     # Reaction 1: H2 + CR -> H2+ + e-
-    # crate Primary photoionization rate per H nucleon in s^-1
+    # crate Primary ionization rate per H nucleon in s^-1
     # nH Number density of H nuclei in cm^-3
     # nH0 Number densty of H0 atoms in cm^-3
     # nH2 Number density of H2 molecules in cm^-3
@@ -453,6 +457,38 @@
     return 2.753e-14 * (315614/tgas)**1.5 * (1 + \
         (115188./tgas)**0.407)**-2.242
 
+@ratefunction41(tgas, nH, nH0, nH2)
+    # Reaction 41: H2 + H -> H + H + H
+    # tgas Gas temperature in K
+    # nH Number density of H nuclei in cm^-3
+    # nH0 Number density of atomic H in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+
+    k9l = 6.67e-12 * sqrt(tgas) * exp(-(1 + 63590/tgas))
+    k9h = 3.52e-9 * exp(-43900/tgas)
+    logk9l = log(k9l, 10)
+    logk9h = log(k9h, 10)
+    n2ncr_ = n2ncr(tgas, nH, nH0, nH2)
+    return Piecewise((10**(logk9h * n2ncr_ / (1 + n2ncr_) + \
+        logk9l / (1 + n2ncr_)), tgas > 7.0e2), (0, True))
+
+@ratefunction42(tgas, nH, nH0, nH2)
+    # Reaction 42: H2 + H2 -> H + H + H2
+    # tgas Gas temperature in K
+    # nH Number density of H nuclei in cm^-3
+    # nH0 Number density of atomic H in cm^-3
+    # nH2 Number density of H2 molecules in cm^-3
+
+    k10l = 5.996e-30 * tgas**4.1881 / (1 + 6.761e-6*tgas)**5.6881 \
+        * exp(-54657.4/tgas)
+    k10h = 1.3e-9 * exp(-53300/tgas)
+    logk10l = log(k10l, 10)
+    logk10h = log(k10h, 10)
+    n2ncr_ = n2ncr(tgas, nH, nH0, nH2)
+    return Piecewise((10**(logk10h * n2ncr_ / \
+        (1 + n2ncr_) + logk10l / (1 + n2ncr_)), tgas > 7.0e2), \
+        (0, True))
+
 @ratefunction43(tgas)
     # Reaction 43: H + e- -> H+ + e- + e-
     # tgas Gas temperature in K
@@ -494,7 +530,7 @@
     # so we need to divide those out to get the right energy
     # deposition per primary.
     sec_per_prim = kcr_H_fac(nH, nH0, nH2)
-    return qcr(nH, ne, nH0, nH2) / sec_per_prim
+    return qcr(nH, ne, nH0, nH2) * eV / sec_per_prim
 
 @deltaE1(nH, nH0, nH2)
     # Reaction 1: H2 + CR -> H2+ + e-
@@ -507,9 +543,9 @@
     # expressions also include secondaries, so we need to divide
     # those out to get the right energy deposition per primary.
     sec_per_prim = kcr_H_fac(nH, nH0, nH2)
-    return qcr(nH, ne, nH0, nH2) / sec_per_prim
+    return qcr(nH, ne, nH0, nH2) * eV / sec_per_prim
 
-@deltaE1(nH, nH0, nH2)
+@deltaE2(nH, nH0, nH2)
     # Reaction 2: He + CR -> He+ + e-
     # nH Number density of H nuclei in cm^-3
     # nH0 Number densty of H0 atoms in cm^-3
@@ -520,9 +556,9 @@
     # expressions also include secondaries, so we need to divide
     # those out to get the right energy deposition per primary.
     sec_per_prim = kcr_H_fac(nH, nH0, nH2)
-    return qcr(nH, ne, nH0, nH2) / sec_per_prim
+    return qcr(nH, ne, nH0, nH2) * eV / sec_per_prim
 
-@deltaE13(tgas, nH, nH0, nH2)
+@deltaE13(tgas, nH, nH0, nH2, chi, av)
     # Reaction 13: H2 + photon -> H + H
     # tgas Gas temperature in K
     # nH Number density of H nuclei in cm^-3
@@ -533,63 +569,35 @@
     # FUV pumping: absorptions of FUV by H2 that results in excitation
     # but not photodissociation, but where some of the associated
     # energy is desposited to the gas as thermal energy by collisions.
-    # The result is from Hollenbach & McKee (1979), their equation 6.46
-    # and the preceding paragraph of text.
-    return 0.4 + 9 * 2.2 / (1 + ncrH2(tgas, nH, nH0, nH2) / nH)
+    # The result is from Visser+ (2018)
+    k_photo = 5.7e-11 * chi * exp(-4.18 * av)
+    f = 1 / (1 + ncrH2(tgas, nH, nH0, nH2, k_photo) / nH)
+    return (0.4 + 8 * 2 * f) * eV
 
-@deltaE14(tgas, nH, nH0, nH2)
+@deltaE14(tgas, nH, nH0, nH2, chi, av)
     # Reaction 14: H + H -> H2 (grain-assisted)
     # tgas Gas temperature in K
     # nH Number density of H nuclei in cm^-3
     # nH0 Number densty of H0 atoms in cm^-3
     # nH2 Number densty of H2 molecules in cm^-3
     # Energy released by H2 formation on grains; the model impelemented
-    # here is equation 6.43 of Hollenbach & McKee (1979)
-    return 0.2 + 4.2 / (1 + ncrH2(tgas, nH, nH0, nH2) / nH)
-
-@ratefunction41(tgas, nH, nH0, nH2)
-    # Reaction 41: H2 + H -> H + H + H
-    # tgas Gas temperature in K
-    # nH Number density of H nuclei in cm^-3
-    # nH0 Number density of atomic H in cm^-3
-    # nH2 Number density of H2 molecules in cm^-3
-
-    k9l = 6.67e-12 * sqrt(tgas) * exp(-(1 + 63590/tgas))
-    k9h = 3.52e-9 * exp(-43900/tgas)
-    logk9l = log(k9l, 10)
-    logk9h = log(k9h, 10)
-    n2ncr_ = n2ncr(tgas, nH, nH0, nH2)
-    return Piecewise((10**(logk9h * n2ncr_ / (1 + n2ncr_) + \
-        logk9l / (1 + n2ncr_)), tgas > 7.0e2), (0, True))
+    # here is equation 6.43 of Hollenbach & McKee (1979), but with ncrH2
+    # updated using the model of Visser+ (2018)
+    k_photo = 5.7e-11 * chi * exp(-4.18 * av)
+    f = 1 / (1 + ncrH2(tgas, nH, nH0, nH2, k_photo) / nH)
+    return (0.2 + 4.2*f) * eV
 
 @deltaE41()
     # Reaction 41: H2 + H -> H + H + H
-    return -4.48
-
-@ratefunction42(tgas, nH, nH0, nH2)
-    # Reaction 42: H2 + H2 -> H + H + H2
-    # tgas Gas temperature in K
-    # nH Number density of H nuclei in cm^-3
-    # nH0 Number density of atomic H in cm^-3
-    # nH2 Number density of H2 molecules in cm^-3
-
-    k10l = 5.996e-30 * tgas**4.1881 / (1 + 6.761e-6*tgas)**5.6881 \
-        * exp(-54657.4/tgas)
-    k10h = 1.3e-9 * exp(-53300/tgas)
-    logk10l = log(k10l, 10)
-    logk10h = log(k10h, 10)
-    n2ncr_ = n2ncr(tgas, nH, nH0, nH2)
-    return Piecewise((10**(logk10h * n2ncr_ / \
-        (1 + n2ncr_) + logk10l / (1 + n2ncr_)), tgas > 7.0e2), \
-        (0, True))
+    return -4.48 * eV
 
 @deltaE42()
     # Reaction 42: H2 + H2 -> H + H + H2
-    return -4.48
+    return -4.48 * eV
 
 @deltaE43()
     # Reaction 43: H + e- -> H+ + e- + e-
-    return -13.6
+    return -13.6 * eV
 
 
 ################################################################
@@ -968,12 +976,11 @@
 
 # Cooling for dust
 
-@function cooling_dust_coll(chi, av, av_per_NH, d2g, tgas, n_H)
+@function cooling_dust_coll(chi, av, d2g, tgas, n_H)
     # Collsional cooling rate for dust (though in principle could
     # be heating as well)
     # chi Radiation field in Draine (1972) units
     # av V-band extinction in magnitudes
-    # av_per_NH Ratio of A_V to N_H, in mag / cm^-2
     # d2g Dust to gas mass ratio
     # tgas Gas temperature in k
     # n_H Number density of H nuclei, in cm^-3
@@ -994,7 +1001,7 @@
 
     # Get dust heating rate from CMB and ISRF
     heat_rate_CMB = sigma_d10 * 0.01 * c_a * TCMB**6
-    heat_rate_ISRF = 3.9e-24 * chi * exp(-sigma_dISRF * av / av_per_NH )
+    heat_rate_ISRF = 3.9e-24 * chi * exp(-1.87*av)
 
     # Get dust temperature assuming radiative heating dominates
     Td_rad = ( (heat_rate_CMB + heat_rate_ISRF) / (0.01 * sigma_d10 * c_a) )**(1/6)
@@ -1005,10 +1012,30 @@
     # Return min cooling rate
     return Min(cool_rate_coll, cool_rate_rad)
 
+@function cooling_dust_rec(chi, av, d2g, tgas, n_e)
+    # Dust recombination cooling
+    # chi Radiation field in Draine (1972) units
+    # av V-band extinction in magnitudes
+    # d2g Dust to gas mass ratio
+    # tgas Gas temperature in k
+    # n_e Number density of free electrons, in cm^-3
 
-#### Total heating and cooling rate ####
+    # Grain charge state parameter
+    x = 1.7 * chi * exp(-1.87*av) * sqrt(tgas) / (n_e + 1e-50)
+    lnx = log(x)
 
-@heating_cooling_rate(chi, av, av_per_NH, d2g, tgas, n_H, n_H0, n_H2, n_Cp, n_C0, n_O0, n_e)
+    # Fit coefficients
+    D = Array([0.4535, 2.234, -6.266, 1.442, 0.05089])
+
+    # Cooling rate
+    return 1e-28 * n_e * (d2g / d2g_solar) * \
+        tgas**(D[0] + D[1]/lnx) * \
+        exp( D[2] + (D[3] - D[4]*lnx)*lnx )
+
+
+#### Total heating and cooling rate not associated with chemical reactions ####
+
+@heating_cooling_rate(chi, av, d2g, tgas, n_H, n_H0, n_H2, n_Cp, n_C0, n_O0, n_e)
     # Total heating - cooling rate from all processes
     # chi Radiation field in Draine (1972) units
     # av V-band extinction in magnitudes
@@ -1022,9 +1049,14 @@
     # n_O0 Number density of atomic O, in cm^-3
     # n_e Number density of free electrons, in cm^-3
 
-    # Note: heating by CR ionization is not included here because it is
-    # handled as chemical heating, since there is an associated chemical
-    # reaction
+    # Note: that the following heating and cooling sources at not
+    # included here because they are associated with chemical reactions
+    # -- CR ionization
+    # -- H2 formation heating
+    # -- H2 radiative pumping and radiative dissociation
+    # -- H2 collisional dissociation
+    # On the other hand, recombination of e- onto grains is included here,
+    # because we do not explicitly treat this reaction
 
     return heating_grainPE(chi, av, d2g, tgas, n_H, n_e) \
         - cooling_LyA(n_H0, n_e, tgas) \
@@ -1032,4 +1064,5 @@
         - cooling_Cplus(n_Cp, n_H0, n_H2, n_e, tgas) \
         - cooling_C0(n_C0, n_H0, n_H2, n_e, tgas) \
         - cooling_O0(n_O0, n_H0, n_H2, n_e, tgas) \
-        - cooling_dust_coll(chi, av, av_per_NH, d2g, tgas, n_H)
+        - cooling_dust_coll(chi, av, d2g, tgas, n_H) \
+        - cooling_dust_rec(chi, av, d2g, tgas, n_e)
