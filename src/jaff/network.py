@@ -441,6 +441,15 @@ class Network:
             for f in r.rate.atoms(Function):
                 if type(f.func) is UndefinedFunction and f.name not in undef_funcs:
                     undef_funcs.append(f.name)
+        if self.dEdt_chem is not None:
+            for f in self.dEdt_chem.atoms(Function):
+                if type(f.func) is UndefinedFunction and f.name not in undef_funcs:
+                    undef_funcs.append(f.name)
+        if self.dEdt_other is not None:
+            for f in self.dEdt_other.atoms(Function):
+                if type(f.func) is UndefinedFunction and f.name not in undef_funcs:
+                    undef_funcs.append(f.name)
+
         if len(undef_funcs) > 0:
             print("WARNING: found undefined functions ", undef_funcs)
             print("   some functionality will not be available as a result")
