@@ -495,6 +495,9 @@ class Network:
             - Excludes photochemistry-specific runtime state; reactions may still
               include xsecs if present.
         """
+        if not str(filename).endswith(".jaff"):
+            raise ValueError("Network.to_json requires a filename ending with '.jaff'")
+
         from . import __version__ as jaff_version
         from .sympy_json import to_jsonable as sympy_to_jsonable, SCHEMA_VERSION as SYMPY_SCHEMA
 

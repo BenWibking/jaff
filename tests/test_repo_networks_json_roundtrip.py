@@ -76,7 +76,7 @@ def test_repo_networks_roundtrip_json():
             unserializable.append(path)
             continue
 
-        fd, json_path = tempfile.mkstemp(suffix=".json")
+        fd, json_path = tempfile.mkstemp(suffix=".jaff")
         os.close(fd)
         try:
             net.to_json(json_path)

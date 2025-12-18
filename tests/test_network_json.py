@@ -6,6 +6,7 @@ import sys
 import tempfile
 from unittest.mock import patch
 
+import pytest
 import sympy
 
 # Add src to path for imports
@@ -21,7 +22,10 @@ def test_network_json_roundtrip_sample_kida_valid():
     with patch("builtins.print"):
         net = Network(path)
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+    with pytest.raises(ValueError):
+        net.to_json("not_a_network.json")
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jaff", delete=False) as f:
         json_path = f.name
 
     try:
@@ -46,4 +50,3 @@ def test_network_json_roundtrip_sample_kida_valid():
             assert r2.dE == r1.dE
     finally:
         os.unlink(json_path)
-
