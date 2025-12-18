@@ -79,8 +79,8 @@ def test_repo_networks_roundtrip_json():
         fd, json_path = tempfile.mkstemp(suffix=".jaff")
         os.close(fd)
         try:
-            net.to_json(json_path)
-            net2 = Network.from_json(json_path)
+            net.to_jaff_file(json_path)
+            net2 = Network.from_jaff_file(json_path)
         finally:
             os.unlink(json_path)
 

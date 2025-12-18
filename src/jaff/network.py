@@ -486,9 +486,9 @@ class Network:
             return parse_funcfile(funcfile)        
 
     # ****************
-    def to_json(self, filename):
+    def to_jaff_file(self, filename):
         """
-        Serialize this Network to a JSON file.
+        Serialize this Network to a .jaff file (JSON payload).
 
         Notes:
             - Uses a versioned, whitelisted SymPy JSON AST for expressions.
@@ -496,7 +496,7 @@ class Network:
               include xsecs if present.
         """
         if not str(filename).endswith(".jaff"):
-            raise ValueError("Network.to_json requires a filename ending with '.jaff'")
+            raise ValueError("Network.to_jaff_file requires a filename ending with '.jaff'")
 
         from . import __version__ as jaff_version
         from .sympy_json import to_jsonable as sympy_to_jsonable, SCHEMA_VERSION as SYMPY_SCHEMA
@@ -570,9 +570,9 @@ class Network:
 
     # ****************
     @classmethod
-    def from_json(cls, filename, *, errors=False):
+    def from_jaff_file(cls, filename, *, errors=False):
         """
-        Deserialize a Network previously written by Network.to_json.
+        Deserialize a Network previously written by Network.to_jaff_file.
 
         Parameters:
             filename : str
