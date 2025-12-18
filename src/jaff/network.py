@@ -15,6 +15,7 @@ from .fastlog import fast_log2, inverse_fast_log2
 from .photochemistry import Photochemistry
 from .function_parser import parse_funcfile
 import json
+import gzip
 
 class Network:
 
@@ -488,15 +489,18 @@ class Network:
     # ****************
     def to_jaff_file(self, filename):
         """
-        Serialize this Network to a .jaff file (JSON payload).
+        Serialize this Network to a .jaff file (gzip-compressed JSON payload).
 
         Notes:
             - Uses a versioned, whitelisted SymPy JSON AST for expressions.
             - Excludes photochemistry-specific runtime state; reactions may still
               include xsecs if present.
+            - Files are written with gzip compression even when the filename ends
+              with `.jaff` (no `.gz` suffix).
         """
-        if not str(filename).endswith(".jaff"):
-            raise ValueError("Network.to_jaff_file requires a filename ending with '.jaff'")
+        filename = os.fspath(filename)
+        if not (str(filename).endswith(".jaff") or str(filename).endswith(".jaff.gz")):
+            raise ValueError("Network.to_jaff_file requires a filename ending with '.jaff' or '.jaff.gz'")
 
         from . import __version__ as jaff_version
         from .sympy_json import to_jsonable as sympy_to_jsonable, SCHEMA_VERSION as SYMPY_SCHEMA
@@ -565,7 +569,7 @@ class Network:
             ],
         }
 
-        with open(filename, "w", encoding="utf-8") as f:
+        with gzip.open(filename, "wt", encoding="utf-8") as f:
             json.dump(payload, f, indent=2, sort_keys=True)
 
     # ****************
@@ -576,13 +580,24 @@ class Network:
 
         Parameters:
             filename : str
-                JSON file to read.
+                `.jaff` file to read (gzip-compressed JSON by default; legacy
+                uncompressed JSON is also supported).
             errors : bool
                 If True, run Network validation checks and exit on errors.
         """
         from .sympy_json import from_jsonable as sympy_from_jsonable
 
-        with open(filename, "r", encoding="utf-8") as f:
+        filename = os.fspath(filename)
+
+        # Prefer gzip if the filename indicates it; otherwise, sniff the magic header
+        # so we can transparently read both compressed and legacy uncompressed files.
+        use_gzip = str(filename).endswith(".gz")
+        if not use_gzip:
+            with open(filename, "rb") as fb:
+                use_gzip = fb.read(2) == b"\x1f\x8b"
+
+        opener = gzip.open if use_gzip else open
+        with opener(filename, "rt", encoding="utf-8") as f:
             payload = json.load(f)
 
         if not isinstance(payload, dict) or payload.get("format") != "jaff.network_json":

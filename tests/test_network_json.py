@@ -6,6 +6,7 @@ import sys
 import tempfile
 from unittest.mock import patch
 
+import gzip
 import pytest
 import sympy
 
@@ -30,6 +31,11 @@ def test_network_json_roundtrip_sample_kida_valid():
 
     try:
         net.to_jaff_file(json_path)
+
+        # `.jaff` files are gzip-compressed by default.
+        with open(json_path, "rb") as fb:
+            assert fb.read(2) == b"\x1f\x8b"
+
         net2 = Network.from_jaff_file(json_path)
 
         assert net2.label == net.label
@@ -48,5 +54,20 @@ def test_network_json_roundtrip_sample_kida_valid():
                 assert r2.rate == r1.rate
 
             assert r2.dE == r1.dE
+
+        # Backward compatibility: legacy uncompressed `.jaff` should still load.
+        with gzip.open(json_path, "rt", encoding="utf-8") as f:
+            payload = f.read()
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jaff", delete=False) as f:
+            legacy_path = f.name
+            f.write(payload)
+
+        try:
+            net3 = Network.from_jaff_file(legacy_path)
+            assert len(net3.species) == len(net.species)
+            assert len(net3.reactions) == len(net.reactions)
+        finally:
+            os.unlink(legacy_path)
     finally:
         os.unlink(json_path)
