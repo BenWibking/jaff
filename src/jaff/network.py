@@ -437,22 +437,33 @@ class Network:
 
         # Issue warning message if undefined functions remain
         undef_funcs = []
+        interp_funcs = []
         for r in self.reactions:
             for f in r.rate.atoms(Function):
                 if type(f.func) is UndefinedFunction and f.name not in undef_funcs:
-                    undef_funcs.append(f.name)
+                    if "interp" in f.name:
+                        interp_funcs.append(f.name)
+                    else:
+                        undef_funcs.append(f.name)
         if self.dEdt_chem is not None:
             for f in self.dEdt_chem.atoms(Function):
                 if type(f.func) is UndefinedFunction and f.name not in undef_funcs:
-                    undef_funcs.append(f.name)
+                    if "interp" in f.name:
+                        interp_funcs.append(f.name)
+                    else:
+                        undef_funcs.append(f.name)
         if self.dEdt_other is not None:
             for f in self.dEdt_other.atoms(Function):
                 if type(f.func) is UndefinedFunction and f.name not in undef_funcs:
-                    undef_funcs.append(f.name)
+                    if "interp" in f.name:
+                        interp_funcs.append(f.name)
+                    else:
+                        undef_funcs.append(f.name)
 
+        if len(interp_funcs) > 0:
+            print("Found the following interpolation functions: ", interp_funcs)
         if len(undef_funcs) > 0:
             print("WARNING: found undefined functions ", undef_funcs)
-            print("   some functionality will not be available as a result")
 
     # ****************
     def read_aux_funcs(self, funcfile):

@@ -2,14 +2,17 @@
 # The functions here are sympy translations of the implementation in
 # https://github.com/PrincetonUniversity/athena/blob/chemistry_zsfr/src/chemistry/network/kida_network_files/gow17/kida_gow17.cpp
 
-# There are two main types of functions found in this file:
+# There are three main types of functions found in this file:
 # 1. Rate coefficient functions with names of the form @ratefunctionN
 # where N indicates which reaction in the reaction list this rate
 # coefficient is for (starting the count at N = 0), and
 # 2. Change in thermal energy functions with names of the form @deltaEN,
 # which give the change in gas thermal energy per occurence of reaction N,
-# in units of eV, so positive values correspond to exothermic reactions
+# in units of erg, so positive values correspond to exothermic reactions
 # and negative values to endothemic ones.
+# 3. The function @heating_cooling_rate function, which gives the net heating
+# - cooling rate for all radiative processes that are not associated with
+# chemical reactions, in units of erg / s / cm^3
 
 # Note that not every reaction is represented in this file. If there
 # is no @ratefunction function for a given reaction number, that means
@@ -42,17 +45,22 @@
 ################################################################
 
 # Note -- all quantities in CGS units
-@var kB = 1.380649e-17   # Boltzmann's constant
-@var eV = 1.602177e-12   # eV per erg
-@var H2_OPR = 3.0        # Ratio of ortho-H2 to para-H2
-@var f_oH2 = H2_OPR / (H2_OPR + 1)  # Fraction of ortho-H2
-@var f_pH2 = 1 - f_oH2   # Fraction of para-H2
-@var d2g_solar = 0.01    # "Solar" dust to gas ratio
+@var kB = 1.380649e-17             # Boltzmann's constant
+@var c_light = 2.99892458e10       # Speed of light
+@var sigma_SB = 5.670374419e-15    # Stefan-Boltmzann constant
+@var a_R = 4 * sigma_SB / c        # Radiation constant
+@var c_a = c_light * a_R           # c * a_R
+@var amu = 1.66054e-24             # 1 amu in gram
+@var eV = 1.602177e-12             # 1 eV in erg
+@var kmps = 1.0e5                  # 1 km/s in cm/s
+@var TCMB = 2.73                   # CMB temperature at z = 0
+@var H2_OPR = 3.0                  # Ratio of ortho-H2 to para-H2
+@var f_oH2 = H2_OPR / (H2_OPR + 1) # Fraction of ortho-H2
+@var f_pH2 = 1 - f_oH2             # Fraction of para-H2
+@var d2g_solar = 0.01              # "Solar" dust to gas ratio
 @var alpha_GD = 3.2e-34  # Dust-gas collisional coupling coefficient at Solar dust abundance
 @var sigma_d10 = 2e-25   # Dust cross section per H to 10 K thermal radiation at Solar dust abundance
 @var sigma_dISRF = 3e-22 # Dust cross section per H to ISRF radiation at Solar dust abundance
-@var TCMB = 2.73         # CMB temperature
-@var c_a = 2.27e-4       # c * a_R
 
 ################################################################
 # Helper functions used by other functions below
@@ -974,6 +982,51 @@
     return n_O0 * cooling_3level(T20, T21, A10, A20, A21, g0, g1, g2, \
             k10, k20, k21, tgas)
 
+# Cooling for CO
+@function cooling_CO(n_CO, n_H0, n_H2, n_e, tgas, gradv)
+    # Coolisional cooling rate for CO
+    # n_CO Number density of CO molecules, in cm^-3
+    # n_H0 Number density of neutral hydrogen atoms, in cm^-3
+    # n_H2 Number density of hydrogen molecules, in cm^-3
+    # n_e Number density of free electrons, in cm^-3
+    # tgas Gas temperature in K
+    # gradv Velocity gradient in s^-1
+
+    # This routine computes the cooling rate using an approximation
+    # originally taken from Omukai+ 2010, ApJ, 722, 1793, and modified
+    # by Gong+ 2017 to include turbulent line broadening
+
+    # Set floor on velocity gradient
+    mCO = (12 + 15.9949) * amu   # C12 + O16 mass
+    vth = sqrt(2 * kB * tgas / mCO)
+    Lmax = 3.0e20    # Maximum length scale in cm
+    gradv_small = vth / Lmax
+
+    # Set velocity gradient
+    gradv_lim = Max(gradv, gradv_small)
+
+    # Get LVG \tilde{N} parameter = n_CO / gradv, in units of cm^-2 / (km s^-1)
+    LVG_param = n_CO / gradv_lim * kmps
+
+    # Get effective number density
+    neff = n_H2 + 1.75 * tgas**(1/4) * n_H0 + 680.1/tgas**(1/4) * n_e
+
+    # Table lookup of the four functions entering the fit
+    L0 = L0_CO_interp1d(tgas)
+    LLTE = LLTE_CO_interp2d(tgas, LVG_param)
+    nHalf = nHalf_CO_interp2d(tgas, LVG_param)
+    alpha = alpha_CO_interp2d(tgas, LVG_param)
+
+    # Combine results
+    inv_LCO = 1/L0 + neff/LLTE + 1/L0 * (neff/nHalf)**alpha * (1 - nHalf*L0/LLTE)
+
+    # Get limiting factor, used to force cooling rate to 0 at tgas = 0
+    limiter = (1 - exp(-tgas))**1000
+
+    # Get cooling rate
+    cooling_rate = 1/inv_LCO * neff * n_CO * limiter
+    return cooling_rate
+
 # Cooling for dust
 
 @function cooling_dust_coll(chi, av, d2g, tgas, n_H)
@@ -996,8 +1049,8 @@
     # function of n_H and tgas, which the wrapping code will have to
     # provide in the form of either a numerical solver or a table
     # interpolation of the solution.
-    log_psi_coll = log_PsiGD_coll_wrapper(n_H, tgas)
-    cool_rate_coll = 10.**(-log_psi_coll) * d2g / d2g_solar
+    psi_coll = PsiGD_coll_interp2d(n_H, tgas)
+    cool_rate_coll = psi_coll * d2g / d2g_solar
 
     # Get dust heating rate from CMB and ISRF
     heat_rate_CMB = sigma_d10 * 0.01 * c_a * TCMB**6
@@ -1035,7 +1088,7 @@
 
 #### Total heating and cooling rate not associated with chemical reactions ####
 
-@heating_cooling_rate(chi, av, d2g, tgas, n_H, n_H0, n_H2, n_Cp, n_C0, n_O0, n_e)
+@heating_cooling_rate(chi, av, d2g, tgas, n_H, n_H0, n_H2, n_Cp, n_C0, n_O0, n_CO, n_e, gradv)
     # Total heating - cooling rate from all processes
     # chi Radiation field in Draine (1972) units
     # av V-band extinction in magnitudes
@@ -1047,7 +1100,9 @@
     # n_Cp Number density of C+ ions, in cm^-3
     # n_C0 Number density of atomic C, in cm^-3
     # n_O0 Number density of atomic O, in cm^-3
+    # n_CO Number density of CO molecules, in cm^-3
     # n_e Number density of free electrons, in cm^-3
+    # gradv Velocity gradient in s^-1
 
     # Note: that the following heating and cooling sources at not
     # included here because they are associated with chemical reactions
@@ -1064,5 +1119,6 @@
         - cooling_Cplus(n_Cp, n_H0, n_H2, n_e, tgas) \
         - cooling_C0(n_C0, n_H0, n_H2, n_e, tgas) \
         - cooling_O0(n_O0, n_H0, n_H2, n_e, tgas) \
+        - cooling_CO(n_CO, n_H0, n_H2, n_e, tgas, gradv) \
         - cooling_dust_coll(chi, av, d2g, tgas, n_H) \
         - cooling_dust_rec(chi, av, d2g, tgas, n_e)
