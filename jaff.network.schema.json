@@ -102,22 +102,16 @@
         "av",
         "crate",
         "fuv",
-        "nh",
-        "nh0",
-        "nh2",
-        "nhp",
-        "ne",
-        "ntot",
         "asize",
         "nuth",
         "sigmah",
         "m"
       ],
-      "description": "Standardized JAFF rate symbols used in this codebase; see rate_symbol_vocabulary for meanings. Algebraic shorthands (e.g., t32, invtgas) and aliases (e.g., user_av) must be expanded into the SymPy AST instead of being listed as rate symbols."
+      "description": "Standardized JAFF rate symbols used in this codebase; see rate_symbol_vocabulary for meanings. Algebraic shorthands (e.g., t32, invtgas), aliases (e.g., user_av), and species number-density shortcuts (e.g., nh, ne, ntot) must be expanded into the SymPy AST instead of being listed as rate symbols."
     },
     "rate_symbol_vocabulary": {
       "type": "object",
-      "description": "Standard vocabulary for rate symbols and their meanings. Algebraic shorthands and aliases are not part of this vocabulary and should be expressed directly in the SymPy AST.",
+      "description": "Standard vocabulary for rate symbols and their meanings. Algebraic shorthands, aliases, and species number-density shortcuts are not part of this vocabulary and should be expressed directly in the SymPy AST as explicit species concentrations.",
       "additionalProperties": false,
       "properties": {
         "tgas": {
@@ -134,24 +128,6 @@
         },
         "fuv": {
           "description": "Far-UV radiation field scaling factor (dimensionless)."
-        },
-        "nh": {
-          "description": "Number density of H nuclei in all forms (cm^-3)."
-        },
-        "nh0": {
-          "description": "Number density of neutral atomic H (cm^-3)."
-        },
-        "nh2": {
-          "description": "Number density of H2 (cm^-3)."
-        },
-        "nhp": {
-          "description": "Number density of H+ (cm^-3)."
-        },
-        "ne": {
-          "description": "Electron number density (cm^-3)."
-        },
-        "ntot": {
-          "description": "Total number density of all species (cm^-3)."
         },
         "asize": {
           "description": "Dust grain size parameter (cm)."
