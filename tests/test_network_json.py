@@ -7,6 +7,7 @@ import tempfile
 from unittest.mock import patch
 
 import gzip
+import json
 import pytest
 import sympy
 
@@ -35,6 +36,28 @@ def test_network_json_roundtrip_sample_kida_valid():
         # `.jaff` files are gzip-compressed by default.
         with open(json_path, "rb") as fb:
             assert fb.read(2) == b"\x1f\x8b"
+
+        with gzip.open(json_path, "rt", encoding="utf-8") as f:
+            payload = json.load(f)
+        rate_symbols = payload.get("rate_symbols")
+        assert isinstance(rate_symbols, list)
+        rate_symbols_by_name = {
+            item.get("name"): item.get("assumptions")
+            for item in rate_symbols
+            if isinstance(item, dict)
+        }
+        expected_symbols = {
+            s
+            for r in net.reactions
+            if isinstance(r.rate, sympy.Basic)
+            for s in r.rate.free_symbols
+        }
+        assert set(rate_symbols_by_name.keys()) == {s.name for s in expected_symbols}
+        for sym in expected_symbols:
+            expected_assumptions = {
+                k: v for k, v in (sym.assumptions0 or {}).items() if isinstance(k, str) and isinstance(v, bool)
+            }
+            assert rate_symbols_by_name.get(sym.name) == expected_assumptions
 
         net2 = Network.from_jaff_file(json_path)
 

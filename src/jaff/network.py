@@ -554,6 +554,21 @@ class Network:
                 }
                 for sp in self.species
             ],
+            "rate_symbols": [
+                {
+                    "name": sym.name,
+                    "assumptions": {k: v for k, v in (sym.assumptions0 or {}).items() if isinstance(k, str) and isinstance(v, bool)},
+                }
+                for sym in sorted(
+                    {
+                        s
+                        for r in self.reactions
+                        if isinstance(r.rate, sympy.Basic)
+                        for s in r.rate.free_symbols
+                    },
+                    key=lambda s: s.name,
+                )
+            ],
             "reactions": [
                 {
                     "reactants": [int(s.index) for s in r.reactants],
