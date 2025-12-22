@@ -51,7 +51,18 @@ def test_network_json_roundtrip_sample_kida_valid():
                 assert r2.rate == r1.rate
             else:
                 assert isinstance(r2.rate, sympy.Basic)
-                assert r2.rate == r1.rate
+                diff = sympy.simplify(r2.rate - r1.rate)
+                symbols = sorted(diff.free_symbols, key=lambda s: s.name)
+                if not symbols:
+                    diff_val = abs(float(diff.evalf()))
+                    ref_val = abs(float(sympy.N(r1.rate)))
+                    assert diff_val <= 1e-15 * max(1.0, ref_val)
+                else:
+                    for offset in (1.1, 10.1):
+                        subs = {s: float(offset + i) for i, s in enumerate(symbols)}
+                        val1 = float(sympy.N(r1.rate.subs(subs)))
+                        val2 = float(sympy.N(r2.rate.subs(subs)))
+                        assert abs(val2 - val1) <= 1e-12 * max(1.0, abs(val1))
 
             assert r2.dE == r1.dE
 

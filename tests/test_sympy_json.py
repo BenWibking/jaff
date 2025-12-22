@@ -23,7 +23,8 @@ def test_roundtrip_basic_arithmetic_and_numbers():
     expr = sympy.Add(sympy.Integer(2), sympy.Rational(1, 3), sympy.Float("1.0e-10"), x * y, evaluate=False)
 
     expr2 = _rt(expr)
-    assert expr2 == expr
+    diff = sympy.simplify(expr2 - expr)
+    assert abs(float(diff.evalf())) < 1e-15
     x2 = next(s for s in expr2.free_symbols if s.name == "x")
     assert x2.assumptions0.get("real", None) is True
 
@@ -75,3 +76,16 @@ def test_direct_jsonable_api_roundtrip():
     node = to_jsonable(expr)
     expr2 = from_jsonable(node)
     assert expr2 == expr
+
+
+def test_compact_float_is_number():
+    expr = sympy.Add(sympy.Float("2.0e-12"), sympy.Float("1.5"), evaluate=False)
+    node = to_jsonable(expr)
+    assert isinstance(node, list)
+    assert node[0] == "Add"
+    args = node[1]
+    assert isinstance(args, list)
+    assert all(isinstance(arg, (int, float)) for arg in args)
+    expr2 = from_jsonable(node)
+    diff = sympy.simplify(expr2 - expr)
+    assert abs(float(diff.evalf())) < 1e-15
