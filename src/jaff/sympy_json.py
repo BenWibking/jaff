@@ -32,12 +32,19 @@ class SympyJsonError(ValueError):
     pass
 
 
-def dumps(expr: sympy.Basic, *, indent: int = 2, sort_keys: bool = True, compact: bool = True) -> str:
+def dumps(
+    expr: sympy.Basic,
+    *,
+    indent: int = 2,
+    sort_keys: bool = True,
+    compact: bool = True,
+    include_assumptions: bool = True,
+) -> str:
     payload = {
         "format": "jaff.sympy_json",
         "schema_version": SCHEMA_VERSION,
         "sympy_version": sympy.__version__,
-        "expr": to_jsonable(expr, compact=compact),
+        "expr": to_jsonable(expr, compact=compact, include_assumptions=include_assumptions),
     }
     return json.dumps(payload, indent=indent, sort_keys=sort_keys)
 
@@ -52,12 +59,12 @@ def loads(s: str) -> sympy.Basic:
     return from_jsonable(payload.get("expr"))
 
 
-def to_jsonable(expr: sympy.Basic, *, compact: bool = True) -> Any:
+def to_jsonable(expr: sympy.Basic, *, compact: bool = True, include_assumptions: bool = True) -> Any:
     if not isinstance(expr, sympy.Basic):
         raise TypeError(f"Expected sympy.Basic, got {type(expr)!r}")
     if compact:
-        return _EncoderCompact().encode(expr)
-    return _Encoder().encode(expr)
+        return _EncoderCompact(include_assumptions=include_assumptions).encode(expr)
+    return _Encoder(include_assumptions=include_assumptions).encode(expr)
 
 
 def from_jsonable(obj: Any) -> sympy.Basic:
@@ -80,6 +87,9 @@ class _MatrixSymbolKey:
 
 
 class _Encoder:
+    def __init__(self, *, include_assumptions: bool) -> None:
+        self._include_assumptions = include_assumptions
+
     def encode(self, expr: sympy.Basic) -> Dict[str, Any]:
         if expr is sympy.true:
             return {"type": "BooleanTrue"}
@@ -87,11 +97,10 @@ class _Encoder:
             return {"type": "BooleanFalse"}
 
         if isinstance(expr, sympy.Symbol):
-            return {
-                "type": "Symbol",
-                "name": expr.name,
-                "assumptions": _encode_assumptions(expr),
-            }
+            payload = {"type": "Symbol", "name": expr.name}
+            if self._include_assumptions:
+                payload["assumptions"] = _encode_assumptions(expr)
+            return payload
 
         if isinstance(expr, sympy.Integer):
             return {"type": "Integer", "value": int(expr)}
@@ -181,6 +190,9 @@ class _Encoder:
 
 
 class _EncoderCompact:
+    def __init__(self, *, include_assumptions: bool) -> None:
+        self._include_assumptions = include_assumptions
+
     def encode(self, expr: sympy.Basic) -> List[Any]:
         if expr is sympy.true:
             return ["T"]
@@ -188,7 +200,7 @@ class _EncoderCompact:
             return ["F"]
 
         if isinstance(expr, sympy.Symbol):
-            assumptions = _encode_assumptions(expr)
+            assumptions = _encode_assumptions(expr) if self._include_assumptions else {}
             if assumptions:
                 return ["S", expr.name, assumptions]
             return ["S", expr.name]

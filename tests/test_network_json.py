@@ -58,6 +58,25 @@ def test_network_json_roundtrip_sample_kida_valid():
                 k: v for k, v in (sym.assumptions0 or {}).items() if isinstance(k, str) and isinstance(v, bool)
             }
             assert rate_symbols_by_name.get(sym.name) == expected_assumptions
+        def _assert_no_symbol_assumptions(node):
+            if isinstance(node, list):
+                if node and node[0] == "S" and len(node) > 2:
+                    raise AssertionError("Symbol node should not include assumptions in rate expressions")
+                for item in node:
+                    _assert_no_symbol_assumptions(item)
+            elif isinstance(node, dict):
+                if node.get("type") == "Symbol" and "assumptions" in node:
+                    raise AssertionError("Symbol node should not include assumptions in rate expressions")
+                for value in node.values():
+                    _assert_no_symbol_assumptions(value)
+            elif isinstance(node, (list, tuple)):
+                for item in node:
+                    _assert_no_symbol_assumptions(item)
+
+        for rj in payload.get("reactions") or []:
+            rate_node = rj.get("rate")
+            if isinstance(rate_node, dict) and rate_node.get("kind") == "sympy":
+                _assert_no_symbol_assumptions(rate_node.get("expr"))
 
         net2 = Network.from_jaff_file(json_path)
 

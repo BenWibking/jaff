@@ -519,7 +519,7 @@ class Network:
             if isinstance(value, sympy.Basic):
                 if has_undefined_functions(value):
                     raise ValueError("Cannot serialize: expression contains undefined SymPy function(s)")
-                return {"kind": "sympy", "expr": sympy_to_jsonable(value)}
+                return {"kind": "sympy", "expr": sympy_to_jsonable(value, include_assumptions=False)}
             if value is None:
                 return None
             raise TypeError(f"Unsupported value type for serialization: {type(value)!r}")
@@ -662,6 +662,32 @@ class Network:
             net.species_dict[name] = idx
             species_by_index[idx] = sp_obj
 
+        rate_symbols_payload = payload.get("rate_symbols") or []
+        rate_symbol_assumptions = {}
+        if isinstance(rate_symbols_payload, list):
+            for item in rate_symbols_payload:
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("name")
+                assumptions = item.get("assumptions") or {}
+                if not isinstance(name, str) or not isinstance(assumptions, dict):
+                    continue
+                rate_symbol_assumptions[name] = {
+                    k: v for k, v in assumptions.items() if isinstance(k, str) and isinstance(v, bool)
+                }
+
+        def apply_symbol_assumptions(expr):
+            if not rate_symbol_assumptions:
+                return expr
+            symbols = [s for s in expr.free_symbols if s.name in rate_symbol_assumptions]
+            if not symbols:
+                return expr
+            replacements = {}
+            for sym in symbols:
+                assumptions = rate_symbol_assumptions.get(sym.name, {})
+                replacements[sym] = sympy.Symbol(sym.name, **assumptions)
+            return expr.xreplace(replacements)
+
         def decode_maybe_sympy(node):
             if node is None:
                 return None
@@ -675,7 +701,7 @@ class Network:
                 return value
             if kind == "sympy":
                 expr = node.get("expr")
-                return sympy_from_jsonable(expr)
+                return apply_symbol_assumptions(sympy_from_jsonable(expr))
             raise ValueError(f"Unknown encoded value kind={kind!r}")
 
         reactions_payload = payload.get("reactions") or []
