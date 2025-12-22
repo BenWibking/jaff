@@ -519,7 +519,7 @@ class Network:
             if isinstance(value, sympy.Basic):
                 if has_undefined_functions(value):
                     raise ValueError("Cannot serialize: expression contains undefined SymPy function(s)")
-                return {"kind": "sympy", "expr": sympy_to_jsonable(value, include_assumptions=False)}
+                return sympy_to_jsonable(value, include_assumptions=False)
             if value is None:
                 return None
             raise TypeError(f"Unsupported value type for serialization: {type(value)!r}")
@@ -691,18 +691,18 @@ class Network:
         def decode_maybe_sympy(node):
             if node is None:
                 return None
-            if not isinstance(node, dict):
-                raise ValueError("Invalid encoded value (expected dict)")
-            kind = node.get("kind")
-            if kind == "string":
-                value = node.get("value")
-                if not isinstance(value, str):
-                    raise ValueError("Invalid string value encoding")
-                return value
-            if kind == "sympy":
-                expr = node.get("expr")
-                return apply_symbol_assumptions(sympy_from_jsonable(expr))
-            raise ValueError(f"Unknown encoded value kind={kind!r}")
+            if isinstance(node, dict):
+                kind = node.get("kind")
+                if kind == "string":
+                    value = node.get("value")
+                    if not isinstance(value, str):
+                        raise ValueError("Invalid string value encoding")
+                    return value
+                if kind is not None:
+                    raise ValueError(f"Unknown encoded value kind={kind!r}")
+            if isinstance(node, (dict, list, int, float)):
+                return apply_symbol_assumptions(sympy_from_jsonable(node))
+            raise ValueError("Invalid encoded value")
 
         reactions_payload = payload.get("reactions") or []
         if not isinstance(reactions_payload, list):

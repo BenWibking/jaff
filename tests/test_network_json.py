@@ -75,8 +75,10 @@ def test_network_json_roundtrip_sample_kida_valid():
 
         for rj in payload.get("reactions") or []:
             rate_node = rj.get("rate")
-            if isinstance(rate_node, dict) and rate_node.get("kind") == "sympy":
-                _assert_no_symbol_assumptions(rate_node.get("expr"))
+            if isinstance(rate_node, dict) and rate_node.get("kind") == "string":
+                continue
+            if rate_node is not None:
+                _assert_no_symbol_assumptions(rate_node)
 
         net2 = Network.from_jaff_file(json_path)
 
