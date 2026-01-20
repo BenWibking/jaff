@@ -13,6 +13,7 @@ jobs:
   test-notebooks:
     runs-on: ubuntu-latest
     strategy:
+      max-parallel: 1
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     
@@ -36,9 +37,6 @@ jobs:
     
     - name: Find and run notebooks
       run: |
-        # Force clang++ compilers to work around gcc bug
-        echo "CXX=clang++" >> $GITHUB_ENV
-        
         # Find all .ipynb files in examples/
         notebooks=$(find examples -name "*.ipynb" -type f)
         
@@ -48,10 +46,39 @@ jobs:
           exit 0
         fi
         
-        # Run each notebook
+        # Run each notebook and capture partial results
+        output_dir="notebook-artifacts"
+        mkdir -p "$output_dir"
+        errors=0
         for notebook in $notebooks; do
           echo "Running notebook: $notebook"
-          jupyter nbconvert --to notebook --execute --inplace "$notebook" || exit 1
+          rel_path="${notebook#./}"
+          exec_path="$output_dir/${rel_path%.ipynb}.executed.ipynb"
+          mkdir -p "$(dirname "$exec_path")"
+          jupyter nbconvert \
+            --to notebook \
+            --execute \
+            --output "$(basename "$exec_path")" \
+            --output-dir "$(dirname "$exec_path")" \
+            --debug \
+            --ExecutePreprocessor.timeout=600 \
+            --ExecutePreprocessor.startup_timeout=120 \
+            --ExecutePreprocessor.allow_errors=True \
+            "$notebook" || exit 1
+          python -c 'import json,sys; path=sys.argv[1]; nb=json.load(open(path,"r",encoding="utf-8")); has_err=any(out.get("output_type")=="error" for cell in nb.get("cells", []) for out in cell.get("outputs", [])); sys.exit(1 if has_err else 0)' "$exec_path" || errors=1
         done
         
+        if [ "$errors" -ne 0 ]; then
+          echo "One or more notebooks had errors (see artifacts for partial output)."
+          exit 1
+        fi
+
         echo "All notebooks executed successfully!"
+
+    - name: Upload executed notebooks
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: executed-notebooks-${{ matrix.python-version }}
+        path: notebook-artifacts
+        if-no-files-found: ignore
