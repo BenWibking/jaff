@@ -36,6 +36,9 @@ jobs:
     
     - name: Find and run notebooks
       run: |
+        # Force clang++ compilers to work around gcc bug
+        echo "CXX=clang++" >> $GITHUB_ENV
+        
         # Find all .ipynb files in examples/
         notebooks=$(find examples -name "*.ipynb" -type f)
         
