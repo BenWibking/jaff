@@ -1158,7 +1158,7 @@ class Network:
             # Generate ODE code with only the needed CSE assignments
             ode_code = ""
             for i, (var, expr) in enumerate(repls_ode):
-                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                 import re as _re
                 for j in range(n_species):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
@@ -1166,7 +1166,7 @@ class Network:
                 ode_code += f"const double {var} {assignment_op} {expr_str}{line_end}\n"
 
             for i, expr in enumerate(ode_reduced):
-                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                 import re as _re
                 for j in range(n_species):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
@@ -1176,7 +1176,7 @@ class Network:
             # Generate Jacobian code with only the needed CSE assignments
             jac_code = ""
             for i, (var, expr) in enumerate(repls_jac):
-                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                 import re as _re
                 for j in range(n_species):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
@@ -1187,7 +1187,7 @@ class Network:
                     idx = i * n_species + j
                     expr = jac_reduced[idx]
                     if expr != 0:
-                        expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                        expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                         import re as _re
                         for m in range(n_species):
                             expr_str = _re.sub(rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str)
@@ -1201,7 +1201,7 @@ class Network:
             # Generate ODE code without CSE
             ode_code = ""
             for i, expr in enumerate(ode_symbols):
-                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                 import re as _re
                 for j in range(n_species):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
@@ -1214,7 +1214,7 @@ class Network:
                 for j in range(n_species):
                     expr = jacobian_matrix[i, j]
                     if expr != 0:
-                        expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                        expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                         import re as _re
                         for m in range(n_species):
                             expr_str = _re.sub(rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str)
