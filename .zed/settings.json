@@ -1,9 +1,0 @@
-{
-  "format_on_save": "on",
-  "languages": {
-    "Python": {
-      "language_servers": ["ty", "basedpyright", "ruff"],
-      "formatter": [{ "code_action": "source.organizeImports.ruff" }, { "language_server": { "name": "ruff" } }],
-    },
-  },
-}

@@ -72,6 +72,8 @@ venv.bak/
 dmypy.json
 
 # IDEs
+.vscode/
+.zed/
 .idea/
 *.swp
 *.swo
