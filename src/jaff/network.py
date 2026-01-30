@@ -112,7 +112,7 @@ class Network:
 
         # KROME fortan syntax that we need to remove and replace with
         # symbols that can be substituted into arbitrary codes
-        KROME_replacements = [ 
+        KROME_replacements = [
             [ parse_expr('get_hnuclei(n)'), parse_expr('nh') ],
             [ parse_expr('n(idx_h2)'), parse_expr('nh2') ],
             [ parse_expr('n(idx_h)'), parse_expr('nh0') ],
@@ -214,7 +214,7 @@ class Network:
 
             # use lowercase for rate
             rate = rate.lower().strip()
-            
+
             # parse rate with sympy
             # photo-chemistry
             if("photo" in rate.lower()):
@@ -244,7 +244,7 @@ class Network:
                 # convert it to a symbol
                 if hasattr(rate, '__name__') and rate.__name__ in [v[0] for v in variables_sympy]:
                     rate = symbols(rate.__name__)
-               
+
             # use sympy to replace custom variables into the rate expression
             # note: reverse order to allow for nested variable replacement
             for vv in variables_sympy[::-1]:
@@ -271,11 +271,11 @@ class Network:
                         did_replacement = True
                 if not did_replacement:
                     break
- 
+
             # Replacements for fortran functions that do not have sympy
             # equivalents: merge and log10. The former converts to piecewise,
             # the latter to log divided by log(10).
-            funcs = [f for f in rate.atoms(Function) 
+            funcs = [f for f in rate.atoms(Function)
                      if type(f.func) is UndefinedFunction ] # Grab undefined functions
             expr_to_repl = []
             expr_repl = []
@@ -303,7 +303,7 @@ class Network:
             # functions; do this in a loop until no replacements are
             # made so that we can fully substitute for nested functions
             while True:
-                funcs = [f for f in rate.atoms(Function) 
+                funcs = [f for f in rate.atoms(Function)
                          if type(f.func) is UndefinedFunction ] # Grab undefined functions
                 did_replace = False
                 for f in funcs:
@@ -344,7 +344,7 @@ class Network:
                 # Apply the replacement rules for all custom
                 # functions in dEdt
                 while True:
-                    funcs = [f for f in deltaE.atoms(Function) 
+                    funcs = [f for f in deltaE.atoms(Function)
                              if type(f.func) is UndefinedFunction ] # Grab undefined functions
                     did_replace = False
                     for f in funcs:
@@ -404,7 +404,7 @@ class Network:
             # Apply the replacement rules for all custom
             # functions in dEdt
             while True:
-                funcs = [f for f in self.dEdt_other.atoms(Function) 
+                funcs = [f for f in self.dEdt_other.atoms(Function)
                          if type(f.func) is UndefinedFunction ] # Grab undefined functions
                 did_replace = False
                 for f in funcs:
@@ -486,7 +486,7 @@ class Network:
                 contains a list of Sympy.Symbols defining the
                 arguments, "comments" is a string that captures any
                 comments the follow the function definition,
-                and "argcomments" is a list of strings capturing 
+                and "argcomments" is a list of strings capturing
                 comments on the definitions of the arguments.
 
         Raises:
@@ -502,7 +502,7 @@ class Network:
                 # Silently return empty dict if no function file is present
                 return dict()
         else:
-            return parse_funcfile(funcfile)        
+            return parse_funcfile(funcfile)
 
     # ****************
     def compare_reactions(self, other, verbosity=1):
@@ -720,11 +720,11 @@ class Network:
         lb, rb = brackets[0], brackets[1]
 
         rates = ""
-        
+
         # For C++ with CSE enabled, collect all rate expressions and apply CSE
         if language in ["c++", "cpp", "cxx"] and use_cse:
             from sympy import cse, cxxcode, Function
-            
+
             # Collect all rate expressions as SymPy objects
             rate_exprs = []
             photo_indices = []
@@ -741,10 +741,10 @@ class Network:
                         rate_exprs.append(rea.rate)
                 else:
                     rate_exprs.append(rea.rate)
-            
+
             # Filter out None values for CSE
             valid_exprs = [(i, expr) for i, expr in enumerate(rate_exprs) if expr is not None]
-            
+
             if valid_exprs:
                 # Apply CSE to all valid expressions
                 indices, exprs = zip(*valid_exprs)
@@ -777,20 +777,20 @@ class Network:
                             changed = True
                     # Keep replacements in original order
                     replacements = [(var, dep_map[var]) for var, _ in replacements if var in used]
-                
+
                 # Generate code for common subexpressions (only those actually used)
                 if replacements:
                     rates += "// Common subexpressions\n"
                     for i, (var, expr) in enumerate(replacements):
                         cpp_expr = cxxcode(expr, strict=False).replace("std::", "Kokkos::")
                         rates += f"const double {var} = {cpp_expr};\n"
-                
+
                 if replacements:
                     rates += "\n// Rate calculations using common subexpressions\n"
-                
+
                 # Generate code for reduced rate expressions
                 expr_dict = dict(zip(indices, reduced_exprs))
-                
+
                 # Generate all rate assignments
                 for i, rea in enumerate(self.reactions):
                     if i in expr_dict:
@@ -941,7 +941,7 @@ class Network:
                     # Try replacing with nden symbol
                     if spec_name in self.species_dict:
                         repl = nden[Idx(self.species_dict[spec_name])]
-                    
+
                     # Handle special cases
                     if spec_name == "all_H":
                         if replace_nH:
@@ -1020,7 +1020,7 @@ class Network:
     def get_symbolic_ode_and_jacobian(self, idx_offset=0, use_cse=True, language="c++"):
         """
         Generate symbolic ODE expressions and compute the analytical Jacobian.
-        
+
         Returns:
             tuple: (ode_expressions, jacobian_expressions)
                 - ode_expressions: string containing the ODE expressions
@@ -1028,7 +1028,7 @@ class Network:
         """
         import sympy as sp
         from sympy import symbols, Matrix, diff, cse, numbered_symbols
-        
+
         # Create symbolic variables representing species concentrations for Jacobian
         # We use temporary scalar symbols y_i for robust SymPy manipulation, then
         # remap names to `nden[i]` at codegen time to match templates.
@@ -1099,7 +1099,7 @@ class Network:
 
         # Compute the Jacobian matrix d(f)/d(y)
         jacobian_matrix = Matrix(ode_symbols).jacobian(y_syms)
-        
+
         # Generate code strings
         if language in ["c++", "cpp", "cxx"]:
             brackets = "[]"
@@ -1109,19 +1109,19 @@ class Network:
             brackets = "[]" if language == "python" else "()"
             assignment_op = "="
             line_end = ""
-        
+
         lb, rb = brackets[0], brackets[1]
-        
+
         # Apply common subexpression elimination if requested
         if use_cse:
             # Collect all expressions for CSE
             all_exprs = list(ode_symbols) + list(jacobian_matrix)
             replacements, reduced_exprs = cse(all_exprs, symbols=numbered_symbols("cse"))
-            
+
             # Split reduced expressions back
             ode_reduced = reduced_exprs[:n_species]
             jac_reduced = reduced_exprs[n_species:]
-            
+
             # Helper: prune CSE replacements down to those used by a set of expressions
             def _prune_cse(_repls, _exprs):
                 if not _repls:
@@ -1158,7 +1158,7 @@ class Network:
             # Generate ODE code with only the needed CSE assignments
             ode_code = ""
             for i, (var, expr) in enumerate(repls_ode):
-                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                 import re as _re
                 for j in range(n_species):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
@@ -1166,17 +1166,17 @@ class Network:
                 ode_code += f"const double {var} {assignment_op} {expr_str}{line_end}\n"
 
             for i, expr in enumerate(ode_reduced):
-                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                 import re as _re
                 for j in range(n_species):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace('[', lb).replace(']', rb)
-                ode_code += f"f{lb}{i}{rb} {assignment_op} {expr_str}{line_end}\n"
-            
+                ode_code += f"f{lb}{idx_offset+i}{rb} {assignment_op} {expr_str}{line_end}\n"
+
             # Generate Jacobian code with only the needed CSE assignments
             jac_code = ""
             for i, (var, expr) in enumerate(repls_jac):
-                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                 import re as _re
                 for j in range(n_species):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
@@ -1187,43 +1187,43 @@ class Network:
                     idx = i * n_species + j
                     expr = jac_reduced[idx]
                     if expr != 0:
-                        expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                        expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                         import re as _re
                         for m in range(n_species):
                             expr_str = _re.sub(rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str)
                         expr_str = expr_str.replace('[', lb).replace(']', rb)
                         # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
                         if language in ["c++", "cpp", "cxx"]:
-                            jac_code += f"J({i}, {j}) {assignment_op} {expr_str}{line_end}\n"
+                            jac_code += f"J({idx_offset+i}, {idx_offset+j}) {assignment_op} {expr_str}{line_end}\n"
                         else:
-                            jac_code += f"J{lb}{i}{rb}{lb}{j}{rb} {assignment_op} {expr_str}{line_end}\n"
+                            jac_code += f"J{lb}{idx_offset+i}{rb}{lb}{idx_offset+j}{rb} {assignment_op} {expr_str}{line_end}\n"
         else:
             # Generate ODE code without CSE
             ode_code = ""
             for i, expr in enumerate(ode_symbols):
-                expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                 import re as _re
                 for j in range(n_species):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace('[', lb).replace(']', rb)
-                ode_code += f"f{lb}{i}{rb} {assignment_op} {expr_str}{line_end}\n"
-            
+                ode_code += f"f{lb}{idx_offset+i}{rb} {assignment_op} {expr_str}{line_end}\n"
+
             # Generate Jacobian code without CSE
             jac_code = ""
             for i in range(n_species):
                 for j in range(n_species):
                     expr = jacobian_matrix[i, j]
                     if expr != 0:
-                        expr_str = sp.cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+                        expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                         import re as _re
                         for m in range(n_species):
                             expr_str = _re.sub(rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str)
                         expr_str = expr_str.replace('[', lb).replace(']', rb)
                         # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
                         if language in ["c++", "cpp", "cxx"]:
-                            jac_code += f"J({i}, {j}) {assignment_op} {expr_str}{line_end}\n"
+                            jac_code += f"J({idx_offset+i}, {idx_offset+j}) {assignment_op} {expr_str}{line_end}\n"
                         else:
-                            jac_code += f"J{lb}{i}{rb}{lb}{j}{rb} {assignment_op} {expr_str}{line_end}\n"
+                            jac_code += f"J{lb}{idx_offset+i}{rb}{lb}{idx_offset+j}{rb} {assignment_op} {expr_str}{line_end}\n"
 
         return ode_code, jac_code
 
