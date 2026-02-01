@@ -1186,7 +1186,7 @@ class Network:
             for i, (var, expr) in enumerate(repls_ode):
                 expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                 import re as _re
-                for j in range(n_species):
+                for j in range(n_ode_eqns):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace('[', lb).replace(']', rb)
                 ode_code += f"const double {var} {assignment_op} {expr_str}{line_end}\n"
@@ -1194,7 +1194,7 @@ class Network:
             for i, expr in enumerate(ode_reduced):
                 expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                 import re as _re
-                for j in range(n_species):
+                for j in range(n_ode_eqns):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace('[', lb).replace(']', rb)
                 ode_code += f"f{lb}{idx_offset+i}{rb} {assignment_op} {expr_str}{line_end}\n"
@@ -1204,18 +1204,18 @@ class Network:
             for i, (var, expr) in enumerate(repls_jac):
                 expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                 import re as _re
-                for j in range(n_species):
+                for j in range(n_ode_eqns):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace('[', lb).replace(']', rb)
                 jac_code += f"const double {var} {assignment_op} {expr_str}{line_end}\n"
             for i in range(n_ode_eqns):
                 for j in range(n_ode_eqns):
-                    idx = i * n_species + j
+                    idx = i * n_ode_eqns + j
                     expr = jac_reduced[idx]
                     if expr != 0:
                         expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                         import re as _re
-                        for m in range(n_species):
+                        for m in range(n_ode_eqns):
                             expr_str = _re.sub(rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str)
                         expr_str = expr_str.replace('[', lb).replace(']', rb)
                         # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
@@ -1229,7 +1229,7 @@ class Network:
             for i, expr in enumerate(ode_symbols):
                 expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                 import re as _re
-                for j in range(n_species):
+                for j in range(n_ode_eqns):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace('[', lb).replace(']', rb)
                 ode_code += f"f{lb}{idx_offset+i}{rb} {assignment_op} {expr_str}{line_end}\n"
@@ -1242,7 +1242,7 @@ class Network:
                     if expr != 0:
                         expr_str = sp.cxxcode(expr, allow_unknown_functions=True) if language in ["c++", "cpp", "cxx"] else str(expr)
                         import re as _re
-                        for m in range(n_species):
+                        for m in range(n_ode_eqns):
                             expr_str = _re.sub(rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str)
                         expr_str = expr_str.replace('[', lb).replace(']', rb)
                         # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
@@ -1730,7 +1730,7 @@ class Network:
 
         from scipy.constants import R
 
-        _R = R * 1e7
+        _R = R * 1e7 # cgs unit
         tgas = symbols('tgas')
 
         return _R/(gamma - 1) * tgas
