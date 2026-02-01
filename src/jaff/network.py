@@ -1119,9 +1119,10 @@ class Network:
             # Calculate internal energy derivatives and append to jacobian matrix
 
             dde = zeros(n_ode_eqns, 1)
+            dedot_dtgas = diff(self.__get_sym_eos(), symbols('tgas'))
+
             for i in range(n_ode_eqns):
                 dxdot_dtgas = diff(ode_symbols[i], symbols('tgas'))
-                dedot_dtgas = diff(self.__get_sym_eos(), symbols('tgas'))
                 dde[i, 0] = dxdot_dtgas / dedot_dtgas
 
             jacobian_matrix = jacobian_matrix.row_join(dde)
