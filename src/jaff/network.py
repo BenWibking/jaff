@@ -1137,6 +1137,7 @@ class Network:
             nden_to_y[Indexed(nden_base, i)] = y_syms[i]
             nden_to_y[Indexed(nden_base, Idx(i))] = y_syms[i]
             nden_to_y[nden_matrix[i, 0]] = y_syms[i]
+            nden_to_y[nden_matrix[Idx(i), 0]] = y_syms[i]
 
         # Precompute rate expressions with nden[...] mapped to y_i
         k_exprs = [rea.rate.xreplace(nden_to_y) for rea in self.reactions]
