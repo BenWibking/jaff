@@ -1,3 +1,4 @@
+from functools import reduce
 from .reaction import Reaction
 from .species import Species
 import numpy as np
@@ -1106,7 +1107,7 @@ class Network:
         return sode
 
     # *****************
-    def get_symbolic_ode_and_jacobian(self, idx_offset=0, use_cse=True, language="c++"):
+    def get_symbolic_ode_and_jacobian(self, idx_offset=0, use_cse=True, language="c++", dedt_chem=False):
         """
         Generate symbolic ODE expressions and compute the analytical Jacobian.
 
@@ -1116,13 +1117,14 @@ class Network:
                 - jacobian_expressions: string containing the Jacobian matrix elements
         """
         import sympy as sp
-        from sympy import symbols, Matrix, diff, cse, numbered_symbols
+        from sympy import symbols, Matrix, diff, cse, numbered_symbols, zeros
 
         # Create symbolic variables representing species concentrations for Jacobian
         # We use temporary scalar symbols y_i for robust SymPy manipulation, then
         # remap names to `nden[i]` at codegen time to match templates.
         n_species = len(self.species)
-        y_syms = [symbols(f"y_{i}") for i in range(n_species)]
+        n_ode_eqns = n_species + int(dedt_chem)
+        y_syms = [symbols(f'y_{i}') for i in range(n_species)]
 
         # Build mapping to replace any Indexed occurrences of nden[...] in rate expressions
         # with the corresponding scalar y_i symbols.
@@ -1139,6 +1141,12 @@ class Network:
 
         # Precompute rate expressions with nden[...] mapped to y_i
         k_exprs = [rea.rate.xreplace(nden_to_y) for rea in self.reactions]
+
+        # Precompute specific internal energy equation
+        if dedt_chem:
+            den_tot = reduce(lambda x, y: x+y, [specie.mass*nden_to_y[nden_matrix[i, 0]] for i,specie in enumerate(self.species)])
+            dedt_chem_exp = self.dEdt_chem.xreplace(nden_to_y) / den_tot
+
 
         # Build symbolic flux expressions using the full SymPy rate
         # so that dependencies k(y) contribute via the chain rule.
@@ -1174,6 +1182,7 @@ class Network:
                 else:
                     idx = int(rr.fidx)
                 ode_symbols[idx] -= flux_exprs[i]
+
             # Add flux to products
             for pp in rea.products:
                 if isinstance(pp.fidx, str):
@@ -1189,8 +1198,24 @@ class Network:
         subs_k = {symbols(f"k[{i}]"): k_exprs[i] for i in range(len(self.reactions))}
         ode_symbols = [expr.xreplace(subs_k) for expr in ode_symbols]
 
+        # Append specific internal energy rate equation conditionally
+        if dedt_chem:
+           ode_symbols.append(dedt_chem_exp)
+
         # Compute the Jacobian matrix d(f)/d(y)
         jacobian_matrix = Matrix(ode_symbols).jacobian(y_syms)
+
+        if dedt_chem:
+            # Calculate internal energy derivatives and append to jacobian matrix
+
+            dde = zeros(n_ode_eqns, 1)
+            dedot_dtgas = diff(self.__get_sym_eos(), symbols('tgas'))
+
+            for i in range(n_ode_eqns):
+                dxdot_dtgas = diff(ode_symbols[i], symbols('tgas'))
+                dde[i, 0] = dxdot_dtgas / dedot_dtgas
+
+            jacobian_matrix = jacobian_matrix.row_join(dde)
 
         # Generate code strings
         if language in ["c++", "cpp", "cxx"]:
@@ -1207,12 +1232,12 @@ class Network:
         # Apply common subexpression elimination if requested
         if use_cse:
             # Collect all expressions for CSE
-            all_exprs = list(ode_symbols) + list(jacobian_matrix)
+            all_exprs = ode_symbols + list(jacobian_matrix)
             replacements, reduced_exprs = cse(all_exprs, symbols=numbered_symbols("cse"))
 
             # Split reduced expressions back
-            ode_reduced = reduced_exprs[:n_species]
-            jac_reduced = reduced_exprs[n_species:]
+            ode_reduced = reduced_exprs[:n_ode_eqns]
+            jac_reduced = reduced_exprs[n_ode_eqns:]
 
             # Helper: prune CSE replacements down to those used by a set of expressions
             def _prune_cse(_repls, _exprs):
@@ -1256,8 +1281,7 @@ class Network:
                     else str(expr)
                 )
                 import re as _re
-
-                for j in range(n_species):
+                for j in range(n_ode_eqns):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace("[", lb).replace("]", rb)
                 ode_code += f"const double {var} {assignment_op} {expr_str}{line_end}\n"
@@ -1269,8 +1293,7 @@ class Network:
                     else str(expr)
                 )
                 import re as _re
-
-                for j in range(n_species):
+                for j in range(n_ode_eqns):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace("[", lb).replace("]", rb)
                 ode_code += (
@@ -1286,14 +1309,13 @@ class Network:
                     else str(expr)
                 )
                 import re as _re
-
-                for j in range(n_species):
+                for j in range(n_ode_eqns):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace("[", lb).replace("]", rb)
                 jac_code += f"const double {var} {assignment_op} {expr_str}{line_end}\n"
-            for i in range(n_species):
-                for j in range(n_species):
-                    idx = i * n_species + j
+            for i in range(n_ode_eqns):
+                for j in range(n_ode_eqns):
+                    idx = i * n_ode_eqns + j
                     expr = jac_reduced[idx]
                     if expr != 0:
                         expr_str = (
@@ -1302,12 +1324,9 @@ class Network:
                             else str(expr)
                         )
                         import re as _re
-
-                        for m in range(n_species):
-                            expr_str = _re.sub(
-                                rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str
-                            )
-                        expr_str = expr_str.replace("[", lb).replace("]", rb)
+                        for m in range(n_ode_eqns):
+                            expr_str = _re.sub(rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str)
+                        expr_str = expr_str.replace('[', lb).replace(']', rb)
                         # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
                         if language in ["c++", "cpp", "cxx"]:
                             jac_code += f"J({idx_offset + i}, {idx_offset + j}) {assignment_op} {expr_str}{line_end}\n"
@@ -1323,8 +1342,7 @@ class Network:
                     else str(expr)
                 )
                 import re as _re
-
-                for j in range(n_species):
+                for j in range(n_ode_eqns):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace("[", lb).replace("]", rb)
                 ode_code += (
@@ -1333,8 +1351,8 @@ class Network:
 
             # Generate Jacobian code without CSE
             jac_code = ""
-            for i in range(n_species):
-                for j in range(n_species):
+            for i in range(n_ode_eqns):
+                for j in range(n_ode_eqns):
                     expr = jacobian_matrix[i, j]
                     if expr != 0:
                         expr_str = (
@@ -1343,12 +1361,9 @@ class Network:
                             else str(expr)
                         )
                         import re as _re
-
-                        for m in range(n_species):
-                            expr_str = _re.sub(
-                                rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str
-                            )
-                        expr_str = expr_str.replace("[", lb).replace("]", rb)
+                        for m in range(n_ode_eqns):
+                            expr_str = _re.sub(rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str)
+                        expr_str = expr_str.replace('[', lb).replace(']', rb)
                         # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
                         if language in ["c++", "cpp", "cxx"]:
                             jac_code += f"J({idx_offset + i}, {idx_offset + j}) {assignment_op} {expr_str}{line_end}\n"
@@ -1847,3 +1862,19 @@ class Network:
 
             # Close file
             fp.close()
+
+    def __get_sym_eos(self, gamma=1.6666666666667):
+        """
+
+        Returns the symbolic ideal specific internal energy given by
+        e = c_v * T where c_v is the specific heat capacity
+        at constant volume and is given by c_v = R / (gamma - 1)
+
+        """
+
+        from scipy.constants import R
+
+        _R = R * 1e7 # cgs unit
+        tgas = symbols('tgas')
+
+        return _R/(gamma - 1) * tgas
