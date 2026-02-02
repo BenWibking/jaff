@@ -1127,13 +1127,15 @@ class Network:
         # Build mapping to replace any Indexed occurrences of nden[...] in rate expressions
         # with the corresponding scalar y_i symbols.
         from sympy import Indexed, IndexedBase, Idx
-
-        nden_base = IndexedBase("nden")
+        nden_base = IndexedBase('nden')
+        nden_matrix = MatrixSymbol('nden', n_species, 1)
         nden_to_y = {}
         for i in range(n_species):
             # Support both nden[i] and nden[Idx(i)] forms
             nden_to_y[Indexed(nden_base, i)] = y_syms[i]
             nden_to_y[Indexed(nden_base, Idx(i))] = y_syms[i]
+            nden_to_y[nden_matrix[i, 0]] = y_syms[i]
+            nden_to_y[nden_matrix[Idx(i), 0]] = y_syms[i]
 
         # Precompute rate expressions with nden[...] mapped to y_i
         k_exprs = [rea.rate.xreplace(nden_to_y) for rea in self.reactions]
