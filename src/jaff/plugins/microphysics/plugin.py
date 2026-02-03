@@ -12,51 +12,42 @@ def main(
 ) -> None:
     filenames = ["actual_network.H", "actual_network_data.cpp", "actual_rhs.H"]
     pp = Preprocessor()
-
-    scommons: str = network.get_commons(
-        idx_offset=0, idx_prefix="", definition_prefix="static const int "
-    ).replace("\n", ";\n")
-
-    rates: str = (
-        network.get_rates(
-            idx_offset=1, rate_variable="ydot", language="c++", use_cse=True
-        )
-        .replace("Kokkos::", "std::")
-        .replace("const double", "const amrex::Real")
-    )
-
-    rates = re.sub(r"ydot\[(\d+)\]", r"ydot(\1)", rates)
-    # print("\n===================================================\n")
-    # print(f"Rates:\n\n{rates}")
-    # print("\n===================================================\n")
+    charge_cons = "0.0"
 
     sode, jac = network.get_symbolic_ode_and_jacobian(
         idx_offset=1, use_cse=True, language="c++"
     )
-
     sode = re.sub(r"f\[\s*(\d+)\s*\]", r"ydot(\1)", sode).replace(
         "const double", "static const amrex::Real"
     )
-
+    sode = re.sub(r"nden\[\s*(\d+)\s*\]", r"nden(\1)", sode)
     jac = re.sub(r"J\(\s*(\d+)\s*,\s*(\d+)\s*\)", r"jac(\1, \2)", jac).replace(
         "const double", "static const amrex::Real"
     )
+    jac = re.sub(r"nden\[\s*(\d+)\s*\]", r"nden(\1)", jac)
 
-    num_spec: int = network.get_number_of_species()
-    num_react: int = len(network.reactions)
+    for i, specie in enumerate(network.species):
+        if not int(specie.charge):
+            continue
 
-    num_reaction_cxx_decl: str = f"std::vector<double> nreact({num_react})"
+        if specie.name == "e-":
+            charge_cons = f"state.xn[{i}] = {charge_cons}"
+            continue
+
+        if abs(float(specie.charge)) > 1:
+            charge_cons += f" + ({float(specie.charge)}) * state.xn[{i}]"
+            continue
+
+        charge_cons += f" + state.xn[{i}]"
+
+    charge_cons += ";"
 
     pp_sub = [
-        {"COMMONS": scommons, "RATES": rates, "ODE": sode, "JACOBIAN": jac},
-        {"NUM_SPECIES": num_spec},
+        {},
+        {"CHARGE": charge_cons},
         {
-            "COMMONS": scommons,
-            "RATES": rates,
             "ODE": sode,
             "JACOBIAN": jac,
-            "NUM_SPECIES": f"static constexpr int nspec = {num_spec};",
-            "NUM_REACTIONS": num_react,
         },
     ]
 
@@ -66,24 +57,6 @@ def main(
 if __name__ == "__main__":
     from jaff.builder import Builder
 
-    # network = Network("../../../../tests/fixtures/sample_krome.dat")
-    network = Network("../../../../networks/GOW.dat")
-    print("\n===================================================\n")
-    print("Reactions: \n")
-    print([rea.rate for rea in network.reactions])
-    print("\n===================================================\n")
-
-    print("\n===================================================\n")
-    print(f"Network loaded: {network.label}")
-    print(f"Number of species: {network.get_number_of_species()}")
-    print(f"Number of reactions: {len(network.reactions)}")
-    print("\n===================================================\n")
-
-    # Create builder and generate Kokkos C++ code
+    network = Network("../../../../networks/test.dat")
     builder = Builder(network)
     builds_dir = builder.build(template="microphysics")
-
-    print("\n===================================================\n")
-    print("\nC++ Microphysics generated successfully!")
-    print(f"Generated files are located at {builds_dir}")
-    print("\n===================================================\n")
