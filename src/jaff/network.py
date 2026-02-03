@@ -1,3 +1,4 @@
+from typing import Tuple
 from functools import reduce
 from .reaction import Reaction
 from .species import Species
@@ -1107,7 +1108,7 @@ class Network:
         return sode
 
     # *****************
-    def get_symbolic_ode_and_jacobian(self, idx_offset=0, use_cse=True, language="c++", dedt_chem=False):
+    def get_symbolic_ode_and_jacobian(self, idx_offset=0, use_cse=True, language="c++", dedt_chem=False) -> Tuple[str, str]:
         """
         Generate symbolic ODE expressions and compute the analytical Jacobian.
 
