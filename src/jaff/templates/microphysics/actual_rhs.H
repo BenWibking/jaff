@@ -32,7 +32,7 @@ rhs_specie(const burn_t &state, amrex::Array1D<amrex::Real, 1, neqs> &ydot,
 AMREX_GPU_HOST_DEVICE AMREX_INLINE void
 actual_rhs(burn_t &state, amrex::Array1D<amrex::Real, 1, neqs> &ydot) {
 
-  Array1D<amrex::Real, 0, NumSpec - 1> nden;
+  amrex::Array1D<amrex::Real, 0, NumSpec - 1> nden;
   for (int i = 0; i < NumSpec; ++i) {
     nden(i) = state.xn[i];
   }
