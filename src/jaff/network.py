@@ -2,6 +2,7 @@ import os
 import re
 import sys
 from functools import reduce
+from typing import Tuple
 
 import h5py
 import numpy as np
