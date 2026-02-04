@@ -2,6 +2,7 @@ import os
 import re
 import sys
 from functools import reduce
+from typing import Tuple
 
 import h5py
 import numpy as np
@@ -1119,7 +1120,7 @@ class Network:
         jac_var: str = "J",
         matrix_format: str = "",
         brac_format: str = "",
-    ):
+    ) -> Tuple[str, str]:
         """
         Generate symbolic ODE expressions and compute the analytical Jacobian.
 
