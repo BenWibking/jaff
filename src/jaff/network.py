@@ -1,36 +1,38 @@
-from functools import reduce
-from .reaction import Reaction
-from .species import Species
-import numpy as np
-import sys
-import re
 import os
-from tqdm import tqdm
+import re
+import sys
+from functools import reduce
+
+import h5py
+import numpy as np
 import sympy
 from sympy import (
+    Function,
+    Idx,
+    MatrixSymbol,
+    Piecewise,
+    lambdify,
     parse_expr,
+    srepr,
     symbols,
     sympify,
-    lambdify,
-    srepr,
-    MatrixSymbol,
-    Idx,
-    Function,
-    Piecewise,
 )
 from sympy.core.function import UndefinedFunction
-import h5py
-from .parsers import (
-    parse_kida,
-    parse_udfa,
-    parse_prizmo,
-    parse_krome,
-    parse_uclchem,
-    f90_convert,
-)
+from tqdm import tqdm
+
 from .fastlog import fast_log2, inverse_fast_log2
-from .photochemistry import Photochemistry
 from .function_parser import parse_funcfile
+from .parsers import (
+    f90_convert,
+    parse_kida,
+    parse_krome,
+    parse_prizmo,
+    parse_uclchem,
+    parse_udfa,
+)
+from .photochemistry import Photochemistry
+from .reaction import Reaction
+from .species import Species
 
 
 class Network:
@@ -787,7 +789,7 @@ class Network:
 
         # For C++ with CSE enabled, collect all rate expressions and apply CSE
         if language in ["c++", "cpp", "cxx"] and use_cse:
-            from sympy import cse, cxxcode, Function
+            from sympy import Function, cse, cxxcode
 
             # Collect all rate expressions as SymPy objects
             rate_exprs = []
@@ -1107,7 +1109,17 @@ class Network:
         return sode
 
     # *****************
-    def get_symbolic_ode_and_jacobian(self, idx_offset=0, use_cse=True, language="c++", dedt_chem=False):
+    def get_symbolic_ode_and_jacobian(
+        self,
+        idx_offset=0,
+        use_cse=True,
+        language="c++",
+        dedt_chem=False,
+        ode_var: str = "f",
+        jac_var: str = "J",
+        matrix_format: str = "",
+        brac_format: str = "",
+    ):
         """
         Generate symbolic ODE expressions and compute the analytical Jacobian.
 
@@ -1117,20 +1129,134 @@ class Network:
                 - jacobian_expressions: string containing the Jacobian matrix elements
         """
         import sympy as sp
-        from sympy import symbols, Matrix, diff, cse, numbered_symbols, zeros
+        from sympy import Matrix, cse, diff, numbered_symbols, symbols, zeros
+
+        # Supported language inputs
+        __lang_aliases: dict[str, str] = {
+            "c++": "cxx",
+            "cpp": "cxx",
+            "cxx": "cxx",
+            "fortran": "fortran",
+            "f90": "fortran",
+            "python": "python",
+            "py": "python",
+        }
+
+        # Modifiers for each language
+        __lang_modifiers: dict[str, dict[str, Any]] = {
+            "cxx": {
+                "brac": "[]",
+                "assignment_op": "=",
+                "line_end": ";",
+                "matrix_sep": "][",
+                "code_gen": sp.cxxcode,
+            },
+            "c": {
+                "brac": "[]",
+                "assignment_op": "=",
+                "line_end": ";",
+                "matrix_sep": "][",
+                "code_gen": sp.ccode,
+            },
+            "fortran": {
+                "brac": "()",
+                "assignment_op": "=",
+                "line_end": "",
+                "matrix_sep": ")(",
+                "code_gen": sp.fcode,
+            },
+            "python": {
+                "brac": "[]",
+                "assignment_op": "=",
+                "line_end": "",
+                "matrix_sep": ", ",
+                "code_gen": sp.pycode,
+            },
+        }
+
+        # 2D array formats.
+        # Implemented as a dictionary to keep things flexible for the future
+        __matrix_formats: dict[str, dict[str, str]] = {
+            "()": {"brac": "()", "sep": ")("},
+            "(,)": {"brac": "()", "sep": ", "},
+            "[]": {"brac": "[]", "sep": "]["},
+            "[,]": {"brac": "[]", "sep": ", "},
+            "{}": {"brac": "{}", "sep": "}{"},
+            "{,}": {"brac": "{}", "sep": ", "},
+            "<>": {"brac": "<>", "sep": "><"},
+            "<,>": {"brac": "<>", "sep": ", "},
+        }
+
+        # 1D array format
+        __brack_formats: list[str] = ["()", "{}", "[]", "<>"]
+
+        # Check if language is supported
+        if language and language not in __lang_aliases.keys():
+            raise ValueError(
+                f"\n\nUnsupported language: '{language}'"
+                f"\nSupported languages: {[key for key in __lang_aliases]}\n"
+            )
+
+        # Check if 2D array format is supported
+        if matrix_format and matrix_format not in __matrix_formats.keys():
+            raise ValueError(
+                f"\n\nUnsupported matrix format: '{matrix_format}'"
+                f"\nSupported matrix formats: {[key for key in __matrix_formats]}\n"
+            )
+
+        # Check if 1D array format is supported
+        if brac_format and brac_format not in __brack_formats:
+            raise ValueError(
+                f"\n\nUnsupported bracket format: '{brac_format}'"
+                f"\nSupported bracket formats: {[key for key in __brack_formats]}\n"
+            )
+
+        # Set language
+        language = __lang_aliases.get(language, "cxx")
+
+        # Set brackets for 1D array
+        bracs = (
+            brac_format
+            if brac_format in __brack_formats
+            else __lang_modifiers[language]["brac"]
+        )
+
+        # Set brackets for 2D array
+        mbracs = (
+            __matrix_formats[matrix_format]["brac"]
+            if matrix_format
+            else __lang_modifiers[language]["brac"]
+        )
+
+        # Set 2D array separator
+        matrix_sep = (
+            __matrix_formats[matrix_format]["sep"]
+            if matrix_format
+            else __lang_modifiers[language]["matrix_sep"]
+        )
+
+        # Assigen other required variables
+        assignment_op = __lang_modifiers[language]["assignment_op"]
+        line_end = __lang_modifiers[language]["line_end"]
+        code_gen = __lang_modifiers[language]["code_gen"]
+
+        # Set left and right brackets for 1D and 2D arrays
+        lb, rb = bracs
+        mlb, mrb = mbracs
 
         # Create symbolic variables representing species concentrations for Jacobian
         # We use temporary scalar symbols y_i for robust SymPy manipulation, then
         # remap names to `nden[i]` at codegen time to match templates.
         n_species = len(self.species)
         n_ode_eqns = n_species + int(dedt_chem)
-        y_syms = [symbols(f'y_{i}') for i in range(n_species)]
+        y_syms = [symbols(f"y_{i}") for i in range(n_species)]
 
         # Build mapping to replace any Indexed occurrences of nden[...] in rate expressions
         # with the corresponding scalar y_i symbols.
-        from sympy import Indexed, IndexedBase, Idx
-        nden_base = IndexedBase('nden')
-        nden_matrix = MatrixSymbol('nden', n_species, 1)
+        from sympy import Idx, Indexed, IndexedBase
+
+        nden_base = IndexedBase("nden")
+        nden_matrix = MatrixSymbol("nden", n_species, 1)
         nden_to_y = {}
         for i in range(n_species):
             # Support both nden[i] and nden[Idx(i)] forms
@@ -1144,9 +1270,14 @@ class Network:
 
         # Precompute specific internal energy equation
         if dedt_chem:
-            den_tot = reduce(lambda x, y: x+y, [specie.mass*nden_to_y[nden_matrix[i, 0]] for i,specie in enumerate(self.species)])
+            den_tot = reduce(
+                lambda x, y: x + y,
+                [
+                    specie.mass * nden_to_y[nden_matrix[i, 0]]
+                    for i, specie in enumerate(self.species)
+                ],
+            )
             dedt_chem_exp = self.dEdt_chem.xreplace(nden_to_y) / den_tot
-
 
         # Build symbolic flux expressions using the full SymPy rate
         # so that dependencies k(y) contribute via the chain rule.
@@ -1200,7 +1331,7 @@ class Network:
 
         # Append specific internal energy rate equation conditionally
         if dedt_chem:
-           ode_symbols.append(dedt_chem_exp)
+            ode_symbols.append(dedt_chem_exp)
 
         # Compute the Jacobian matrix d(f)/d(y)
         jacobian_matrix = Matrix(ode_symbols).jacobian(y_syms)
@@ -1209,10 +1340,10 @@ class Network:
             # Calculate internal energy derivatives and append to jacobian matrix
 
             dde = zeros(n_ode_eqns, 1)
-            dedot_dtgas = diff(self.__get_sym_eos(), symbols('tgas'))
+            dedot_dtgas = diff(self.__get_sym_eos(), symbols("tgas"))
 
             for i in range(n_ode_eqns):
-                dxdot_dtgas = diff(ode_symbols[i], symbols('tgas'))
+                dxdot_dtgas = diff(ode_symbols[i], symbols("tgas"))
                 dde[i, 0] = dxdot_dtgas / dedot_dtgas
 
             jacobian_matrix = jacobian_matrix.row_join(dde)
@@ -1281,6 +1412,7 @@ class Network:
                     else str(expr)
                 )
                 import re as _re
+
                 for j in range(n_ode_eqns):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace("[", lb).replace("]", rb)
@@ -1293,6 +1425,7 @@ class Network:
                     else str(expr)
                 )
                 import re as _re
+
                 for j in range(n_ode_eqns):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace("[", lb).replace("]", rb)
@@ -1309,6 +1442,7 @@ class Network:
                     else str(expr)
                 )
                 import re as _re
+
                 for j in range(n_ode_eqns):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace("[", lb).replace("]", rb)
@@ -1324,9 +1458,12 @@ class Network:
                             else str(expr)
                         )
                         import re as _re
+
                         for m in range(n_ode_eqns):
-                            expr_str = _re.sub(rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str)
-                        expr_str = expr_str.replace('[', lb).replace(']', rb)
+                            expr_str = _re.sub(
+                                rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str
+                            )
+                        expr_str = expr_str.replace("[", lb).replace("]", rb)
                         # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
                         if language in ["c++", "cpp", "cxx"]:
                             jac_code += f"J({idx_offset + i}, {idx_offset + j}) {assignment_op} {expr_str}{line_end}\n"
@@ -1342,6 +1479,7 @@ class Network:
                     else str(expr)
                 )
                 import re as _re
+
                 for j in range(n_ode_eqns):
                     expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
                 expr_str = expr_str.replace("[", lb).replace("]", rb)
@@ -1361,9 +1499,12 @@ class Network:
                             else str(expr)
                         )
                         import re as _re
+
                         for m in range(n_ode_eqns):
-                            expr_str = _re.sub(rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str)
-                        expr_str = expr_str.replace('[', lb).replace(']', rb)
+                            expr_str = _re.sub(
+                                rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str
+                            )
+                        expr_str = expr_str.replace("[", lb).replace("]", rb)
                         # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
                         if language in ["c++", "cpp", "cxx"]:
                             jac_code += f"J({idx_offset + i}, {idx_offset + j}) {assignment_op} {expr_str}{line_end}\n"
@@ -1874,7 +2015,7 @@ class Network:
 
         from scipy.constants import R
 
-        _R = R * 1e7 # cgs unit
-        tgas = symbols('tgas')
+        _R = R * 1e7  # cgs unit
+        tgas = symbols("tgas")
 
-        return _R/(gamma - 1) * tgas
+        return _R / (gamma - 1) * tgas
