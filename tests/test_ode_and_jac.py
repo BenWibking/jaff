@@ -6,6 +6,7 @@ from typing import List
 
 import pytest
 
+from jaff.codegen import Codegen
 from jaff.network import Network
 
 
@@ -22,6 +23,12 @@ def test_network():
 
 
 @pytest.fixture
+def test_codegen(test_network):
+    """Create a Codegen instance for the test network."""
+    return Codegen(test_network, lang="c++")
+
+
+@pytest.fixture
 def test_network_dedt():
     """Load the test network with a fake rate expression and an internal energy expression"""
 
@@ -33,6 +40,12 @@ def test_network_dedt():
     return Network(str(network_file))
 
 
+@pytest.fixture
+def test_codegen_dedt(test_network_dedt):
+    """Create a Codegen instance for the test network with internal energy."""
+    return Codegen(test_network_dedt, lang="c++")
+
+
 def test_network_reactions_loaded(test_network: Network):
     """Test that the test network loads with expected reactions."""
 
@@ -42,21 +55,21 @@ def test_network_reactions_loaded(test_network: Network):
     )
 
 
-def test_rates(test_network: Network):
+def test_rates(test_codegen: Codegen):
     "Test whether the correct rate has been loaded"
 
-    rates = test_network.get_rates().strip().split("\n")
-    rate = rates[-1].split("=")[-1].strip()
-    expected_rate = "nden[0, 0]"
+    rates = test_codegen.get_rates().strip().split("\n")
+    rate = rates[-1].split("=")[-1].strip().rstrip(";")
+    expected_rate = "nden[0]"
 
     assert len(rates) == 1, "Number of rates should be exactly 1"
     assert rate == expected_rate, f"Rate must be equal to {expected_rate}"
 
 
-def test_ode_and_jac(test_network: Network):
+def test_ode_and_jac(test_codegen: Codegen):
     "Test generated odes and jac with precalculated expression strings"
 
-    ode, jac = test_network.get_symbolic_ode_and_jacobian(use_cse=False)
+    ode, jac = test_codegen.get_symbolic_ode_and_jacobian(use_cse=False)
 
     expected_rhs: List[str] = [
         "-std::pow(nden[0], 2)*nden[1]",
@@ -102,12 +115,12 @@ def test_network_reactions_loaded_dedt(test_network_dedt: Network):
     )
 
 
-def test_rates_dedt(test_network_dedt: Network):
+def test_rates_dedt(test_codegen_dedt: Codegen):
     "Test whether the correct rate has been loaded"
 
-    rates = test_network_dedt.get_rates().strip().split("\n")
-    rate = rates[-1].split("=")[-1].strip()
-    expected_rate = "nden[0, 0]"
+    rates = test_codegen_dedt.get_rates().strip().split("\n")
+    rate = rates[-1].split("=")[-1].strip().rstrip(";")
+    expected_rate = "nden[0]"
 
     assert len(rates) == 1, "Number of rates should be exactly 1"
     assert rate == expected_rate, f"Rate must be equal to {expected_rate}"
@@ -122,10 +135,10 @@ def test_dedt(test_network_dedt: Network):
     assert dEdt == expected_dEdt, f"dEdt must be equal to {expected_dEdt}"
 
 
-def test_ode_and_jac_dedt(test_network_dedt: Network):
+def test_ode_and_jac_dedt(test_codegen_dedt: Codegen):
     "Test generated odes and jac with precalculated expression strings"
 
-    ode, jac = test_network_dedt.get_symbolic_ode_and_jacobian(
+    ode, jac = test_codegen_dedt.get_symbolic_ode_and_jacobian(
         use_cse=False, dedt_chem=True
     )
 

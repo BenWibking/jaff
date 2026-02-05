@@ -146,31 +146,29 @@ class Reaction:
             species = [species]
         return any([x.name in species for x in self.products])
 
-    def get_python(self):
-        from sympy import Function
-        from sympy.printing.numpy import NumPyPrinter
+    def get_code(self, lang="py"):
+        fmap = {
+            "py": sympy.pycode,
+            "c": sympy.ccode,
+            "cxx": sympy.cxxcode,
+            "f90": sympy.fcode,
+        }
 
-        if type(self.rate) is str:
-            return self.rate
-        # Handle photorates function specially
-        if hasattr(self.rate, "func") and isinstance(self.rate.func, type(Function("f"))):
-            if self.rate.func.__name__ == "photorates":
-                # Return a placeholder that will be replaced later
-                return f"photorates(#IDX#, {', '.join(str(arg) for arg in self.rate.args[1:])})"
-        return NumPyPrinter().doprint(self.rate).replace("numpy.", "np.")
+        if not fmap.get(lang, ""):
+            raise ValueError(
+                f"{lang} is not supported. Supported languages are:\n\n{fmap.keys()}"
+            )
+        if (
+            hasattr(self.rate, "func")
+            and isinstance(self.rate.func, type(sympy.Function("f")))
+            and self.rate.func.__name__ == "photorates"
+        ):
+            # Return a placeholder that will be replaced later
+            return (
+                f"photorates(#IDX#, {', '.join(str(arg) for arg in self.rate.args[1:])})"
+            )
 
-    def get_c(self):
-        return sympy.ccode(self.get_sympy(), strict=False)
-
-    def get_cpp(self):
-        # Use C++ code generation
-        cpp_code = sympy.cxxcode(self.get_sympy(), strict=False)
-        # Replace std:: prefix with Kokkos:: for math functions
-        cpp_code = cpp_code.replace("std::", "Kokkos::")
-        return cpp_code
-
-    def get_f90(self):
-        return sympy.fcode(self.get_sympy(), strict=False)
+        return fmap[lang](self.get_sympy(), strict=False)
 
     def get_sympy(self):
         return sympy.sympify(self.rate)

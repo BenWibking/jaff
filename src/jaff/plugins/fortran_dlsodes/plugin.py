@@ -1,15 +1,14 @@
-import os
+from jaff import Codegen, Preprocessor
 
 
 def main(network, path_template, path_build=None):
-    from jaff.preprocessor import Preprocessor
-
     p = Preprocessor()
+    cg = Codegen(network=network, lang="fortran")
 
-    scommons = network.get_commons(idx_offset=1, definition_prefix="integer,parameter::")
-    rates = network.get_rates(language="f90")
-    sflux = network.get_fluxes(language="f90")
-    sode = network.get_ode(derivative_variable="dn", language="f90")
+    scommons = cg.get_commons(idx_offset=1, definition_prefix="integer,parameter::")
+    rates = cg.get_rates()
+    sflux = cg.get_fluxes()
+    sode = cg.get_ode(derivative_var="dn")
 
     p.preprocess(
         path_template,
