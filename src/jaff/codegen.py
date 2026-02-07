@@ -89,6 +89,7 @@ class Codegen:
                         "{}", "<>". If empty, uses language default.
             matrix_format: Override for 2D array format. Options: "()", "(,)", "[]",
                           "[,]", "{}", "{,}", "<>", "<,>". If empty, uses language default.
+            dedt: Whether to include specific internal energy equation. Default: False
 
         Raises:
             ValueError: If lang, brac_format, or matrix_format is not supported
@@ -399,6 +400,19 @@ class Codegen:
         return sode
 
     def gen_sdedt(self) -> sp.Expr:
+        """
+        Generate symbolic expression for specific internal energy time derivative.
+
+        Computes the time derivative of specific internal energy (dedt) by
+        combining chemical heating/cooling and other energy sources, normalized
+        by total mass density.
+
+        Returns:
+            SymPy expression for d(e)/dt where e is specific internal energy
+
+        Formula:
+            dedt = (dEdt_chem + dEdt_other) / density_total
+        """
         nspec = len(self.net.species)
         nden_matrix = sp.MatrixSymbol("nden", nspec, 1)
 
@@ -415,6 +429,15 @@ class Codegen:
         return (self.net.dEdt_chem + self.net.dEdt_other) / den_tot
 
     def get_dedt(self) -> str:
+        """
+        Generate code for specific internal energy time derivative.
+
+        This method converts the symbolic specific internal energy derivative
+        expression into language-specific code. Results are cached after first call.
+
+        Returns:
+            String containing the generated code for dedt calculation
+        """
         if self.dedt_str:
             return self.dedt_str
 
@@ -431,6 +454,23 @@ class Codegen:
         brac_format: str = "",
         def_prefix: str = "",
     ) -> str:
+        """
+        Generate optimized ODE right-hand side code with CSE.
+
+        This method generates code for the ODE system by computing symbolic
+        derivatives and applying common subexpression elimination. Results
+        are cached after the first call.
+
+        Args:
+            idx_offset: Starting index for arrays (default: 0)
+            use_cse: Apply common subexpression elimination (default: True)
+            ode_var: Name of ODE output array (default: "f")
+            brac_format: Override for 1D array bracket style (unused, for compatibility)
+            def_prefix: Prefix for variable definitions (default: uses language default)
+
+        Returns:
+            String containing the generated ODE code with optional CSE optimizations
+        """
         if self.ode_str:
             return self.ode_str
 
@@ -481,6 +521,18 @@ class Codegen:
         return ode_code
 
     def get_rhs(self, **kwargs) -> str:
+        """
+        Generate complete right-hand side code (ODE + optional energy equation).
+
+        This method combines the ODE system with the specific internal energy
+        derivative if dedt is enabled.
+
+        Args:
+            **kwargs: Arguments passed through to get_ode()
+
+        Returns:
+            String containing ODE code and optionally dedt code
+        """
         rhs = self.get_ode(**kwargs)
         if self.dedt:
             rhs += self.get_dedt()
@@ -496,33 +548,29 @@ class Codegen:
         var_prefix: str = "",
     ) -> str:
         """
-        Generate symbolic ODE and analytical Jacobian with CSE optimization.
+        Generate analytical Jacobian matrix with CSE optimization.
 
         This method uses symbolic differentiation to compute the analytical
         Jacobian matrix (df/dy) for the chemical ODE system. Common subexpression
-        elimination is applied separately to ODE and Jacobian code for maximum
-        efficiency.
+        elimination is applied to reduce redundant calculations. Results are
+        cached after the first call.
 
         Args:
             idx_offset: Starting index for arrays (default: 0)
             use_cse: Apply common subexpression elimination (default: True)
-            dedt_chem: Include chemical energy equation (default: False)
-            ode_var: Name of ODE output array (default: "f")
             jac_var: Name of Jacobian matrix (default: "J")
-            matrix_format: Override 2D array format (default: "" uses language default)
-            brac_format: Override 1D array format (default: "" uses language default)
+            matrix_format: Override 2D array format (unused, for compatibility)
             var_prefix: Prefix for CSE variables (default: "" uses language default)
 
         Returns:
-            Tuple of (ode_code, jacobian_code) strings containing:
-                - ode_code: Right-hand side df/dt with CSE optimizations
-                - jacobian_code: Analytical Jacobian df/dy with CSE optimizations
+            String containing the generated Jacobian code with CSE optimizations
 
         Note:
             - The Jacobian accounts for rate coefficient dependencies on concentrations
-            - CSE is pruned separately for ODE and Jacobian to avoid unused temporaries
+            - CSE temporaries are pruned to remove unused variables
             - Only non-zero Jacobian elements are generated
             - Symbolic variables y_i are mapped to nden[i] in generated code
+            - If dedt is enabled, includes energy equation derivatives as extra column
         """
         if self.jac_str:
             return self.jac_str
