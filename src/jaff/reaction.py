@@ -26,6 +26,9 @@ class Reaction:
         self.serialized_exploded = self.serialize_exploded()
         self.serialized = self.serialize()
 
+    def __repr__(self):
+        return self.verbatim
+
     def guess_type(self):
         from sympy import Function, symbols
 
