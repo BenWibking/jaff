@@ -76,6 +76,7 @@ class Codegen:
         lang: str = "c++",
         brac_format: str = "",
         matrix_format: str = "",
+        dedt: bool = False,
     ):
         """
         Initialize the code generator for a specific language and network.
@@ -158,6 +159,8 @@ class Codegen:
 
         # Set network object
         self.net: Network = network
+        self.dedt: bool = dedt
+        self.sode: list[sp.Expr] = []
 
     def get_commons(
         self, idx_offset: int = -1, idx_prefix: str = "", definition_prefix: str = ""
@@ -396,7 +399,6 @@ class Codegen:
         self,
         idx_offset: int = 0,
         use_cse: bool = True,
-        dedt_chem: bool = False,
         ode_var: str = "f",
         jac_var: str = "J",
         matrix_format: str = "",
@@ -444,7 +446,7 @@ class Codegen:
         # We use temporary scalar symbols y_i for robust SymPy manipulation, then
         # remap names to `nden[i]` at codegen time to match templates.
         n_species = len(self.net.species)
-        n_ode_eqns = n_species + int(dedt_chem)
+        n_ode_eqns = n_species + int(self.dedt)
         y_syms = [sp.symbols(f"y_{i}") for i in range(n_species)]
 
         # Build mapping to replace any Indexed occurrences of nden[...] in rate expressions
@@ -461,7 +463,7 @@ class Codegen:
         k_exprs = [rea.rate.xreplace(nden_to_y) for rea in self.net.reactions]
 
         # Precompute specific internal energy equation if requested
-        if dedt_chem:
+        if self.dedt:
             den_tot = reduce(
                 lambda x, y: x + y,
                 [
@@ -469,7 +471,10 @@ class Codegen:
                     for i, specie in enumerate(self.net.species)
                 ],
             )
-            dedt_chem_exp = self.net.dEdt_chem.xreplace(nden_to_y) / den_tot
+            dedt_exp = (
+                self.net.dEdt_chem.xreplace(nden_to_y)
+                + self.net.dEdt_other.xreplace(nden_to_y)
+            ) / den_tot
 
         # Dict to replace any remaining k[i] symbols defensively before differentiating
         subs_k = {
@@ -480,14 +485,14 @@ class Codegen:
         ]
 
         # Append specific internal energy rate equation conditionally
-        if dedt_chem:
-            ode_symbols.append(dedt_chem_exp)
+        if self.dedt:
+            ode_symbols.append(dedt_exp)
 
         # Compute the Jacobian matrix d(f)/d(y) via symbolic differentiation
         # This gives exact analytical derivatives for stiff ODE solvers
         jacobian_matrix = sp.Matrix(ode_symbols).jacobian(y_syms)
 
-        if dedt_chem:
+        if self.dedt:
             # Calculate internal energy derivatives and append as extra column
             dde = sp.zeros(n_ode_eqns, 1)
             dedot_dtgas = sp.diff(self.__get_sym_eos(), sp.symbols("tgas"))
