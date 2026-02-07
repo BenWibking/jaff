@@ -7,8 +7,8 @@ def main(network, path_template, path_build=None):
 
     scommons = cg.get_commons(idx_offset=1, definition_prefix="integer,parameter::")
     rates = cg.get_rates()
-    sflux = cg.get_fluxes()
-    sode = cg.get_ode(derivative_var="dn")
+    sflux = cg.get_flux_expressions()
+    sode = cg.get_ode_expressions(derivative_var="dn")
 
     p.preprocess(
         path_template,

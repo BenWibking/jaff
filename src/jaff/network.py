@@ -1141,6 +1141,46 @@ class Network:
         # Return final table
         return temp, np.exp(log_rates)
 
+    def get_sfluxes(self) -> list[sympy.Expr]:
+        nspec = len(self.species)
+        nreact = len(self.reactions)
+        fluxes = [sympy.Integer(0)] * nreact
+        nden_matrix = MatrixSymbol("nden", nspec, 1)
+
+        for i, reaction in enumerate(self.reactions):
+            flux = reaction.rate
+            for reactant in reaction.reactants:
+                flux *= nden_matrix[self.species_dict[str(reactant)], 0]
+
+            fluxes[i] = flux
+
+        return fluxes
+
+    def get_sodes(self) -> list[sympy.Expr]:
+        nspec = len(self.species)
+        fluxes = self.get_sfluxes()
+        sodes = [sympy.Integer(0)] * nspec
+
+        for i, reaction in enumerate(self.reactions):
+            for rr in reaction.reactants:
+                idx = (
+                    rr.index
+                    if isinstance(rr.fidx, str) and rr.fidx.startswith("idx_")
+                    else int(rr.fidx)
+                )
+                sodes[idx] -= fluxes[i]
+
+            # Add flux to products
+            for pp in reaction.products:
+                idx = (
+                    pp.index
+                    if isinstance(pp.fidx, str) and pp.fidx.startswith("idx_")
+                    else int(pp.fidx)
+                )
+                sodes[idx] += fluxes[i]
+
+        return sodes
+
     # *****************
     def write_table(
         self,

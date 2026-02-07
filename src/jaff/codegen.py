@@ -12,6 +12,7 @@ Supported languages: C++, C, Fortran90, Python
 import re
 from collections.abc import Callable
 from functools import reduce
+from itertools import product
 from typing import Any, List, Tuple, TypedDict
 
 import sympy as sp
@@ -285,7 +286,7 @@ class Codegen:
 
         return rates
 
-    def get_fluxes(
+    def get_flux_expressions(
         self,
         rate_var: str = "k",
         species_var: str = "y",
@@ -317,7 +318,7 @@ class Codegen:
         fluxes = ""
 
         for i, rea in enumerate(self.net.reactions):
-            flux = rea.get_flux(
+            flux = rea.get_flux_expressions(
                 idx=ioff + i,
                 rate_variable=rate_var,
                 species_variable=species_var,
@@ -328,7 +329,7 @@ class Codegen:
 
         return fluxes
 
-    def get_ode(
+    def get_ode_expressions(
         self,
         idx_offset: int = -1,
         flux_var: str = "flux",
@@ -448,14 +449,10 @@ class Codegen:
 
         # Build mapping to replace any Indexed occurrences of nden[...] in rate expressions
         # with the corresponding scalar y_i symbols.
-
-        nden_base = sp.IndexedBase("nden")
         nden_matrix = sp.MatrixSymbol("nden", n_species, 1)
         nden_to_y = {}
         for i in range(n_species):
             # Support both nden[i] and nden[Idx(i)] forms
-            nden_to_y[sp.Indexed(nden_base, i)] = y_syms[i]
-            nden_to_y[sp.Indexed(nden_base, sp.Idx(i))] = y_syms[i]
             nden_to_y[nden_matrix[i, 0]] = y_syms[i]
             nden_to_y[nden_matrix[sp.Idx(i), 0]] = y_syms[i]
 
@@ -474,57 +471,13 @@ class Codegen:
             )
             dedt_chem_exp = self.net.dEdt_chem.xreplace(nden_to_y) / den_tot
 
-        # Build symbolic flux expressions using the full SymPy rate
-        # so that dependencies k(y) contribute via the chain rule.
-        flux_exprs = []
-        for i, rea in enumerate(self.net.reactions):
-            rate_expr = k_exprs[i]
-            # Replace any symbolic k[i] occurrences with the full rate expr, defensively
-            rate_symbol = sp.symbols(f"k[{i}]")
-            rate_expr = rate_expr.xreplace({rate_symbol: k_exprs[i]})
-            flux = rate_expr
-            # Multiply by reactant concentrations (as y_syms)
-            for rr in rea.reactants:
-                if isinstance(rr.fidx, str):
-                    if rr.fidx.startswith("idx_"):
-                        idx = rr.index
-                    else:
-                        idx = int(rr.fidx)
-                else:
-                    idx = int(rr.fidx)
-                flux *= y_syms[idx]
-            flux_exprs.append(flux)
-
-        # Build symbolic ODE RHS using flux expressions
-        ode_symbols = [sp.Integer(0) for _ in range(n_species)]
-        for i, rea in enumerate(self.net.reactions):
-            # Subtract flux from reactants
-            for rr in rea.reactants:
-                if isinstance(rr.fidx, str):
-                    if rr.fidx.startswith("idx_"):
-                        idx = rr.index
-                    else:
-                        idx = int(rr.fidx)
-                else:
-                    idx = int(rr.fidx)
-                ode_symbols[idx] -= flux_exprs[i]
-
-            # Add flux to products
-            for pp in rea.products:
-                if isinstance(pp.fidx, str):
-                    if pp.fidx.startswith("idx_"):
-                        idx = pp.index
-                    else:
-                        idx = int(pp.fidx)
-                else:
-                    idx = int(pp.fidx)
-                ode_symbols[idx] += flux_exprs[i]
-
-        # Replace any remaining k[i] symbols defensively before differentiating
+        # Dict to replace any remaining k[i] symbols defensively before differentiating
         subs_k = {
             sp.symbols(f"k[{i}]"): k_exprs[i] for i in range(len(self.net.reactions))
         }
-        ode_symbols = [expr.xreplace(subs_k) for expr in ode_symbols]
+        ode_symbols = [
+            sode.xreplace({**nden_to_y, **subs_k}) for sode in self.net.get_sodes()
+        ]
 
         # Append specific internal energy rate equation conditionally
         if dedt_chem:
@@ -536,7 +489,6 @@ class Codegen:
 
         if dedt_chem:
             # Calculate internal energy derivatives and append as extra column
-
             dde = sp.zeros(n_ode_eqns, 1)
             dedot_dtgas = sp.diff(self.__get_sym_eos(), sp.symbols("tgas"))
 
@@ -545,6 +497,9 @@ class Codegen:
                 dde[i, 0] = dxdot_dtgas / dedot_dtgas
 
             jacobian_matrix = jacobian_matrix.row_join(dde)
+
+        ode_code: str = ""
+        jac_code: str = ""
 
         # Apply common subexpression elimination if requested
         # CSE significantly reduces code size and computation time for large networks
@@ -564,7 +519,6 @@ class Codegen:
             repls_jac = self.__prune_cse(replacements, jac_reduced)
 
             # Generate ODE code with only the needed CSE assignments
-            ode_code = ""
             for i, (var, expr) in enumerate(repls_ode):
                 expr_str = self.code_gen(expr, allow_unknown_functions=True)
 
@@ -588,7 +542,6 @@ class Codegen:
                 ode_code += f"{ode_var}{self.lb}{ioff + i}{self.rb} {self.assignment_op} {expr_str}{self.line_end}\n"
 
             # Generate Jacobian code with only the needed CSE assignments
-            jac_code = ""
             for i, (var, expr) in enumerate(repls_jac):
                 expr_str = self.code_gen(expr, allow_unknown_functions=True)
 
@@ -600,46 +553,46 @@ class Codegen:
                 jac_code += (
                     f"{prefix}{var} {self.assignment_op} {expr_str}{self.line_end}\n"
                 )
-            for i in range(n_ode_eqns):
-                for j in range(n_ode_eqns):
-                    idx = i * n_ode_eqns + j
-                    expr = jac_reduced[idx]
-                    if expr != 0:
-                        expr_str = self.code_gen(expr, allow_unknown_functions=True)
+            for i, j in product(range(n_ode_eqns), repeat=2):
+                idx = i * n_ode_eqns + j
+                expr = jac_reduced[idx]
 
-                        for m in range(n_ode_eqns):
-                            expr_str = re.sub(
-                                rf"\by_{m}\b", f"nden{self.lb}{m}{self.rb}", expr_str
-                            )
-                        expr_str = expr_str.replace("[", self.lb).replace("]", self.rb)
-                        jac_code += f"{jac_var}{self.lb}{ioff + i}{self.matrix_sep}{ioff + j}{self.rb} {self.assignment_op} {expr_str}{self.line_end}\n"
-        else:
-            # Generate ODE code without CSE
-            ode_code = ""
-            for i, expr in enumerate(ode_symbols):
+                if expr == 0:
+                    continue
+
                 expr_str = self.code_gen(expr, allow_unknown_functions=True)
 
-                for j in range(n_ode_eqns):
+                for m in range(n_ode_eqns):
                     expr_str = re.sub(
-                        rf"\by_{j}\b", f"nden{self.lb}{j}{self.rb}", expr_str
+                        rf"\by_{m}\b", f"nden{self.lb}{m}{self.rb}", expr_str
                     )
                 expr_str = expr_str.replace("[", self.lb).replace("]", self.rb)
-                ode_code += f"{ode_var}{self.lb}{ioff + i}{self.rb} {self.assignment_op} {expr_str}{self.line_end}\n"
+                jac_code += f"{jac_var}{self.lb}{ioff + i}{self.matrix_sep}{ioff + j}{self.rb} {self.assignment_op} {expr_str}{self.line_end}\n"
 
-            # Generate Jacobian code without CSE
-            jac_code = ""
-            for i in range(n_ode_eqns):
-                for j in range(n_ode_eqns):
-                    expr = jacobian_matrix[i, j]
-                    if expr != 0:
-                        expr_str = self.code_gen(expr, allow_unknown_functions=True)
+            return ode_code, jac_code
 
-                        for m in range(n_ode_eqns):
-                            expr_str = re.sub(
-                                rf"\by_{m}\b", f"nden{self.lb}{m}{self.rb}", expr_str
-                            )
-                        expr_str = expr_str.replace("[", self.lb).replace("]", self.rb)
-                        jac_code += f"{jac_var}{self.lb}{ioff + i}{self.matrix_sep}{ioff + j}{self.rb} {self.assignment_op} {expr_str}{self.line_end}\n"
+        # Generate ODE code without CSE
+        for i, expr in enumerate(ode_symbols):
+            expr_str = self.code_gen(expr, allow_unknown_functions=True)
+
+            for j in range(n_ode_eqns):
+                expr_str = re.sub(rf"\by_{j}\b", f"nden{self.lb}{j}{self.rb}", expr_str)
+            expr_str = expr_str.replace("[", self.lb).replace("]", self.rb)
+            ode_code += f"{ode_var}{self.lb}{ioff + i}{self.rb} {self.assignment_op} {expr_str}{self.line_end}\n"
+
+        # Generate Jacobian code without CSE
+        for i, j in product(range(n_ode_eqns), repeat=2):
+            expr = jacobian_matrix[i, j]
+
+            if expr == 0:
+                continue
+
+            expr_str = self.code_gen(expr, allow_unknown_functions=True)
+
+            for m in range(n_ode_eqns):
+                expr_str = re.sub(rf"\by_{m}\b", f"nden{self.lb}{m}{self.rb}", expr_str)
+            expr_str = expr_str.replace("[", self.lb).replace("]", self.rb)
+            jac_code += f"{jac_var}{self.lb}{ioff + i}{self.matrix_sep}{ioff + j}{self.rb} {self.assignment_op} {expr_str}{self.line_end}\n"
 
         return ode_code, jac_code
 

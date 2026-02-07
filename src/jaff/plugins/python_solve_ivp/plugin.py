@@ -9,8 +9,8 @@ def main(network, path_template, path_build=None):
 
     scommons = cg.get_commons()
     rates = cg.get_rates()
-    sflux = cg.get_fluxes()
-    sode = cg.get_ode()
+    sflux = cg.get_flux_expressions()
+    sode = cg.get_ode_expressions()
 
     p.preprocess(
         path_template,
@@ -19,11 +19,3 @@ def main(network, path_template, path_build=None):
         comment="#",
         path_build=path_build,
     )
-
-
-if __name__ == "__main__":
-    from jaff import Builder, Network
-
-    net = Network("networks/test.dat")
-    builder = Builder(net)
-    builds_dir = builder.build(template="python_solve_ivp")
