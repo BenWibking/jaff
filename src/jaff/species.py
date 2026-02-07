@@ -23,6 +23,9 @@ class Species:
         self.parse(mass_dict)
         self.serialize()
 
+    def __repr__(self):
+        return self.name
+
     # ********************
     def get_fidx(self):
         if self.name == "e-":
