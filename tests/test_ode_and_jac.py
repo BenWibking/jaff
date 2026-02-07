@@ -43,7 +43,7 @@ def test_network_dedt():
 @pytest.fixture
 def test_codegen_dedt(test_network_dedt):
     """Create a Codegen instance for the test network with internal energy."""
-    return Codegen(test_network_dedt, lang="c++")
+    return Codegen(test_network_dedt, lang="c++", dedt=True)
 
 
 def test_network_reactions_loaded(test_network: Network):
@@ -69,7 +69,8 @@ def test_rates(test_codegen: Codegen):
 def test_ode_and_jac(test_codegen: Codegen):
     "Test generated odes and jac with precalculated expression strings"
 
-    ode, jac = test_codegen.get_symbolic_ode_and_jacobian(use_cse=False)
+    ode = test_codegen.get_ode(use_cse=False)
+    jac = test_codegen.get_jacobian(use_cse=False)
 
     expected_rhs: List[str] = [
         "-std::pow(nden[0], 2)*nden[1]",
@@ -138,9 +139,8 @@ def test_dedt(test_network_dedt: Network):
 def test_ode_and_jac_dedt(test_codegen_dedt: Codegen):
     "Test generated odes and jac with precalculated expression strings"
 
-    ode, jac = test_codegen_dedt.get_symbolic_ode_and_jacobian(
-        use_cse=False, dedt_chem=True
-    )
+    rhs = test_codegen_dedt.get_rhs(use_cse=False)
+    jac = test_codegen_dedt.get_jacobian(use_cse=False)
 
     expected_rhs: List[str] = [
         "-std::pow(nden[0], 2)*nden[1]",
@@ -161,20 +161,20 @@ def test_ode_and_jac_dedt(test_codegen_dedt: Codegen):
         "-6.6464729999999996e-24*std::pow(nden[0], 3)*nden[1]/std::pow(1.6737729999999998e-24*nden[0] + 3.3435860000000001e-24*nden[1] + 6.6464729999999996e-24*nden[2], 2)",
     ]
 
-    ode_comp = ode.strip().split("\n")
+    rhs_comp = rhs.strip().split("\n")
     jac_comp = jac.strip().split("\n")
 
-    ode_comp = [comp.split("=")[-1].strip().strip(";") for comp in ode_comp]
+    rhs_comp = [comp.split("=")[-1].strip().strip(";") for comp in rhs_comp]
     jac_comp = [comp.split("=")[-1].strip().strip(";") for comp in jac_comp]
 
-    assert len(ode_comp) == len(expected_rhs), (
+    assert len(rhs_comp) == len(expected_rhs), (
         f"Number of ode equations must be equal to {len(expected_rhs)}"
     )
     assert len(jac_comp) == len(expected_jac), (
         f"Number of jacobian components must be equal to {len(expected_jac)}"
     )
 
-    for comp, excomp in zip(ode_comp, expected_rhs):
+    for comp, excomp in zip(rhs_comp, expected_rhs):
         assert comp == excomp, f"ODE: {comp} must be equal to {excomp}"
 
     for comp, excomp in zip(jac_comp, expected_jac):

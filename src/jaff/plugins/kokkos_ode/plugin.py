@@ -30,7 +30,8 @@ static constexpr double DEFAULT_CRATE = 1.3e-17;      // Default cosmic ray ioni
     rates = cg.get_rates(idx_offset=0, rate_variable="k", use_cse=True)
 
     # Generate symbolic ODE and analytical Jacobian
-    sode, jacobian = cg.get_symbolic_ode_and_jacobian(
+    sode = cg.get_ode(idx_offset=0, use_cse=True)
+    jacobian = cg.get_jacobian(
         idx_offset=0,
         use_cse=True,
     )

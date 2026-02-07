@@ -117,7 +117,7 @@ class Reaction:
         )
         return "$" + latex + "$"
 
-    def get_flux_expressions(
+    def get_flux_expression(
         self, idx=0, rate_variable="k", species_variable="y", brackets="[]", idx_prefix=""
     ):
         if len(brackets) != 2:

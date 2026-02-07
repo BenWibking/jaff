@@ -7,13 +7,13 @@ def main(network, path_template, path_build=None):
 
     scommons = cg.get_commons(idx_offset=1, definition_prefix="integer,parameter::")
     rates = cg.get_rates()
-    sflux = cg.get_flux_expressions()
+    flux = cg.get_flux_expressions()
     sode = cg.get_ode_expressions(derivative_var="dn")
 
     p.preprocess(
         path_template,
         ["commons.f90", "ode.f90", "fluxes.f90", "reactions.f90"],
-        [{"COMMONS": scommons}, {"ODE": sode}, {"FLUXES": sflux}, {"REACTIONS": rates}],
+        [{"COMMONS": scommons}, {"ODE": sode}, {"FLUXES": flux}, {"REACTIONS": rates}],
         comment="!!",
         path_build=path_build,
     )
