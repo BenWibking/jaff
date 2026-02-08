@@ -210,6 +210,7 @@ class Codegen:
         self,
         idx_offset: int = -1,
         rate_variable: str = "k",
+        brac_format: str = "",
         use_cse: bool = True,
         var_prefix: str = "",
     ) -> str:
@@ -240,6 +241,7 @@ class Codegen:
             if var_prefix
             else f"{self.extras.get('type_qualifier', '')}{self.types.get('double', '')}"
         )
+        lb, rb = self.lb, self.rb if not brac_format else brac_format
         rates = ""
 
         # Collect all rate expressions and apply CSE if enabled
@@ -273,7 +275,9 @@ class Codegen:
 
                     for i, (var, expr) in enumerate(replacements):
                         expr = self.code_gen(expr, strict=False)
-                        rates += f"{prefix}{var} = {expr}{self.line_end}\n"
+                        rates += (
+                            f"{prefix}{var} {self.assignment_op} {expr}{self.line_end}\n"
+                        )
 
                     rates += (
                         f"\n{self.comment}Rate calculations using common subexpressions\n"
@@ -287,9 +291,7 @@ class Codegen:
             rate = cse_dict[i] if cse_dict.get(i, "") else rea.get_code(self.lang)
             if rea.guess_type() == "photo":
                 rate = rate.replace("#IDX#", str(ioff + i))
-            rates += (
-                f"{rate_variable}{self.lb}{ioff + i}{self.rb} = {rate}{self.line_end}\n"
-            )
+            rates += f"{rate_variable}{lb}{ioff + i}{rb} = {rate}{self.line_end}\n"
 
         return rates
 
@@ -332,7 +334,7 @@ class Codegen:
                 brackets=f"{self.lb}{self.rb}",
                 idx_prefix=idx_prefix,
             )
-            fluxes += f"flux{self.lb}{ioff + i}{self.rb} = {flux}{self.line_end}\n"
+            fluxes += f"flux{self.lb}{ioff + i}{self.rb} {self.assignment_op} {flux}{self.line_end}\n"
 
         return fluxes
 
@@ -395,7 +397,7 @@ class Codegen:
 
         sode = ""
         for name, expr in ode.items():
-            sode += f"{derivative_var}{self.lb}{name}{self.rb} = {expr}{self.line_end}\n"
+            sode += f"{derivative_var}{self.lb}{name}{self.rb} {self.assignment_op} {expr}{self.line_end}\n"
 
         return sode
 
@@ -480,6 +482,7 @@ class Codegen:
             if def_prefix
             else f"{self.extras.get('type_qualifier', '')}{self.types.get('double', '')}"
         )
+        lb, rb = self.lb, self.rb if not brac_format else brac_format
 
         ode_code: str = ""
 
@@ -514,13 +517,20 @@ class Codegen:
             expr_str = self.code_gen(expr, allow_unknown_functions=True)
 
             expr_str = expr_str.replace("[", self.lb).replace("]", self.rb)
-            ode_code += f"{ode_var}{self.lb}{ioff + i}{self.rb} {self.assignment_op} {expr_str}{self.line_end}\n"
+            ode_code += f"{ode_var}{lb}{ioff + i}{rb} {self.assignment_op} {expr_str}{self.line_end}\n"
 
         self.sode_str = ode_code
 
         return ode_code
 
-    def get_rhs(self, **kwargs) -> str:
+    def get_rhs(
+        self,
+        idx_offset: int = 0,
+        use_cse: bool = True,
+        ode_var: str = "f",
+        brac_format: str = "",
+        def_prefix: str = "",
+    ) -> str:
         """
         Generate complete right-hand side code (ODE + optional energy equation).
 
@@ -528,14 +538,30 @@ class Codegen:
         derivative if dedt is enabled.
 
         Args:
-            **kwargs: Arguments passed through to get_ode()
+            idx_offset: Starting index for arrays (default: 0)
+            use_cse: Apply common subexpression elimination (default: True)
+            ode_var: Name of ODE output array (default: "f")
+            brac_format: Override for 1D array bracket style (unused, for compatibility)
+            def_prefix: Prefix for variable definitions (default: uses language default)
+
 
         Returns:
             String containing ODE code and optionally dedt code
         """
-        rhs = self.get_ode(**kwargs)
+        ioff = idx_offset if idx_offset >= 0 else self.ioff
+        lb, rb = self.lb, self.rb if not brac_format else brac_format
+
+        rhs = self.get_ode(
+            idx_offset=idx_offset,
+            use_cse=use_cse,
+            ode_var=ode_var,
+            brac_format=brac_format,
+            def_prefix=def_prefix,
+        )
         if self.dedt:
-            rhs += self.get_dedt()
+            dedt = self.get_dedt()
+
+        rhs += f"{ode_var}{lb}{ioff + len(self.net.species)}{rb} {self.assignment_op} {dedt}{self.line_end}\n"
 
         return rhs
 
@@ -580,6 +606,21 @@ class Codegen:
             var_prefix
             if var_prefix
             else f"{self.extras.get('type_qualifier', '')}{self.types.get('double', '')}"
+        )
+
+        __matrix_formats = self.__get_matrix_formats()
+        if matrix_format and matrix_format not in __matrix_formats.keys():
+            raise ValueError(
+                f"\n\nUnsupported matrix format: '{matrix_format}'"
+                f"\nSupported matrix formats: {[key for key in __matrix_formats]}\n"
+            )
+
+        mlb, mrb = (
+            __matrix_formats[matrix_format]["brac"] if matrix_format else self.mlb,
+            self.mrb,
+        )
+        matrix_sep: str = (
+            __matrix_formats[matrix_format]["sep"] if matrix_format else self.matrix_sep
         )
 
         # Create symbolic variables representing species concentrations for Jacobian
@@ -668,7 +709,7 @@ class Codegen:
             expr_str = dpattern.sub(replace_y, expr_str)
             expr_str = expr_str.replace("[", self.lb).replace("]", self.rb)
 
-            jac_code += f"{jac_var}{self.lb}{ioff + i}{self.matrix_sep}{ioff + j}{self.rb} {self.assignment_op} {expr_str}{self.line_end}\n"
+            jac_code += f"{jac_var}{mlb}{ioff + i}{matrix_sep}{ioff + j}{mrb} {self.assignment_op} {expr_str}{self.line_end}\n"
 
         self.jac_str = jac_code
 
