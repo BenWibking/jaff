@@ -1,27 +1,32 @@
 import os
 import sys
+
 import numpy as np
 
 
 class Photochemistry:
-
     # ****************
     def __init__(self):
-
         self.xsecs = {}
 
         self.load_xsecs_leiden()
 
     # ****************
     def load_xsecs_leiden(self):
-
         from glob import glob
 
         folder = os.path.join(os.path.dirname(__file__), "data", "xsecs")
 
         for fname in glob(folder + "/*.dat"):
             # take last commented line as header, remove #, and split by spaces
-            header = [x for x in open(fname).readlines() if x.startswith("#")][-1].lower().replace("#", "").strip().split()
+            with open(fname) as f:
+                header = (
+                    [x for x in f.readlines() if x.startswith("#")][-1]
+                    .lower()
+                    .replace("#", "")
+                    .strip()
+                    .split()
+                )
             header = [x for x in header if x != ""]
 
             # get the name of the file without path and extension, i.e. the reaction name in the form R__P_P
@@ -60,18 +65,19 @@ class Photochemistry:
             hplanck = 6.62607015e-27  # erg s
 
             energy = clight * hplanck / (data[iwave].astype(float) * 1e-7)  # nm -> erg
-            xs = data[iread].astype(float) # cm^2
+            xs = data[iread].astype(float)  # cm^2
 
             self.xsecs[rea_serialized] = {"energy": energy, "xsecs": xs}
-
 
     # ****************
     # returns a dictionary with keys "energy" and "xsecs"
     # energy in erg, xsecs in cm^2
     def get_xsec(self, reaction):
-
         if reaction.serialized not in self.xsecs:
-            print("ERROR: reaction %s not found in photochemistry data." % reaction.serialized)
+            print(
+                "ERROR: reaction %s not found in photochemistry data."
+                % reaction.serialized
+            )
             print("Add the file to the data/xsecs folder as %s.dat" % reaction.serialized)
             sys.exit(1)
 
