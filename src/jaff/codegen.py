@@ -211,6 +211,7 @@ class Codegen:
         rate_variable: str = "k",
         brac_format: str = "",
         use_cse: bool = True,
+        cse_var: str = "x",
         var_prefix: str = "",
         assignment_op: str = "",
     ) -> str:
@@ -267,7 +268,11 @@ class Codegen:
             if cse_dict:
                 # Apply CSE to all valid expressions
                 exprs = cse_dict.values()
-                replacements, reduced_exprs = sp.cse(exprs, optimizations="basic")
+
+                cse_var = sp.numbered_symbols(prefix=cse_var)
+                replacements, reduced_exprs = sp.cse(
+                    exprs, optimizations="basic", symbols=cse_var
+                )
 
                 # Prune unused CSE temporaries based on actually emitted rate expressions
                 replacements = self.__prune_cse(replacements, reduced_exprs)
@@ -463,6 +468,7 @@ class Codegen:
         self,
         idx_offset: int = 0,
         use_cse: bool = True,
+        cse_var: str = "cse",
         ode_var: str = "f",
         brac_format: str = "",
         def_prefix: str = "",
@@ -509,9 +515,8 @@ class Codegen:
         ode_symbols = [sode.xreplace(subs_k) for sode in ode_symbols]
 
         if use_cse:
-            replacements, reduced_exprs = sp.cse(
-                ode_symbols, symbols=sp.numbered_symbols("cse")
-            )
+            cse_var = sp.numbered_symbols(prefix=cse_var)
+            replacements, reduced_exprs = sp.cse(ode_symbols, symbols=cse_var)
 
             # Build separate CSE blocks for RHS and Jacobian
             repls_ode = self.__prune_cse(replacements, reduced_exprs)
@@ -542,6 +547,7 @@ class Codegen:
         self,
         idx_offset: int = 0,
         use_cse: bool = True,
+        cse_var: str = "cse",
         ode_var: str = "f",
         brac_format: str = "",
         def_prefix: str = "",
@@ -588,6 +594,7 @@ class Codegen:
         self,
         idx_offset: int = 0,
         use_cse: bool = True,
+        cse_var: str = "cse",
         jac_var: str = "J",
         matrix_format: str = "",
         var_prefix: str = "",
@@ -706,9 +713,8 @@ class Codegen:
         # Apply common subexpression elimination if requested
         # CSE significantly reduces code size and computation time for large networks
         if use_cse:
-            replacements, reduced_exprs = sp.cse(
-                list(jacobian_matrix), symbols=sp.numbered_symbols("cse")
-            )
+            cse_var = sp.numbered_symbols(prefix=cse_var)
+            replacements, reduced_exprs = sp.cse(list(jacobian_matrix), symbols=cse_var)
 
             # Build separate CSE blocks for RHS and Jacobian
             repls_jac = self.__prune_cse(replacements, reduced_exprs)
