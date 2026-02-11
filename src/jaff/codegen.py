@@ -172,6 +172,7 @@ class Codegen:
         idx_prefix: str = "",
         definition_prefix: str = "",
         assignment_op: str = "",
+        line_end: str = "",
     ) -> str:
         """
         Generate code for common constants (species indices, counts).
@@ -196,12 +197,19 @@ class Codegen:
         ioff = idx_offset if idx_offset >= 0 else self.ioff
         scommons = ""
         assign_op = assignment_op if assignment_op else self.assignment_op
+        lend = line_end if line_end else self.line_end
 
         for i, s in enumerate(self.net.species):
-            scommons += f"{definition_prefix}{idx_prefix}{s.fidx} {assign_op} {ioff + i}{self.line_end}\n"
+            scommons += (
+                f"{definition_prefix}{idx_prefix}{s.fidx} {assign_op} {ioff + i}{lend}\n"
+            )
 
-        scommons += f"{definition_prefix}nspecs {assign_op} {len(self.net.species)}{self.line_end}\n"
-        scommons += f"{definition_prefix}nreactions {assign_op} {len(self.net.reactions)}{self.line_end}\n"
+        scommons += (
+            f"{definition_prefix}nspecs {assign_op} {len(self.net.species)}{lend}\n"
+        )
+        scommons += (
+            f"{definition_prefix}nreactions {assign_op} {len(self.net.reactions)}{lend}\n"
+        )
 
         return scommons
 
@@ -214,6 +222,7 @@ class Codegen:
         cse_var: str = "x",
         var_prefix: str = "",
         assignment_op: str = "",
+        line_end: str = "",
     ) -> str:
         """
         Generate code for reaction rate coefficient calculations.
@@ -246,6 +255,7 @@ class Codegen:
             (self.lb, self.rb) if not brac_format else (brac_format[0], brac_format[1])
         )
         assign_op = assignment_op if assignment_op else self.assignment_op
+        lend = line_end if line_end else self.line_end
         rates = ""
 
         # Collect all rate expressions and apply CSE if enabled
@@ -283,7 +293,7 @@ class Codegen:
 
                     for i, (var, expr) in enumerate(replacements):
                         expr = self.code_gen(expr, strict=False)
-                        rates += f"{prefix}{var} {assign_op} {expr}{self.line_end}\n"
+                        rates += f"{prefix}{var} {assign_op} {expr}{lend}\n"
 
                     rates += (
                         f"\n{self.comment}Rate calculations using common subexpressions\n"
@@ -297,9 +307,7 @@ class Codegen:
             rate = cse_dict[i] if cse_dict.get(i, "") else rea.get_code(self.lang)
             if rea.guess_type() == "photo":
                 rate = rate.replace("#IDX#", str(ioff + i))
-            rates += (
-                f"{rate_variable}{lb}{ioff + i}{rb} {assign_op} {rate}{self.line_end}\n"
-            )
+            rates += f"{rate_variable}{lb}{ioff + i}{rb} {assign_op} {rate}{lend}\n"
 
         return rates
 
@@ -312,6 +320,7 @@ class Codegen:
         brac_format: str = "",
         flux_var: str = "flux",
         assignment_op: str = "",
+        line_end: str = "",
     ) -> str:
         """
         Generate code for reaction flux calculations.
@@ -338,6 +347,7 @@ class Codegen:
             (self.lb, self.rb) if not brac_format else (brac_format[0], brac_format[1])
         )
         assign_op = assignment_op if assignment_op else self.assignment_op
+        lend = line_end if line_end else self.line_end
         fluxes = ""
 
         for i, rea in enumerate(self.net.reactions):
@@ -348,7 +358,7 @@ class Codegen:
                 brackets=f"{self.lb}{self.rb}",
                 idx_prefix=idx_prefix,
             )
-            fluxes += f"{flux_var}{lb}{ioff + i}{rb} {assign_op} {flux}{self.line_end}\n"
+            fluxes += f"{flux_var}{lb}{ioff + i}{rb} {assign_op} {flux}{lend}\n"
 
         return fluxes
 
@@ -361,6 +371,7 @@ class Codegen:
         derivative_prefix: str = "d",
         derivative_var: str | None = None,
         assignment_op: str = "",
+        line_end: str = "",
     ) -> str:
         """
         Generate code for ODE right-hand side (dy/dt).
@@ -392,6 +403,7 @@ class Codegen:
             else derivative_var
         )
         assign_op = assignment_op if assignment_op else self.assignment_op
+        lend = line_end if line_end else self.line_end
 
         # Build ODE expressions by accumulating flux contributions
         # Each reaction contributes to derivatives of its reactants (negative)
@@ -413,7 +425,7 @@ class Codegen:
 
         sode = ""
         for name, expr in ode.items():
-            sode += f"{derivative_var}{self.lb}{name}{self.rb} {assign_op} {expr}{self.line_end}\n"
+            sode += f"{derivative_var}{self.lb}{name}{self.rb} {assign_op} {expr}{lend}\n"
 
         return sode
 
@@ -473,6 +485,7 @@ class Codegen:
         brac_format: str = "",
         def_prefix: str = "",
         assignment_op: str = "",
+        line_end: str = "",
     ) -> str:
         """
         Generate optimized ODE right-hand side code with CSE.
@@ -504,6 +517,7 @@ class Codegen:
             (self.lb, self.rb) if not brac_format else (brac_format[0], brac_format[1])
         )
         assign_op = assignment_op if assignment_op else self.assignment_op
+        lend = line_end if line_end else self.line_end
 
         ode_code: str = ""
 
@@ -526,7 +540,7 @@ class Codegen:
                 expr_str = self.code_gen(expr, allow_unknown_functions=True)
 
                 expr_str = expr_str.replace("[", self.lb).replace("]", self.rb)
-                ode_code += f"{prefix}{var} {assign_op} {expr_str}{self.line_end}\n"
+                ode_code += f"{prefix}{var} {assign_op} {expr_str}{lend}\n"
 
             ode_symbols = reduced_exprs
 
@@ -535,9 +549,7 @@ class Codegen:
             expr_str = self.code_gen(expr, allow_unknown_functions=True)
 
             expr_str = expr_str.replace("[", self.lb).replace("]", self.rb)
-            ode_code += (
-                f"{ode_var}{lb}{ioff + i}{rb} {assign_op} {expr_str}{self.line_end}\n"
-            )
+            ode_code += f"{ode_var}{lb}{ioff + i}{rb} {assign_op} {expr_str}{lend}\n"
 
         self.sode_str = ode_code
 
@@ -552,6 +564,7 @@ class Codegen:
         brac_format: str = "",
         def_prefix: str = "",
         assignment_op: str = "",
+        line_end: str = "",
     ) -> str:
         """
         Generate complete right-hand side code (ODE + optional energy equation).
@@ -575,18 +588,23 @@ class Codegen:
             (self.lb, self.rb) if not brac_format else (brac_format[0], brac_format[1])
         )
         assign_op = assignment_op if assignment_op else self.assignment_op
+        lend = line_end if line_end else self.line_end
 
         rhs = self.get_ode(
             idx_offset=idx_offset,
             use_cse=use_cse,
+            cse_var=cse_var,
             ode_var=ode_var,
             brac_format=brac_format,
             def_prefix=def_prefix,
+            line_end=line_end,
         )
         if self.dedt:
             dedt = self.get_dedt()
 
-        rhs += f"{ode_var}{lb}{ioff + len(self.net.species)}{rb} {assign_op} {dedt}{self.line_end}\n"
+        rhs += (
+            f"{ode_var}{lb}{ioff + len(self.net.species)}{rb} {assign_op} {dedt}{lend}\n"
+        )
 
         return rhs
 
@@ -599,6 +617,7 @@ class Codegen:
         matrix_format: str = "",
         var_prefix: str = "",
         assignment_op: str = "",
+        line_end: str = "",
     ) -> str:
         """
         Generate analytical Jacobian matrix with CSE optimization.
@@ -654,6 +673,7 @@ class Codegen:
             __matrix_formats[matrix_format]["sep"] if matrix_format else self.matrix_sep
         )
         assign_op = assignment_op if assignment_op else self.assignment_op
+        lend = line_end if line_end else self.line_end
 
         # Create symbolic variables representing species concentrations for Jacobian
         # We use temporary scalar symbols y_i for robust SymPy manipulation, then
@@ -725,7 +745,7 @@ class Codegen:
                 expr_str = dpattern.sub(replace_y, expr_str)
                 expr_str = expr_str.replace("[", self.lb).replace("]", self.rb)
 
-                jac_code += f"{prefix}{var} {assign_op} {expr_str}{self.line_end}\n"
+                jac_code += f"{prefix}{var} {assign_op} {expr_str}{lend}\n"
 
         # Generate Jacobian code without CSE
         for i, j in product(range(n_ode_eqns), repeat=2):
@@ -738,7 +758,7 @@ class Codegen:
             expr_str = dpattern.sub(replace_y, expr_str)
             expr_str = expr_str.replace("[", self.lb).replace("]", self.rb)
 
-            jac_code += f"{jac_var}{mlb}{ioff + i}{matrix_sep}{ioff + j}{mrb} {assign_op} {expr_str}{self.line_end}\n"
+            jac_code += f"{jac_var}{mlb}{ioff + i}{matrix_sep}{ioff + j}{mrb} {assign_op} {expr_str}{lend}\n"
 
         self.jac_str = jac_code
 
