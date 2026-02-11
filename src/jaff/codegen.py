@@ -370,6 +370,7 @@ class Codegen:
         idx_prefix: str = "",
         derivative_prefix: str = "d",
         derivative_var: str | None = None,
+        brac_format: str = "",
         assignment_op: str = "",
         line_end: str = "",
     ) -> str:
@@ -404,6 +405,9 @@ class Codegen:
         )
         assign_op = assignment_op if assignment_op else self.assignment_op
         lend = line_end if line_end else self.line_end
+        lb, rb = (
+            (self.lb, self.rb) if not brac_format else (brac_format[0], brac_format[1])
+        )
 
         # Build ODE expressions by accumulating flux contributions
         # Each reaction contributes to derivatives of its reactants (negative)
@@ -425,7 +429,7 @@ class Codegen:
 
         sode = ""
         for name, expr in ode.items():
-            sode += f"{derivative_var}{self.lb}{name}{self.rb} {assign_op} {expr}{lend}\n"
+            sode += f"{derivative_var}{lb}{name}{rb} {assign_op} {expr}{lend}\n"
 
         return sode
 
