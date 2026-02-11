@@ -1,0 +1,270 @@
+/* Custom CSS for JAFF Documentation */
+
+/* Color scheme adjustments */
+:root {
+    --md-primary-fg-color: #3f51b5;
+    --md-primary-fg-color--light: #5c6bc0;
+    --md-primary-fg-color--dark: #303f9f;
+    --md-accent-fg-color: #673ab7;
+    --md-accent-fg-color--transparent: rgba(103, 58, 183, 0.1);
+}
+
+/* Code block enhancements */
+.highlight {
+    border-radius: 0.5rem;
+    margin: 1em 0;
+}
+
+code {
+    font-family: 'Roboto Mono', 'Courier New', monospace;
+    font-size: 0.85em;
+}
+
+/* Inline code styling */
+p code,
+li code,
+td code {
+    background-color: var(--md-code-bg-color);
+    padding: 0.1em 0.4em;
+    border-radius: 0.3em;
+    font-size: 0.85em;
+    font-weight: 500;
+}
+
+/* Table styling */
+table {
+    border-radius: 0.5rem;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+thead {
+    background-color: var(--md-primary-fg-color--light);
+    color: white;
+}
+
+thead th {
+    padding: 0.8rem !important;
+    font-weight: 600;
+}
+
+tbody tr:nth-child(even) {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+[data-md-color-scheme="slate"] tbody tr:nth-child(even) {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Admonition enhancements */
+.admonition {
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.admonition-title {
+    font-weight: 600;
+    padding: 0.8rem 1rem;
+}
+
+/* Grid cards styling */
+.grid.cards {
+    margin: 2rem 0;
+}
+
+.grid.cards > * {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.grid.cards > *:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+/* Navigation improvements */
+.md-nav__link--active {
+    font-weight: 600;
+}
+
+/* Header styling */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    margin-top: 1.5em;
+    margin-bottom: 0.6em;
+}
+
+h1 {
+    border-bottom: 2px solid var(--md-primary-fg-color);
+    padding-bottom: 0.3em;
+}
+
+h2 {
+    border-bottom: 1px solid var(--md-default-fg-color--lighter);
+    padding-bottom: 0.2em;
+}
+
+/* Code block title */
+.highlight > code {
+    display: block;
+    padding: 1em;
+}
+
+/* API reference styling */
+.doc-heading {
+    margin-top: 2em;
+    padding-top: 1em;
+    border-top: 1px solid var(--md-default-fg-color--lightest);
+}
+
+.doc-signature {
+    background-color: var(--md-code-bg-color);
+    padding: 0.5em 1em;
+    border-radius: 0.3em;
+    border-left: 4px solid var(--md-accent-fg-color);
+    margin: 1em 0;
+    font-family: 'Roboto Mono', monospace;
+}
+
+/* Parameter tables in API docs */
+.field-list {
+    margin: 1em 0;
+}
+
+.field-list dt {
+    font-weight: 600;
+    color: var(--md-accent-fg-color);
+}
+
+/* Badges and labels */
+.badge {
+    display: inline-block;
+    padding: 0.25em 0.6em;
+    font-size: 0.75em;
+    font-weight: 600;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.25rem;
+    background-color: var(--md-accent-fg-color);
+    color: white;
+    margin: 0 0.2em;
+}
+
+/* Note boxes */
+.note {
+    background-color: var(--md-accent-fg-color--transparent);
+    border-left: 4px solid var(--md-accent-fg-color);
+    padding: 1em;
+    margin: 1em 0;
+    border-radius: 0.3em;
+}
+
+/* Footer customization */
+.md-footer-meta {
+    background-color: var(--md-primary-fg-color--dark);
+}
+
+/* Search result highlights */
+mark {
+    background-color: var(--md-accent-fg-color--transparent);
+    color: var(--md-accent-fg-color);
+    padding: 0.1em 0.2em;
+    border-radius: 0.2em;
+}
+
+/* Improve spacing in lists */
+ul, ol {
+    margin: 1em 0;
+    padding-left: 1.5em;
+}
+
+li {
+    margin: 0.5em 0;
+}
+
+/* Button styling */
+.md-button {
+    border-radius: 0.5rem;
+    padding: 0.625em 1.25em;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.md-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Version selector styling */
+.md-version__current {
+    font-weight: 600;
+    color: var(--md-primary-fg-color);
+}
+
+/* Tabs styling */
+.tabbed-set {
+    margin: 1em 0;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.tabbed-labels {
+    background-color: var(--md-code-bg-color);
+}
+
+.tabbed-labels > label {
+    font-weight: 500;
+    padding: 0.8em 1.2em;
+}
+
+/* Keyboard shortcuts */
+kbd {
+    display: inline-block;
+    padding: 0.2em 0.5em;
+    font-size: 0.85em;
+    font-family: 'Roboto Mono', monospace;
+    border: 1px solid var(--md-default-fg-color--lighter);
+    border-radius: 0.3em;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background-color: var(--md-code-bg-color);
+}
+
+/* Improve mobile responsiveness */
+@media screen and (max-width: 76.1875em) {
+    .md-typeset table:not([class]) {
+        display: block;
+        overflow-x: auto;
+    }
+}
+
+/* Print styles */
+@media print {
+    .md-header,
+    .md-tabs,
+    .md-sidebar,
+    .md-footer {
+        display: none;
+    }
+
+    .md-content {
+        margin: 0;
+    }
+}
+
+/* Syntax highlighting improvements */
+.highlight .hll { background-color: #ffffcc }
+.highlight .c { color: #408080; font-style: italic }
+.highlight .k { color: #008000; font-weight: bold }
+.highlight .o { color: #666666 }
+.highlight .cm { color: #408080; font-style: italic }
+.highlight .cp { color: #BC7A00 }
+.highlight .c1 { color: #408080; font-style: italic }
+.highlight .cs { color: #408080; font-style: italic }
+.highlight .s { color: #BA2121 }
+.highlight .na { color: #7D9029 }
+.highlight .nb { color: #008000 }
+.highlight .nc { color: #0000FF; font-weight: bold }
+.highlight .nd { color: #AA22FF }
+.highlight .nf { color: #0000FF }
+.highlight .nn { color: #0000FF; font-weight: bold }

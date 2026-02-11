@@ -6,7 +6,32 @@ for chemical reaction networks, including rate calculations, flux computations,
 ODE right-hand sides, and analytical Jacobians with optional common subexpression
 elimination (CSE).
 
-Supported languages: C++, C, Fortran90, Python
+The code generator supports multiple programming languages and provides optimizations
+through symbolic manipulation with SymPy. Generated code can be customized with
+different array indexing styles, variable names, and formatting conventions.
+
+Supported Languages:
+    - C++ (cxx, cpp, c++)
+    - C (c)
+    - Fortran 90 (f90, fortran)
+    - Python (py, python)
+
+Key Features:
+    - Symbolic differentiation for analytical Jacobians
+    - Common subexpression elimination (CSE) for optimization
+    - Customizable array indexing (0-based or 1-based)
+    - Multiple bracket formats ([],(),{},<>)
+    - Language-specific code generation via SymPy
+    - Reaction flux and rate calculations
+    - ODE right-hand side generation
+    - Optional energy equation support
+
+Example:
+    >>> from jaff import Network, Codegen
+    >>> net = Network("networks/react_COthin")
+    >>> cg = Codegen(network=net, lang="cxx")
+    >>> rates = cg.get_rates(idx_offset=0, rate_variable="k")
+    >>> print(rates)
 """
 
 import re
@@ -55,19 +80,43 @@ class Codegen:
     chemical reaction rates, fluxes, ODE right-hand sides, and analytical
     Jacobians in multiple programming languages.
 
+    The Codegen class uses SymPy for symbolic manipulation and code generation,
+    applying optimizations like common subexpression elimination (CSE) to reduce
+    computational costs. Generated code can be customized for different array
+    indexing conventions, variable naming, and language-specific syntax.
+
     Attributes:
-        net: Chemical reaction network object
-        lang: Internal language identifier
-        lb, rb: Left and right brackets for 1D arrays
-        mlb, mrb: Left and right brackets for 2D arrays (matrices)
-        matrix_sep: Separator for 2D array indices
-        assignment_op: Assignment operator for the language
-        line_end: Statement terminator
-        code_gen: SymPy code generation callable
-        ioff: Index offset (0 or 1 based on language)
-        comment: Comment prefix
-        types: Type declaration strings
-        extras: Additional language-specific attributes
+        net (Network): Chemical reaction network object containing species and reactions
+        lang (str): Internal language identifier ('cxx', 'c', 'f90', 'py')
+        lb (str): Left bracket for 1D arrays (e.g., '[' for C++, '(' for Fortran)
+        rb (str): Right bracket for 1D arrays (e.g., ']' for C++, ')' for Fortran)
+        mlb (str): Left bracket for 2D arrays (matrices)
+        mrb (str): Right bracket for 2D arrays (matrices)
+        matrix_sep (str): Separator for 2D array indices (e.g., '][' for C++, ', ' for Python)
+        assignment_op (str): Assignment operator (typically '=')
+        line_end (str): Statement terminator (';' for C/C++, '' for Python/Fortran)
+        code_gen (Callable): SymPy code generation function for target language
+        ioff (int): Array indexing offset (0 for C/C++/Python, 1 for Fortran)
+        comment (str): Comment prefix for the language (e.g., '//' for C++, '!!' for Fortran)
+        types (dict[str, str]): Type declaration strings for the language
+        extras (dict[str, Any]): Additional language-specific attributes (qualifiers, specifiers)
+        dedt_str (str): Cached string for energy equation derivative
+        ode_str (str): Cached string for ODE system
+        jac_str (str): Cached string for Jacobian matrix
+
+    Example:
+        >>> from jaff import Network, Codegen
+        >>> net = Network("networks/react_COthin")
+        >>> cg = Codegen(network=net, lang="cxx")
+        >>>
+        >>> # Generate rate calculations
+        >>> rates = cg.get_rates(idx_offset=0, rate_variable="k", use_cse=True)
+        >>>
+        >>> # Generate ODE system
+        >>> odes = cg.get_ode(idx_offset=0, ode_var="dydt", use_cse=True)
+        >>>
+        >>> # Generate Jacobian matrix
+        >>> jac = cg.get_jacobian(idx_offset=0, jac_var="J", use_cse=True)
     """
 
     def __init__(
@@ -76,23 +125,43 @@ class Codegen:
         lang: str = "c++",
         brac_format: str = "",
         matrix_format: str = "",
-        dedt: bool = False,
-    ):
+    ) -> None:
         """
         Initialize the code generator for a specific language and network.
 
+        Sets up language-specific code generation parameters including bracket styles,
+        array indexing conventions, statement terminators, and SymPy code generators.
+        All generated code will use these settings consistently.
+
         Args:
-            network: Chemical reaction Network object containing species and reactions
-            lang: Target programming language. Options: "c++", "cpp", "cxx", "c",
-                  "fortran", "f90", "python", "py". Default: "c++"
-            brac_format: Override for 1D array bracket style. Options: "()", "[]",
-                        "{}", "<>". If empty, uses language default.
-            matrix_format: Override for 2D array format. Options: "()", "(,)", "[]",
-                          "[,]", "{}", "{,}", "<>", "<,>". If empty, uses language default.
-            dedt: Whether to include specific internal energy equation. Default: False
+            network (Network): Chemical reaction Network object containing species and reactions
+            lang (str): Target programming language. Default: "c++"
+                Options:
+                    - "c++", "cpp", "cxx" → C++ (0-indexed, semicolons, '//' comments)
+                    - "c" → C (0-indexed, semicolons, '//' comments)
+                    - "fortran", "f90" → Fortran 90 (1-indexed, no semicolons, '!!' comments)
+                    - "python", "py" → Python (0-indexed, no semicolons, '#' comments)
+            brac_format (str): Override for 1D array bracket style. Default: "" (use language default)
+                Options: "()", "[]", "{}", "<>"
+                Example: "[]" → array[i], "()" → array(i)
+            matrix_format (str): Override for 2D array format. Default: "" (use language default)
+                Options: "()", "(,)", "[]", "[,]", "{}", "{,}", "<>", "<,>"
+                Example: "[]" → matrix[i][j], "(,)" → matrix(i,j)
 
         Raises:
-            ValueError: If lang, brac_format, or matrix_format is not supported
+            ValueError: If lang is not supported
+            ValueError: If brac_format is not a valid bracket pair
+            ValueError: If matrix_format is not a valid matrix format
+
+        Example:
+            >>> # C++ with default settings
+            >>> cg = Codegen(network=net, lang="cxx")
+            >>>
+            >>> # Fortran with custom bracket format
+            >>> cg = Codegen(network=net, lang="f90", brac_format="()")
+            >>>
+            >>> # Python with comma-separated 2D indexing
+            >>> cg = Codegen(network=net, lang="py", matrix_format="[,]")
         """
         __lang_aliases = self.__get_language_aliases()
         __lang_tokens = self.__get_language_tokens()
