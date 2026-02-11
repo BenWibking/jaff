@@ -160,7 +160,6 @@ class Codegen:
 
         # Set network object
         self.net: Network = network
-        self.dedt: bool = dedt
 
         self.ode_str: str = ""
         self.jac_str: str = ""
@@ -603,8 +602,7 @@ class Codegen:
             def_prefix=def_prefix,
             line_end=line_end,
         )
-        if self.dedt:
-            dedt = self.get_dedt()
+        dedt = self.get_dedt()
 
         rhs += (
             f"{ode_var}{lb}{ioff + len(self.net.species)}{rb} {assign_op} {dedt}{lend}\n"
@@ -614,6 +612,7 @@ class Codegen:
 
     def get_jacobian(
         self,
+        use_dedt: bool = False,
         idx_offset: int = 0,
         use_cse: bool = True,
         cse_var: str = "cse",
@@ -683,7 +682,7 @@ class Codegen:
         # We use temporary scalar symbols y_i for robust SymPy manipulation, then
         # remap names to `nden[i]` at codegen time to match templates.
         n_species = len(self.net.species)
-        n_ode_eqns = n_species + int(self.dedt)
+        n_ode_eqns = n_species + int(use_dedt)
         y_syms = [sp.symbols(f"y_{i}") for i in range(n_species)]
 
         # Build mapping to replace any Indexed occurrences of nden[...] in rate expressions
@@ -705,7 +704,7 @@ class Codegen:
         }
         ode_symbols = self.net.get_sodes()
 
-        if self.dedt and len(ode_symbols) + 1 == n_ode_eqns:
+        if use_dedt and len(ode_symbols) + 1 == n_ode_eqns:
             ode_symbols.append(self.__gen_sdedt())
 
         ode_symbols = [sode.xreplace({**nden_to_y, **subs_k}) for sode in ode_symbols]
@@ -714,7 +713,7 @@ class Codegen:
         # This gives exact analytical derivatives for stiff ODE solvers
         jacobian_matrix = sp.Matrix(ode_symbols).jacobian(y_syms)
 
-        if self.dedt:
+        if use_dedt:
             # Calculate internal energy derivatives and append as extra column
             dde = sp.zeros(n_ode_eqns, 1)
             dedot_dtgas = sp.diff(self.__get_sym_eos(), sp.symbols("tgas"))
@@ -967,12 +966,16 @@ class Codegen:
         # Allows flexibility for various APIs (e.g., A[i][j] vs A(i,j))
         formats: dict[str, dict[str, str]] = {
             "()": {"brac": "()", "sep": ")("},
+            "()()": {"brac": "()", "sep": ")("},
             "(,)": {"brac": "()", "sep": ", "},
             "[]": {"brac": "[]", "sep": "]["},
+            "[][]": {"brac": "[]", "sep": "]["},
             "[,]": {"brac": "[]", "sep": ", "},
             "{}": {"brac": "{}", "sep": "}{"},
+            "{}{}": {"brac": "{}", "sep": "}{"},
             "{,}": {"brac": "{}", "sep": ", "},
             "<>": {"brac": "<>", "sep": "><"},
+            "<><>": {"brac": "<>", "sep": "><"},
             "<,>": {"brac": "<>", "sep": ", "},
         }
         return formats
