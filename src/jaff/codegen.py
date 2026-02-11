@@ -418,13 +418,13 @@ class Codegen:
             for rr in rea.reactants:
                 rrfidx = idx_prefix + rr.fidx
                 if rrfidx not in ode:
-                    ode[rrfidx] = ""
+                    ode[rrfidx] = "0.0"
                 ode[rrfidx] += f" - {flux_var}{self.lb}{ioff + i}{self.rb}"
             # Add flux for each product
             for pp in rea.products:
                 ppfidx = idx_prefix + pp.fidx
                 if ppfidx not in ode:
-                    ode[ppfidx] = ""
+                    ode[ppfidx] = "0.0"
                 ode[ppfidx] += f" + {flux_var}{self.lb}{ioff + i}{self.rb}"
 
         sode = ""

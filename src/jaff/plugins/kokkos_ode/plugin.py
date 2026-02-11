@@ -125,3 +125,11 @@ const double crate = DEFAULT_CRATE;  // Cosmic ray ionization rate
         comment="auto",
         path_build=path_build,
     )
+
+
+if __name__ == "__main__":
+    from jaff import Builder, Network
+
+    net = Network("networks/test.dat")
+    builder = Builder(net)
+    builder.build(template="kokkos_ode")
