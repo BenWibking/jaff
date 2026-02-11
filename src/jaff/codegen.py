@@ -241,7 +241,9 @@ class Codegen:
             if var_prefix
             else f"{self.extras.get('type_qualifier', '')}{self.types.get('double', '')}"
         )
-        lb, rb = self.lb, self.rb if not brac_format else brac_format
+        lb, rb = (
+            (self.lb, self.rb) if not brac_format else (brac_format[0], brac_format[1])
+        )
         assign_op = assignment_op if assignment_op else self.assignment_op
         rates = ""
 
@@ -327,7 +329,9 @@ class Codegen:
             flux[1] = k[1] * y[idx_co];
         """
         ioff = idx_offset if idx_offset >= 0 else self.ioff
-        lb, rb = self.lb, self.rb if not brac_format else brac_format
+        lb, rb = (
+            (self.lb, self.rb) if not brac_format else (brac_format[0], brac_format[1])
+        )
         assign_op = assignment_op if assignment_op else self.assignment_op
         fluxes = ""
 
@@ -490,7 +494,9 @@ class Codegen:
             if def_prefix
             else f"{self.extras.get('type_qualifier', '')}{self.types.get('double', '')}"
         )
-        lb, rb = self.lb, self.rb if not brac_format else brac_format
+        lb, rb = (
+            (self.lb, self.rb) if not brac_format else (brac_format[0], brac_format[1])
+        )
         assign_op = assignment_op if assignment_op else self.assignment_op
 
         ode_code: str = ""
@@ -559,7 +565,9 @@ class Codegen:
             String containing ODE code and optionally dedt code
         """
         ioff = idx_offset if idx_offset >= 0 else self.ioff
-        lb, rb = self.lb, self.rb if not brac_format else brac_format
+        lb, rb = (
+            (self.lb, self.rb) if not brac_format else (brac_format[0], brac_format[1])
+        )
         assign_op = assignment_op if assignment_op else self.assignment_op
 
         rhs = self.get_ode(
@@ -628,8 +636,12 @@ class Codegen:
             )
 
         mlb, mrb = (
-            __matrix_formats[matrix_format]["brac"] if matrix_format else self.mlb,
-            self.mrb,
+            (self.mlb, self.mrb)
+            if not matrix_format
+            else (
+                __matrix_formats[matrix_format]["brac"][0],
+                __matrix_formats[matrix_format]["brac"][1],
+            )
         )
         matrix_sep: str = (
             __matrix_formats[matrix_format]["sep"] if matrix_format else self.matrix_sep
