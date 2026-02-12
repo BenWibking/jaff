@@ -8,11 +8,12 @@ The `generate` module offers the main command-line interface for JAFF. It proces
 
 ## Module: `jaff.generate`
 
-::: jaff.generate
-    options:
-      show_root_heading: true
-      show_source: true
-      heading_level: 2
+<!-- ::: jaff.generate
+    options: -->
+
+      <!-- show_root_heading: true
+      <!-- show_source: true
+      <!-- heading_level: 2
 
 ## Command-Line Interface
 
@@ -39,6 +40,7 @@ Path to the chemical reaction network file.
 **Required**: Yes
 
 **Example**:
+
 ```bash
 python -m jaff.generate --network networks/react_COthin
 ```
@@ -54,6 +56,7 @@ Output directory where generated files will be saved.
 **Default**: Current working directory
 
 **Example**:
+
 ```bash
 python -m jaff.generate --network networks/react_COthin --outdir output/
 ```
@@ -67,6 +70,7 @@ Input directory containing template files to process. All files in this director
 **Default**: None
 
 **Example**:
+
 ```bash
 python -m jaff.generate --network networks/react_COthin --indir templates/
 ```
@@ -80,6 +84,7 @@ Individual template files to process. You can specify multiple files.
 **Default**: None
 
 **Example**:
+
 ```bash
 python -m jaff.generate --network networks/react_COthin --files template1.cpp template2.f90
 ```
@@ -88,11 +93,12 @@ python -m jaff.generate --network networks/react_COthin --files template1.cpp te
 
 ### main()
 
-::: jaff.generate.main
-    options:
-      show_root_heading: true
-      show_source: true
-      heading_level: 3
+<!-- ::: jaff.generate.main
+    options: -->
+
+      <!-- show_root_heading: true
+      <!-- show_source: true
+      <!-- heading_level: 3
 
 Main entry point for the JAFF code generator CLI.
 
@@ -154,10 +160,10 @@ The CLI follows this workflow:
 3. **Validate Output**: Ensure output directory exists or create it
 4. **Collect Files**: Gather template files from `--indir` and/or `--files`
 5. **Process Files**: For each template file:
-   - Load the network
-   - Create a Fileparser instance
-   - Parse the template
-   - Write output to the output directory
+    - Load the network
+    - Create a Fileparser instance
+    - Parse the template
+    - Write output to the output directory
 6. **Complete**: All files processed
 
 ## Error Handling
@@ -221,14 +227,15 @@ python -m jaff.generate \
 
 The CLI determines the target language from the file extension:
 
-| Extension | Language |
-|-----------|----------|
-| `.cpp`, `.cxx`, `.cc` | C++ |
-| `.hpp`, `.hxx`, `.hh`, `.h` | C/C++ |
-| `.c` | C |
-| `.f`, `.for`, `.f90`, `.f95`, `.f03`, `.f08` | Fortran |
+| Extension                                    | Language |
+| -------------------------------------------- | -------- |
+| `.cpp`, `.cxx`, `.cc`                        | C++      |
+| `.hpp`, `.hxx`, `.hh`, `.h`                  | C/C++    |
+| `.c`                                         | C        |
+| `.f`, `.for`, `.f90`, `.f95`, `.f03`, `.f08` | Fortran  |
 
 **Example**:
+
 ```bash
 # These will use appropriate language-specific code generation
 python -m jaff.generate \
@@ -264,9 +271,9 @@ clean:
 # Generate code during configure
 execute_process(
     COMMAND python -m jaff.generate
-        --network ${CMAKE_SOURCE_DIR}/networks/react_COthin
-        --indir ${CMAKE_SOURCE_DIR}/templates
-        --outdir ${CMAKE_BINARY_DIR}/generated
+      <!--   --network ${CMAKE_SOURCE_DIR}/networks/react_COthin
+      <!--   --indir ${CMAKE_SOURCE_DIR}/templates
+      <!--   --outdir ${CMAKE_BINARY_DIR}/generated
     RESULT_VARIABLE JAFF_RESULT
 )
 
@@ -287,15 +294,15 @@ from pathlib import Path
 def generate_code(network_file, template_dir, output_dir):
     """Run JAFF code generation."""
     result = subprocess.run([
-        'python', '-m', 'jaff.generate',
-        '--network', network_file,
-        '--indir', template_dir,
-        '--outdir', output_dir
+      <!--   'python', '-m', 'jaff.generate',
+      <!--   '--network', network_file,
+      <!--   '--indir', template_dir,
+      <!--   '--outdir', output_dir
     ], capture_output=True, text=True)
-    
+
     if result.returncode != 0:
-        raise RuntimeError(f"Code generation failed: {result.stderr}")
-    
+      <!--   raise RuntimeError(f"Code generation failed: {result.stderr}")
+
     return result.stdout
 
 # Usage
@@ -363,10 +370,10 @@ python -m jaff.generate \
 
 ## Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| 0 | Success - all files processed |
-| 1 | Error - see error message |
+| Code | Meaning                       |
+| ---- | ----------------------------- |
+| 0    | Success - all files processed |
+| 1    | Error - see error message     |
 
 ## Logging and Output
 

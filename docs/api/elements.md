@@ -13,35 +13,37 @@ The Elements class analyzes all species in a chemical reaction network to extrac
 
 ## Module: `jaff.elements`
 
-::: jaff.elements
-    options:
-      show_root_heading: true
-      show_source: true
-      heading_level: 2
+<!-- ::: jaff.elements
+    options: -->
+
+      <!-- show_root_heading: true
+      <!-- show_source: true
+      <!-- heading_level: 2
 
 ## Classes
 
 ### Elements
 
-::: jaff.elements.Elements
-    options:
-      show_root_heading: true
-      show_source: true
-      members:
-        - __init__
-        - get_element_truth_matrix
-        - get_element_density_matrix
-      heading_level: 3
+<!-- ::: jaff.elements.Elements
+    options: -->
+
+      <!-- show_root_heading: true
+      <!-- show_source: true
+      <!-- members:
+      <!--   - __init__
+      <!--   - get_element_truth_matrix
+      <!--   - get_element_density_matrix
+      <!-- heading_level: 3
 
 The main class for extracting and managing chemical elements from a reaction network.
 
 #### Attributes
 
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `net` | Network | The chemical reaction network to analyze |
-| `elements` | list[str] | Sorted list of unique element symbols |
-| `nelems` | int | Total number of unique elements |
+| Attribute  | Type      | Description                              |
+| ---------- | --------- | ---------------------------------------- |
+| `net`      | Network   | The chemical reaction network to analyze |
+| `elements` | list[str] | Sorted list of unique element symbols    |
+| `nelems`   | int       | Total number of unique elements          |
 
 #### Constructor
 
@@ -54,6 +56,7 @@ Initialize the Elements analyzer for a given reaction network.
 - `network` (Network): Chemical reaction network containing species to analyze
 
 **Example**:
+
 ```python
 from jaff import Network
 from jaff.elements import Elements
@@ -64,6 +67,7 @@ print(f"Found {elem.nelems} elements: {elem.elements}")
 ```
 
 **Output**:
+
 ```
 Found 3 elements: ['C', 'H', 'O']
 ```
@@ -76,13 +80,14 @@ Generate a binary matrix indicating element presence in each species.
 
 Creates a matrix where entry `[i][j]` is `1` if element `i` is present in species `j`, and `0` otherwise. This is useful for checking element conservation laws and identifying species composition.
 
-**Returns**: 
+**Returns**:
 
 - `list[list[int]]`: 2D matrix (nelems × nspecies) with binary values
-  - `1` if the element is present in the species
-  - `0` if the element is absent from the species
+    - `1` if the element is present in the species
+    - `0` if the element is absent from the species
 
 **Example**:
+
 ```python
 from jaff import Network
 from jaff.elements import Elements
@@ -97,6 +102,7 @@ for i, element in enumerate(elem.elements):
 ```
 
 **Example Output**:
+
 ```
 C: [1, 0, 1, 1, 0]  # C present in species 0, 2, 3
 H: [0, 1, 0, 1, 1]  # H present in species 1, 3, 4
@@ -132,6 +138,7 @@ Creates a matrix where entry `[i][j]` represents the number of atoms of element 
 - `list[list[int]]`: 2D matrix (nelems × nspecies) with integer counts representing the number of atoms of each element in each species
 
 **Example**:
+
 ```python
 from jaff import Network
 from jaff.elements import Elements
@@ -146,6 +153,7 @@ for i, element in enumerate(elem.elements):
 ```
 
 **Example Output**:
+
 ```
 C: [1, 0, 1, 1, 0]  # Number of C atoms in each species
 H: [0, 2, 0, 4, 1]  # Number of H atoms in each species
@@ -233,8 +241,8 @@ truth_matrix = elem.get_element_truth_matrix()
 # Find all species containing carbon
 c_index = elem.elements.index('C')
 species_with_carbon = [
-    net.species[j].name 
-    for j in range(len(net.species)) 
+    net.species[j].name
+    for j in range(len(net.species))
     if truth_matrix[c_index][j] == 1
 ]
 
@@ -288,6 +296,7 @@ print(df)
 ```
 
 **Output**:
+
 ```
      CO  H2  H2O  CH4  OH
 C     1   0    0    1   0
@@ -312,17 +321,19 @@ The Elements class extracts elements from species using the following process:
 Both matrix methods use similar algorithms:
 
 **Truth Matrix**:
+
 ```python
 for each element:
     for each species:
-        matrix[element_idx][species_idx] = 1 if element in species else 0
+      <!--   matrix[element_idx][species_idx] = 1 if element in species else 0
 ```
 
 **Density Matrix**:
+
 ```python
 for each element:
     for each species:
-        matrix[element_idx][species_idx] = count(element in species)
+      <!--   matrix[element_idx][species_idx] = count(element in species)
 ```
 
 ## Performance Considerations
@@ -332,6 +343,7 @@ for each element:
 - **Caching**: Matrices are computed on-demand and not cached
 
 For large networks (>1000 species), consider:
+
 - Converting to NumPy arrays for faster operations
 - Caching matrix results if used multiple times
 - Using sparse matrices if many zeros

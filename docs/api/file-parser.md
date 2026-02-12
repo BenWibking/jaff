@@ -8,24 +8,26 @@ The file parser processes template files containing JAFF directives and generate
 
 ## Module: `jaff.file_parser`
 
-::: jaff.file_parser
-    options:
-      show_root_heading: true
-      show_source: true
-      heading_level: 2
+<!-- ::: jaff.file_parser
+    options: -->
+
+      <!-- show_root_heading: true
+      <!-- show_source: true
+      <!-- heading_level: 2
 
 ## Classes
 
 ### Fileparser
 
-::: jaff.file_parser.Fileparser
-    options:
-      show_root_heading: true
-      show_source: true
-      members:
-        - __init__
-        - parse_file
-      heading_level: 3
+<!-- ::: jaff.file_parser.Fileparser
+    options: -->
+
+      <!-- show_root_heading: true
+      <!-- show_source: true
+      <!-- members:
+      <!--   - __init__
+      <!--   - parse_file
+      <!-- heading_level: 3
 
 #### Methods
 
@@ -36,6 +38,7 @@ Parse the entire template file and generate code.
 **Returns**: `str` - Generated code with all JAFF directives expanded
 
 **Example**:
+
 ```python
 from jaff import Network
 from jaff.file_parser import Fileparser
@@ -51,10 +54,11 @@ print(output)
 
 #### IdxSpanResult
 
-::: jaff.file_parser.IdxSpanResult
-    options:
-      show_root_heading: true
-      heading_level: 4
+<!-- ::: jaff.file_parser.IdxSpanResult
+    options: -->
+
+      <!-- show_root_heading: true
+      <!-- heading_level: 4
 
 Result structure for index span detection.
 
@@ -65,10 +69,11 @@ Result structure for index span detection.
 
 #### CommandProps
 
-::: jaff.file_parser.CommandProps
-    options:
-      show_root_heading: true
-      heading_level: 4
+<!-- ::: jaff.file_parser.CommandProps
+    options: -->
+
+      <!-- show_root_heading: true
+      <!-- heading_level: 4
 
 Properties defining a JAFF command.
 
@@ -79,10 +84,11 @@ Properties defining a JAFF command.
 
 #### CseProps
 
-::: jaff.file_parser.CseProps
-    options:
-      show_root_heading: true
-      heading_level: 4
+<!-- ::: jaff.file_parser.CseProps
+    options: -->
+
+      <!-- show_root_heading: true
+      <!-- heading_level: 4
 
 Common Subexpression Elimination (CSE) properties.
 
@@ -103,6 +109,7 @@ The file parser recognizes five main JAFF commands:
 Substitute template tokens with values from the network.
 
 **Syntax**:
+
 ```cpp
 // $JAFF SUB token1, token2, ...
 code with $token1$ and $token2$
@@ -121,6 +128,7 @@ code with $token1$ and $token2$
 - `$e_idx$` - Index of electron species
 
 **Example**:
+
 ```cpp
 // $JAFF SUB nspec, nreact
 const int NUM_SPECIES = $nspec$;
@@ -129,6 +137,7 @@ const int NUM_REACTIONS = $nreact$;
 ```
 
 **Output** (for a network with 50 species and 200 reactions):
+
 ```cpp
 const int NUM_SPECIES = 50;
 const int NUM_REACTIONS = 200;
@@ -139,6 +148,7 @@ const int NUM_REACTIONS = 200;
 Iterate over network components or generate code expressions.
 
 **Syntax for Iterable Properties**:
+
 ```cpp
 // $JAFF REPEAT var1, var2 IN property [SORT]
 template line with $var1$ and $var2$
@@ -146,6 +156,7 @@ template line with $var1$ and $var2$
 ```
 
 **Syntax for Non-Iterable Properties**:
+
 ```cpp
 // $JAFF REPEAT idx [, cse] IN property
 template line with $idx$ and $property_token$
@@ -154,30 +165,31 @@ template line with $idx$ and $property_token$
 
 **Iterable Properties**:
 
-| Property | Variables | Description |
-|----------|-----------|-------------|
-| `species` | idx, specie | All species names |
-| `reactions` | idx, reaction | All reactions |
-| `elements` | idx, element | All elements |
-| `masses` | idx, mass | Species masses |
-| `charges` | idx, charge | Species charges |
-| `reactants` | idx, reactant | Reaction reactants |
-| `products` | idx, product | Reaction products |
-| `tmins` | idx, tmin | Minimum temperatures |
-| `tmaxes` | idx, tmax | Maximum temperatures |
+| Property    | Variables     | Description          |
+| ----------- | ------------- | -------------------- |
+| `species`   | idx, specie   | All species names    |
+| `reactions` | idx, reaction | All reactions        |
+| `elements`  | idx, element  | All elements         |
+| `masses`    | idx, mass     | Species masses       |
+| `charges`   | idx, charge   | Species charges      |
+| `reactants` | idx, reactant | Reaction reactants   |
+| `products`  | idx, product  | Reaction products    |
+| `tmins`     | idx, tmin     | Minimum temperatures |
+| `tmaxes`    | idx, tmax     | Maximum temperatures |
 
 **Non-Iterable Properties**:
 
-| Property | Variables | Token | Description |
-|----------|-----------|-------|-------------|
-| `rates` | idx, rate, cse | `$rate$` | Reaction rate expressions |
-| `odes` | idx, ode, cse | `$ode$` | ODE right-hand sides |
-| `rhses` | idx, rhs, cse | `$rhs$` | RHS expressions |
-| `jacobian` | idx, expr, cse | `$expr$` | Jacobian matrix elements |
-| `flux_expressions` | idx, flux_expression | `$flux_expression$` | Flux calculations |
-| `ode_expressions` | idx, ode_expression | `$ode_expression$` | ODE expressions |
+| Property           | Variables            | Token               | Description               |
+| ------------------ | -------------------- | ------------------- | ------------------------- |
+| `rates`            | idx, rate, cse       | `$rate$`            | Reaction rate expressions |
+| `odes`             | idx, ode, cse        | `$ode$`             | ODE right-hand sides      |
+| `rhses`            | idx, rhs, cse        | `$rhs$`             | RHS expressions           |
+| `jacobian`         | idx, expr, cse       | `$expr$`            | Jacobian matrix elements  |
+| `flux_expressions` | idx, flux_expression | `$flux_expression$` | Flux calculations         |
+| `ode_expressions`  | idx, ode_expression  | `$ode_expression$`  | ODE expressions           |
 
 **Example - Iterable**:
+
 ```cpp
 // $JAFF REPEAT idx, specie IN species
 species_names[$idx$] = "$specie$";
@@ -185,6 +197,7 @@ species_names[$idx$] = "$specie$";
 ```
 
 **Output**:
+
 ```cpp
 species_names[0] = "H";
 species_names[1] = "H2";
@@ -192,6 +205,7 @@ species_names[2] = "CO";
 ```
 
 **Example - Non-Iterable**:
+
 ```cpp
 // $JAFF REPEAT idx IN rates
 rate[$idx$] = $rate$;
@@ -199,12 +213,14 @@ rate[$idx$] = $rate$;
 ```
 
 **Output**:
+
 ```cpp
 rate[0] = k[0] * n[0] * n[1];
 rate[1] = k[1] * n[2] * n[3];
 ```
 
 **Index Offsets**:
+
 ```cpp
 // $JAFF REPEAT idx, specie IN species
 // Index with offset: $idx+1$ starts from 1 instead of 0
@@ -213,6 +229,7 @@ fortran_index[$idx+1$] = "$specie$";
 ```
 
 **Sorting**:
+
 ```cpp
 // $JAFF REPEAT idx, specie IN species SORT
 // Species will be alphabetically sorted
@@ -221,6 +238,7 @@ species_names[$idx$] = "$specie$";
 ```
 
 **Horizontal Mode** (inline arrays):
+
 ```cpp
 // $JAFF REPEAT specie IN species
 const char* names[] = {"$specie$"};
@@ -228,6 +246,7 @@ const char* names[] = {"$specie$"};
 ```
 
 **Output**:
+
 ```cpp
 const char* names[] = {"H", "H2", "CO", "OH"};
 ```
@@ -237,6 +256,7 @@ const char* names[] = {"H", "H2", "CO", "OH"};
 Get specific properties for named entities.
 
 **Syntax**:
+
 ```cpp
 // $JAFF GET property1, property2 FOR entity_name
 code with $property1$ and $property2$
@@ -256,6 +276,7 @@ code with $property1$ and $property2$
 - `reaction_verbatim` - Original reaction string
 
 **Example**:
+
 ```cpp
 // $JAFF GET specie_idx, specie_mass FOR CO
 const int co_index = $specie_idx$;
@@ -264,6 +285,7 @@ const double co_mass = $specie_mass$;
 ```
 
 **Output**:
+
 ```cpp
 const int co_index = 15;
 const double co_mass = 28.01;
@@ -274,6 +296,7 @@ const double co_mass = 28.01;
 Check if an entity exists in the network (returns 1 or 0).
 
 **Syntax**:
+
 ```cpp
 // $JAFF HAS entity_type entity_name
 int result = $entity_type$;
@@ -287,6 +310,7 @@ int result = $entity_type$;
 - `element` - Check if an element exists
 
 **Example**:
+
 ```cpp
 // $JAFF HAS specie e-
 const int has_electrons = $specie$;
@@ -294,6 +318,7 @@ const int has_electrons = $specie$;
 ```
 
 **Output**:
+
 ```cpp
 const int has_electrons = 1;  // 1 if exists, 0 otherwise
 ```
@@ -303,6 +328,7 @@ const int has_electrons = 1;  // 1 if exists, 0 otherwise
 Mark the end of a JAFF directive block.
 
 **Syntax**:
+
 ```cpp
 // $JAFF END
 ```
@@ -312,6 +338,7 @@ Mark the end of a JAFF directive block.
 CSE optimization reduces redundant calculations in generated expressions.
 
 **Example without CSE**:
+
 ```cpp
 // $JAFF REPEAT idx IN rates
 rate[$idx$] = $rate$;
@@ -319,6 +346,7 @@ rate[$idx$] = $rate$;
 ```
 
 **Output**:
+
 ```cpp
 rate[0] = k[0] * exp(-100.0/T) * n[0] * n[1];
 rate[1] = k[1] * exp(-100.0/T) * n[2] * n[3];
@@ -326,6 +354,7 @@ rate[2] = k[2] * exp(-100.0/T) * n[4] * n[5];
 ```
 
 **Example with CSE**:
+
 ```cpp
 // $JAFF REPEAT idx, cse IN rates
 double cse[$idx$] = $cse$;
@@ -337,6 +366,7 @@ rate[$idx$] = $rate$;
 ```
 
 **Output**:
+
 ```cpp
 double cse[0] = exp(-100.0/T);
 double cse[1] = exp(-200.0/T);
@@ -359,6 +389,7 @@ int matrix[$idx$][] = {$element$};
 ```
 
 **Output**:
+
 ```cpp
 int matrix[0][] = {1, 0, 1, 2};  // C in each species
 int matrix[1][] = {0, 2, 0, 4};  // H in each species
