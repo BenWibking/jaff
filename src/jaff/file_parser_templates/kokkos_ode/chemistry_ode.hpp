@@ -22,9 +22,9 @@ struct ChemistryODE {
   // $JAFF REPEAT idx, specie IN species_with_normalized_sign
   static constexpr int idx_$specie$ = $idx$;
   // $JAFF END
-  // $JAFF SUB nspec,
+  // $JAFF SUB nspec,nreact
   static constexpr int nspecs = $nspec$;
-  static constexpr int nreactions = $nspec + 1 $;
+  static constexpr int nreactions = $nreact$;
   // $JAFF END
 
   // Common chemistry variables used in rate expressions

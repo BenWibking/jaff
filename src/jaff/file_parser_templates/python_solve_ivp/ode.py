@@ -8,8 +8,10 @@ def get_ode(y, tgas, crate, av):
 
     flux = get_fluxes(y, tgas, crate, av)
 
-    # PREPROCESS_ODE
+    # $JAFF REPEAT idx, ode_expression IN ode_expressions
 
-    # PREPROCESS_END
+    dy[$idx$] = $ode_expression$
+
+    # $JAFF END
 
     return dy

@@ -43,7 +43,7 @@ def test_network_dedt():
 @pytest.fixture
 def test_codegen_dedt(test_network_dedt):
     """Create a Codegen instance for the test network with internal energy."""
-    return Codegen(test_network_dedt, lang="c++", dedt=True)
+    return Codegen(test_network_dedt, lang="c++")
 
 
 def test_network_reactions_loaded(test_network: Network):
@@ -140,7 +140,7 @@ def test_ode_and_jac_dedt(test_codegen_dedt: Codegen):
     "Test generated odes and jac with precalculated expression strings"
 
     rhs = test_codegen_dedt.get_rhs(use_cse=False)
-    jac = test_codegen_dedt.get_jacobian(use_cse=False)
+    jac = test_codegen_dedt.get_jacobian(use_cse=False, use_dedt=True)
 
     expected_rhs: List[str] = [
         "-std::pow(nden[0], 2)*nden[1]",

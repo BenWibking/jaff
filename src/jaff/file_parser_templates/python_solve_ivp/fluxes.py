@@ -8,8 +8,10 @@ def get_fluxes(y, tgas, crate, av):
 
     flux = np.zeros_like(y)
 
-    # PREPROCESS_FLUXES
+    # $JAFF REPEAT idx, flux_expression IN flux_expressions
 
-    # PREPROCESS_END
+    flux[$idx$] = $flux_expression$
+
+    # $JAFF END
 
     return flux

@@ -9,9 +9,11 @@ module reactions
 
         k = 0d0
 
-        !! PREPROCESS_REACTIONS
+        !! $JAFF REPEAT idx, rate IN rates
 
-        !! PREPROCESS_END
+        k($idx+1$) = $rate$
+
+        !! JAFF END
 
     end function get_reactions
 

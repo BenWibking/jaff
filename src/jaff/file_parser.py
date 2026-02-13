@@ -142,6 +142,7 @@ class Fileparser:
             "f95": "f90",
             "f03": "f90",
             "f08": "f90",
+            "py": "py",
         }
         if ext not in ext_map.keys():
             raise RuntimeError(f"{ext} files are not yet supprted")
@@ -273,10 +274,10 @@ class Fileparser:
                     f"Unsupported argument in line {self.line}\n"
                     f"Supported arguments for {prop} are: {vars}\n"
                 )
-        is_itterable: bool = prop_dict["itterable"]
+        is_iterable: bool = prop_dict["iterable"]
 
         # Choose appropriate repeat handler based on iterability
-        if not is_itterable:
+        if not is_iterable:
             # Non-iterable: generates code structures (rates, ODEs, Jacobian)
             self.parse_function = lambda: self.__do_non_itterative_repeat(
                 args, func, extras, vars

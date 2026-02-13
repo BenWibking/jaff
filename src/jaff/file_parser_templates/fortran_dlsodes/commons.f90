@@ -1,8 +1,15 @@
 module commons
     implicit none
-    !! PREPROCESS_COMMONS
+    !! $JAFF REPEAT idx, specie IN species_with_normalized_sign
 
-    !! PREPROCESS_END
+    integer,parameter::idx_$specie$ = $idx$
+
+    !! JAFF END
+
+    !! $JAFF SUB nspec, nreact
+    integer,parameter::nspecs = $nspec$
+    integer,parameter::nreactions = $nreact$
+    !! JAFF END
 
     real*8::common_crate, common_av
     integer,parameter::idx_tgas = nspecs + 1

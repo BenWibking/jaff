@@ -1,6 +1,7 @@
 import os
 import re
 
+from jaff import Codegen
 from jaff.network import Network
 from jaff.preprocessor import Preprocessor
 
@@ -11,13 +12,13 @@ def main(
     path_build: os.PathLike | None = None,
 ) -> None:
     filenames = ["actual_network.H", "actual_network_data.cpp", "actual_rhs.H"]
+    cg = Codegen(network=network, lang="cxx")
     pp = Preprocessor()
     charge_cons = "0.0"
 
-    sode, jac = network.get_symbolic_ode_and_jacobian(
-        idx_offset=1, use_cse=True, language="c++"
-    )
-    sode = re.sub(r"f\[\s*(\d+)\s*\]", r"ydot(\1)", sode).replace(
+    ode = cg.get_ode(idx_offset=1, use_cse=True)
+    jac = cg.get_jacobian(idx_offset=1, use_cse=True)
+    sode = re.sub(r"f\[\s*(\d+)\s*\]", r"ydot(\1)", ode).replace(
         "const double", "const amrex::Real"
     )
     sode = re.sub(r"nden\[\s*(\d+)\s*\]", r"nden(\1)", sode)

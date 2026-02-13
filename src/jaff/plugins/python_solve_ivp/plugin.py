@@ -1,4 +1,4 @@
-from jaff import Codegen
+from jaff import Codegen, Network
 
 
 def main(network, path_template, path_build=None):
@@ -19,3 +19,8 @@ def main(network, path_template, path_build=None):
         comment="#",
         path_build=path_build,
     )
+
+
+if __name__ == "__main__":
+    net = Network("networks/test.dat")
+    main(net, path_template="src/jaff/templates/python_solve_ivp")
