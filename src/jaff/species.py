@@ -24,7 +24,7 @@ class Species:
         self.serialize()
 
     def __repr__(self):
-        return f"Species(name={self.name}, mass={self.mass}, index={self.index})"
+        return f"Species(name={self.name!r}, mass={self.mass}, index={self.index})"
 
     def __str__(self):
         return self.name
