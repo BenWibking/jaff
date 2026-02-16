@@ -32,11 +32,11 @@ Example Template Syntax:
     species[$idx$] = "$specie$";
     // $JAFF END
 
-    // $JAFF SUB nspec REPLACE const constexpr
+    // $JAFF SUB nspec [REPLACE const constexpr]
     const int NUM_SPECIES = $nspec$;  // 'const' will be replaced with 'constexpr'
     // $JAFF END
 
-    // $JAFF REPEAT idx, specie IN species REPLACE H_(\d+) Hydrogen_$1 REPLACE He Helium
+    // $JAFF REPEAT idx, specie IN species [REPLACE H_(\d+) Hydrogen_$1 REPLACE He Helium]
     // Using multiple REPLACE directives and regex patterns with capture groups
     species[$idx$] = "$specie$";  // H_2 -> Hydrogen_2, He -> Helium
     // $JAFF END
@@ -282,7 +282,7 @@ class Fileparser:
             self.replace = False
             self.replacements = []
 
-    def __sub(self, tokens: str) -> None:
+    def __sub(self, rest: str) -> None:
         """
         Handle the SUB command for token substitution.
 
@@ -294,39 +294,21 @@ class Fileparser:
             SUB token1, token2, ... [REPLACE pattern1 replacement1 ...]
 
         Args:
-            tokens: Comma-separated list of tokens to substitute, optionally followed
+            rest: Comma-separated list of tokens to substitute, optionally followed
                    by REPLACE directives with space-separated pattern-replacement pairs
 
-        Raises:
-            SyntaxError: If REPLACE syntax is invalid (missing pattern or replacement)
-
         Example:
-            // $JAFF SUB nspec, label REPLACE old_name new_name
+            // $JAFF SUB nspec, label [REPLACE old_name new_name]
             const int NUM = $nspec$;  // Will also replace old_name -> new_name
             // $JAFF END
         """
-        token_list: list[str] = self.__get_stripped_tokens(tokens)
-        sub_tokens: list[str] = token_list
-        extras: list[str] = []
+        # Extract extras (REPLACE directives) from bracket notation
+        rest, extras = self.__get_extras(rest)
+        # Parse comma-separated token list
+        sub_tokens: list[str] = self.__get_stripped_tokens(rest)
 
-        # Extract extras (REPLACE directives) from the last token if present
-        # Extras must appear after the last comma-separated token
-        if len(token_list[-1].split()) > 1:
-            new_tokens = self.__get_stripped_tokens(token_list[-1], " ")
-            sub_tokens[-1] = new_tokens[0]
-            extras = new_tokens[1:]
-
-        # Parse REPLACE directives: find positions of "REPLACE" keyword
-        # and extract (pattern, replacement) pairs that follow
-        repl_pos: list[int] = [i for i, extra in enumerate(extras) if extra == "REPLACE"]
-        if repl_pos:
-            try:
-                # Each REPLACE must be followed by pattern and replacement strings
-                self.replacements = [(extras[i + 1], extras[i + 2]) for i in repl_pos]
-            except IndexError:
-                raise SyntaxError(f"Invalid replacement syntax in {self.line}")
-            self.replace = True
-
+        # Check for and configure REPLACE directives if present
+        self.__check_for_replacements(extras)
         self.parse_function = lambda: self.__substitute_tokens(sub_tokens, "SUB")
 
     def __repeat(self, rest: str) -> None:
@@ -347,7 +329,8 @@ class Fileparser:
             {"$specie_charge$", } with braces, optional quotes, and separators.
 
         Syntax:
-            REPEAT var1, var2 IN property [REPLACE pattern1 replacement1 ...]
+            REPEAT var1, var2 IN property [extras]
+            Where extras can include: SORT, CSE TRUE/FALSE, REPLACE pattern replacement
 
         Args:
             rest: Command parameters in format "vars IN property [extras]"
@@ -357,32 +340,25 @@ class Fileparser:
             SyntaxError: If REPLACE syntax is invalid
 
         Example:
-            // $JAFF REPEAT idx, specie IN species REPLACE old new
+            // $JAFF REPEAT idx, specie IN species [REPLACE old new]
             species[$idx$] = "$specie$";  // Will also replace old -> new
             // $JAFF END
         """
         if "IN" not in rest:
             raise ValueError(f"IN keyword not found in {self.line}")
 
-        # Parse "vars IN property [extras]" syntax
+        # Extract extras (SORT, CSE, REPLACE directives) from bracket notation
+        rest, extras = self.__get_extras(rest)
+        # Parse "vars IN property" syntax (extras already removed)
         arg: str
         arg, rest = rest.split("IN")
         props: list[str] = self.__get_stripped_tokens(rest, sep=" ")
         args: list[str] = self.__get_stripped_tokens(arg)
 
-        # Extract property name and optional modifiers
+        # Extract property name (first element after IN keyword)
         prop: str = props[0]
-        extras: list[str] = props[1:]
-
-        # Parse REPLACE directives from extras
-        repl_pos: list[int] = [i for i, extra in enumerate(extras) if extra == "REPLACE"]
-        if repl_pos:
-            try:
-                # Each REPLACE must be followed by pattern and replacement strings
-                self.replacements = [(extras[i + 1], extras[i + 2]) for i in repl_pos]
-            except IndexError:
-                raise SyntaxError(f"Invalid replacement syntax in {self.line}")
-            self.replace = True
+        # Check for and configure REPLACE directives if present in extras
+        self.__check_for_replacements(extras)
 
         # Get property configuration from parser dictionary
         prop_dict: dict[str, Any] = self.__get_command_props("REPEAT")[prop]
@@ -396,7 +372,7 @@ class Fileparser:
                 f"Supported arguments for {prop} are: {vars}\n"
             )
 
-        # Set up iterative parsing: loops over IndexedLists
+        # Set up iterative parsing: loops over IndexedLists with extras passed for SORT/CSE handling
         self.parse_function = lambda: self.__do_iterative_repeat(args, func, extras, vars)
 
     def __get(self, rest: str) -> None:
@@ -415,32 +391,23 @@ class Fileparser:
 
 
         Example:
-            // $JAFF GET specie_idx FOR CO REPLACE CO Carbon_Monoxide
+            // $JAFF GET specie_idx FOR CO [REPLACE CO Carbon_Monoxide]
             int idx = $specie_idx$;  // Will also replace CO -> Carbon_Monoxide
             // $JAFF END
         """
         if "FOR" not in rest:
             raise ValueError(f"FOR keyword not found in {self.line}")
 
-        # Parse "props FOR entity" syntax
-        props_str: str
-        entity: str
-        props_str, entity_and_extras = rest.split("FOR")
+        # Extract extras (REPLACE directives) from bracket notation
+        rest, extras = self.__get_extras(rest)
+        # Parse "props FOR entity" syntax (extras already removed)
+        props_str, entity_str = rest.split("FOR")
         props: list[str] = self.__get_stripped_tokens(props_str)
-        split_entity_and_extras = self.__get_stripped_tokens(entity_and_extras, " ")
-        entity = split_entity_and_extras[0]
-        extras: list[str] = split_entity_and_extras[1:]
+        # Strip entity name to remove any surrounding whitespace
+        entity = entity_str.strip()
 
-        # Parse REPLACE directives from extras
-        repl_pos: list[int] = [i for i, extra in enumerate(extras) if extra == "REPLACE"]
-        if repl_pos:
-            try:
-                # Each REPLACE must be followed by pattern and replacement strings
-                self.replacements = [(extras[i + 1], extras[i + 2]) for i in repl_pos]
-            except IndexError:
-                raise SyntaxError(f"Invalid replacement syntax in {self.line}")
-            self.replace = True
-
+        # Check for and configure REPLACE directives if present
+        self.__check_for_replacements(extras)
         # Set up token substitution for the requested properties
         self.parse_function = lambda: self.__substitute_tokens(props, "GET", entity)
 
@@ -463,25 +430,19 @@ class Fileparser:
             SyntaxError: If REPLACE syntax is invalid
 
         Example:
-            // $JAFF HAS specie CO REPLACE 1 true
+            // $JAFF HAS specie CO [REPLACE 1 true]
             bool has_co = $specie$;  // Will also replace 1 -> true
             // $JAFF END
         """
+        # Extract extras (REPLACE directives) from bracket notation
+        rest, extras = self.__get_extras(rest)
+        # Parse space-separated tokens (identity and entity name)
         tokens: list[str] = self.__get_stripped_tokens(rest, " ")
         identity: str = tokens[0]
         entity: str = tokens[1]
-        extras: list[str] = tokens[2:]
 
-        # Parse REPLACE directives from extras
-        repl_pos: list[int] = [i for i, extra in enumerate(extras) if extra == "REPLACE"]
-        if repl_pos:
-            try:
-                # Each REPLACE must be followed by pattern and replacement strings
-                self.replacements = [(extras[i + 1], extras[i + 2]) for i in repl_pos]
-            except IndexError:
-                raise SyntaxError(f"Invalid replacement syntax in {self.line}")
-            self.replace = True
-
+        # Check for and configure REPLACE directives if present
+        self.__check_for_replacements(extras)
         self.parse_function = lambda: self.__get_truth_value(identity, entity)
 
     def __reduce(self, rest: str) -> None:
@@ -501,38 +462,21 @@ class Fileparser:
             rest: Command parameters in format "vars IN properties [extras]"
 
         Example:
-            // $JAFF REDUCE charge IN specie_charges REPLACE + plus
+            // $JAFF REDUCE charge IN specie_charges [REPLACE + plus]
             double total = $()$;  // Will also replace + -> plus
             // $JAFF END
         """
         if rest.count("IN") != 1:
             raise SyntaxError(f"Invalid syntax detected: {self.line}")
 
-        # Get variables and props, extras separated by IN
-        vars, props_and_extras = rest.split("IN")
+        # Extract extras (REPLACE directives) from bracket notation
+        rest, extras = self.__get_extras(rest)
+        # Get variables and props separated by IN keyword (extras already removed)
+        vars, props = rest.split("IN")
         split_vars: list[str] = self.__get_stripped_tokens(vars)
-        split_props_and_extras: list[str] = self.__get_stripped_tokens(props_and_extras)
+        split_props: list[str] = self.__get_stripped_tokens(props)
 
-        split_props: list[str] = split_props_and_extras
-        extras: list[str] = []
-
-        # Extract extras (REPLACE directives) from the last property if present
-        # Extras must appear after the last comma-separated property
-        if len(split_props_and_extras[-1].split()) > 1:
-            new_tokens = self.__get_stripped_tokens(split_props_and_extras[-1], " ")
-            split_props[-1] = new_tokens[0]
-            extras = new_tokens[1:]
-
-        # Parse REPLACE directives: find positions of "REPLACE" keyword
-        # and extract (pattern, replacement) pairs that follow
-        repl_pos: list[int] = [i for i, extra in enumerate(extras) if extra == "REPLACE"]
-        if repl_pos:
-            try:
-                # Each REPLACE must be followed by pattern and replacement strings
-                self.replacements = [(extras[i + 1], extras[i + 2]) for i in repl_pos]
-            except IndexError:
-                raise SyntaxError(f"Invalid replacement syntax in {self.line}")
-            self.replace = True
+        self.__check_for_replacements(extras)
 
         # Get supported props for the REDUCE command
         reduction_props = self.__get_command_props("REDUCE")
@@ -583,6 +527,92 @@ class Fileparser:
                 raise SyntaxError(f"Invalid regex pattern '{before}' in {self.line}: {e}")
 
         return text
+
+    def __check_for_replacements(self, extras: list[str]) -> None:
+        """
+        Parse and configure REPLACE directives from command extras.
+
+        Searches for "REPLACE" keywords in the extras list and extracts
+        (pattern, replacement) pairs that follow each REPLACE keyword.
+        Sets self.replace flag and self.replacements list if valid
+        replacements are found.
+
+        Args:
+            extras: List of extra arguments extracted from bracket notation.
+                   May contain REPLACE keywords followed by pattern-replacement pairs.
+                   This list is modified in-place to remove REPLACE tokens.
+
+        Raises:
+            SyntaxError: If REPLACE keyword is not followed by both pattern and
+                        replacement strings (missing arguments).
+
+        Example:
+            extras = ["REPLACE", "old", "new", "REPLACE", "foo", "bar"]
+            After call: self.replacements = [("old", "new"), ("foo", "bar")]
+                       self.replace = True
+                       extras = []  # REPLACE tokens removed
+        """
+        # Find all positions where "REPLACE" keyword appears
+        repl_pos: list[int] = [i for i, extra in enumerate(extras) if extra == "REPLACE"]
+        if repl_pos:
+            try:
+                # Each REPLACE must be followed by pattern and replacement strings
+                # Extract pairs: (extras[i+1], extras[i+2]) for each REPLACE at position i
+                self.replacements = [(extras[i + 1], extras[i + 2]) for i in repl_pos]
+            except IndexError:
+                raise SyntaxError(
+                    f"Invalid replacement syntax in {self.line}: "
+                    f"REPLACE must be followed by both pattern and replacement"
+                )
+            self.replace = True
+
+            # Remove REPLACE tokens from extras list 
+            for pos in reversed(repl_pos):
+                del extras[pos : pos + 3]
+
+    @staticmethod
+    def __get_extras(line: str) -> tuple[str, list[str]]:
+        """
+        Extract extras from bracket notation in command arguments.
+
+        Parses command strings that may contain extras in square brackets,
+        e.g., "SUB nspec [REPLACE old new]" or "REPEAT idx IN species [SORT]".
+        Extracts and returns the main command arguments separately from the extras.
+
+        Args:
+            line: Command argument string, possibly containing [...] extras
+
+        Returns:
+            Tuple of (main_args, extras_list) where:
+                - main_args: Command arguments with brackets removed and stripped
+                - extras_list: List of space-separated tokens from within brackets,
+                              empty list if no brackets present
+
+        Examples:
+            >>> __get_extras("nspec, nreact [REPLACE old new]")
+            ("nspec, nreact", ["REPLACE", "old", "new"])
+
+            >>> __get_extras("idx IN species [SORT CSE TRUE]")
+            ("idx IN species", ["SORT", "CSE", "TRUE"])
+
+            >>> __get_extras("specie_idx FOR H+")
+            ("specie_idx FOR H+", [])
+
+        Note:
+            Only handles single [...] block. Multiple brackets will use first pair.
+        """
+        # No brackets present - return entire line and empty extras
+        if "[" not in line and "]" not in line:
+            return line.strip(), []
+
+        # Split on first "[" to separate main args from extras
+        line, extras = line.split("[", 1)
+        # Extract content between [ and ]
+        extras: str = extras.split("]")[0]
+        # Split extras into individual tokens
+        extras_list = extras.split()
+
+        return line.strip(), extras_list
 
     def __get_reduction_expression(self, vars: list[str], props: list[str]) -> None:
         """
@@ -1211,7 +1241,9 @@ class Fileparser:
                     # Returns: list[Reaction] - all __str__ representation of
                     # reaction objects
                     "reactions": {
-                        "func": lambda: str(self.net.reactions),
+                        "func": lambda: [
+                            str(reaction) for reaction in self.net.reactions
+                        ],
                         "vars": ["idx", "reaction"],
                     },
                     # Returns: list[str] - species names

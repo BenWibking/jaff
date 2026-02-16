@@ -204,7 +204,7 @@ All JAFF commands (SUB, REPEAT, REDUCE, GET, HAS) support optional **REPLACE** d
 **Syntax:**
 
 ```cpp
-// $JAFF COMMAND arguments REPLACE pattern1 replacement1 [REPLACE pattern2 replacement2 ...]
+// $JAFF COMMAND arguments [REPLACE pattern1 replacement1 [REPLACE pattern2 replacement2 ...]]
 code
 // $JAFF END
 ```
@@ -221,7 +221,7 @@ code
 **Basic Example:**
 
 ```cpp
-// $JAFF SUB nspec REPLACE const constexpr
+// $JAFF SUB nspec [REPLACE const constexpr]
 const int NUM_SPECIES = $nspec$;
 // $JAFF END
 ```
@@ -235,7 +235,7 @@ constexpr int NUM_SPECIES = 14;  // 'const' replaced with 'constexpr'
 **Regex with Capture Groups:**
 
 ```cpp
-// $JAFF REPEAT idx, specie IN species REPLACE H_(\d+) Hydrogen_\1 REPLACE He Helium
+// $JAFF REPEAT idx, specie IN species [REPLACE H_(\d+) Hydrogen_\1 REPLACE He Helium]
 species[$idx$] = "$specie$";
 // $JAFF END
 ```
@@ -251,7 +251,7 @@ species[2] = "Helium";      // He -> Helium
 **Multiple Replacements:**
 
 ```cpp
-// $JAFF REPEAT idx, specie IN species REPLACE \+ _plus REPLACE - _minus
+// $JAFF REPEAT idx, specie IN species [REPLACE \+ _plus REPLACE - _minus]
 species[$idx$] = "$specie$";  // H+ -> H_plus, e- -> e_minus
 // $JAFF END
 ```
@@ -259,7 +259,7 @@ species[$idx$] = "$specie$";  // H+ -> H_plus, e- -> e_minus
 **Advanced Example - Normalizing Names:**
 
 ```cpp
-// $JAFF GET specie_idx, specie_mass FOR H+ REPLACE H\+ H_PLUS REPLACE e-24 e-24
+// $JAFF GET specie_idx, specie_mass FOR H+ [REPLACE H\+ H_PLUS REPLACE e-24 e-24]
 const int idx = $specie_idx$;
 const double mass = $specie_mass$;  // 1.673773e-24 remains unchanged
 // $JAFF END
@@ -267,20 +267,21 @@ const double mass = $specie_mass$;  // 1.673773e-24 remains unchanged
 
 **Important Notes:**
 
-1. **REPLACE must appear after all command arguments**
-    - ✅ Correct: `// $JAFF SUB nspec REPLACE old new`
-    - ❌ Wrong: `// $JAFF SUB REPLACE old new nspec`
+1. **REPLACE directives must be enclosed in square brackets**
+    - ✅ Correct: `// $JAFF SUB nspec [REPLACE old new]`
+    - ❌ Wrong: `// $JAFF SUB nspec REPLACE old new` (missing brackets)
+    - ❌ Wrong: `// $JAFF SUB [REPLACE old new] nspec` (brackets must be after arguments)
 
 2. **Pattern is regex, replacement is literal** (except backreferences)
     - Pattern: `H_(\d+)` matches H_1, H_2, etc.
     - Replacement: `Hydrogen_\1` becomes Hydrogen_1, Hydrogen_2, etc.
 
 3. **Each REPLACE needs both pattern and replacement**
-    - ✅ Correct: `REPLACE pattern replacement`
-    - ❌ Wrong: `REPLACE pattern` (missing replacement - raises SyntaxError)
+    - ✅ Correct: `[REPLACE pattern replacement]`
+    - ❌ Wrong: `[REPLACE pattern]` (missing replacement - raises SyntaxError)
 
 4. **Invalid regex patterns raise SyntaxError**
-    - Invalid: `REPLACE [invalid( bad_regex`
+    - Invalid: `[REPLACE [invalid( bad_regex]`
     - Error: `SyntaxError: Invalid regex pattern '[invalid(' in line ...`
 
 5. **Replacements are scoped to the command block**
@@ -300,15 +301,16 @@ const double mass = $specie_mass$;  // 1.673773e-24 remains unchanged
 
 ```python
 # Missing replacement string
-# $JAFF SUB nspec REPLACE pattern
+# $JAFF SUB nspec [REPLACE pattern]
 # Raises: SyntaxError: Invalid replacement syntax in ...
 
 # Invalid regex
-# $JAFF SUB nspec REPLACE [invalid regex
+# $JAFF SUB nspec [REPLACE [invalid regex]
 # Raises: SyntaxError: Invalid regex pattern '[invalid' in ...: ...
 
-# REPLACE with no pairs defined (internal check)
-# Raises: SyntaxError: No valid replacements found in ...
+# Missing brackets
+# $JAFF SUB nspec REPLACE old new
+# Raises: ValueError (or splits incorrectly)
 ```
 
 ---
@@ -328,7 +330,7 @@ code with $token1$ and $token2$
 **With REPLACE:**
 
 ```cpp
-// $JAFF SUB nspec, label REPLACE test production
+// $JAFF SUB nspec, label [REPLACE test production]
 const int NUM_SPECIES = $nspec$;  // Network: "$label$"
 // $JAFF END
 ```
@@ -385,15 +387,17 @@ Iterate over network components or generate indexed code expressions.
 **Syntax:**
 
 ```cpp
-// $JAFF REPEAT var1, var2 IN property [SORT] [CSE TRUE/FALSE] [REPLACE pattern replacement ...]
+// $JAFF REPEAT var1, var2 IN property [extras]
 template with $var1$ and $var2$
 // $JAFF END
 ```
 
+Where `[extras]` can include: `SORT`, `CSE TRUE/FALSE`, `REPLACE pattern replacement ...`
+
 **With REPLACE:**
 
 ```cpp
-// $JAFF REPEAT idx, specie IN species REPLACE \+ _plus REPLACE - _minus
+// $JAFF REPEAT idx, specie IN species [REPLACE \+ _plus REPLACE - _minus]
 species[$idx$] = "$specie$";  // Converts H+ to H_plus, e- to e_minus
 // $JAFF END
 ```
@@ -626,7 +630,7 @@ code with $property1$ and $property2$
 **With REPLACE:**
 
 ```cpp
-// $JAFF GET specie_idx FOR H+ REPLACE 0 ZERO
+// $JAFF GET specie_idx FOR H+ [REPLACE 0 ZERO]
 const int idx = $specie_idx$;  // 0 becomes ZERO
 // $JAFF END
 ```
@@ -729,7 +733,7 @@ int result = $entity_type$;
 **With REPLACE:**
 
 ```cpp
-// $JAFF HAS specie e- REPLACE 1 true REPLACE 0 false
+// $JAFF HAS specie e- [REPLACE 1 true REPLACE 0 false]
 const bool has_electron = $specie$;  // 1 becomes true, 0 becomes false
 // $JAFF END
 ```
@@ -788,7 +792,7 @@ result = $($variable_name$ OPERATION $variable_name$)$;
 **With REPLACE:**
 
 ```cpp
-// $JAFF REDUCE specie_mass_ne IN specie_masses_ne REPLACE \+ plus
+// $JAFF REDUCE specie_mass_ne IN specie_masses_ne [REPLACE \+ plus]
 const double total = $($specie_mass_ne$ + $specie_mass_ne$)$;  // + becomes plus
 // $JAFF END
 ```
