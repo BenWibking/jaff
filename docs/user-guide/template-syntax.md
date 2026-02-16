@@ -33,13 +33,97 @@ $JAFF COMMAND arguments$
 
 ### Command Types
 
-| Command | Purpose | Example |
-|---------|---------|---------|
-| `SUB` | Substitute a single value | `$JAFF SUB nspec$` |
-| `REPEAT` | Iterate over a collection | `$JAFF REPEAT idx IN rates$` |
-| `GET` | Access object properties | `$JAFF GET species[0].name$` |
-| `HAS` | Conditional inclusion | `$JAFF HAS photoreactions$` |
-| `END` | End a block | `$JAFF END$` |
+| Command  | Purpose                        | Example                                  |
+| -------- | ------------------------------ | ---------------------------------------- |
+| `SUB`    | Substitute a single value      | `$JAFF SUB nspec$`                       |
+| `REPEAT` | Iterate over a collection      | `$JAFF REPEAT idx IN rates$`             |
+| `GET`    | Access object properties       | `$JAFF GET species[0].name$`             |
+| `HAS`    | Conditional inclusion          | `$JAFF HAS photoreactions$`              |
+| `REDUCE` | Generate reduction expressions | `$JAFF REDUCE mass IN specie_masses_ne$` |
+| `END`    | End a block                    | `$JAFF END$`                             |
+
+## REPLACE Directive
+
+All JAFF commands support optional **REPLACE** directives for regex-based text replacement in generated output.
+
+### Syntax
+
+```
+$JAFF COMMAND arguments REPLACE pattern1 replacement1 [REPLACE pattern2 replacement2 ...]
+```
+
+### Key Features
+
+- Replacements applied **after** code generation
+- Patterns use Python regex syntax
+- Supports capture groups and backreferences (`\1`, `\2`, etc.)
+- Multiple REPLACE directives can be chained
+- Applied sequentially in order specified
+- Automatically reset at `$JAFF END$`
+
+### Basic Example
+
+```cpp
+// Template
+$JAFF SUB nspec REPLACE const constexpr$
+const int NUM_SPECIES = $nspec$;
+$JAFF END$
+
+// Output
+constexpr int NUM_SPECIES = 14;
+```
+
+### Regex with Capture Groups
+
+```cpp
+// Template
+$JAFF REPEAT idx, specie IN species REPLACE H_(\d+) Hydrogen_\1 REPLACE He Helium$
+species[$idx$] = "$specie$";
+$JAFF END$
+
+// Output
+species[0] = "Hydrogen_1";  // H_1 -> Hydrogen_1
+species[1] = "Hydrogen_2";  // H_2 -> Hydrogen_2
+species[2] = "Helium";      // He -> Helium
+```
+
+### Multiple Replacements
+
+```cpp
+// Template
+$JAFF REPEAT idx, specie IN species REPLACE \+ _plus REPLACE - _minus$
+species[$idx$] = "$specie$";
+$JAFF END$
+
+// Output
+species[0] = "H_plus";   // H+ -> H_plus
+species[1] = "e_minus";  // e- -> e_minus
+```
+
+### Common Use Cases
+
+- **Sanitize names**: Convert special characters (`+`, `-`) to valid identifiers
+- **Replace keywords**: Change language keywords (e.g., `const` to `constexpr`)
+- **Add prefixes/suffixes**: Transform identifiers with patterns
+- **Normalize formats**: Convert naming conventions
+
+### Important Notes
+
+1. **REPLACE must appear after command arguments**
+    - ✅ Correct: `$JAFF SUB nspec REPLACE old new$`
+    - ❌ Wrong: `$JAFF SUB REPLACE old new nspec$`
+
+2. **Each REPLACE needs both pattern and replacement**
+    - ✅ Correct: `REPLACE pattern replacement`
+    - ❌ Wrong: `REPLACE pattern` (raises SyntaxError)
+
+3. **Invalid regex raises error**
+    - Invalid: `REPLACE [invalid( bad`
+    - Error: `SyntaxError: Invalid regex pattern...`
+
+4. **Replacements are block-scoped**
+    - Reset at `$JAFF END$`
+    - Don't carry over to next block
 
 ## SUB Command
 
@@ -56,6 +140,7 @@ $JAFF END$
 ### Available Variables
 
 **Network Metadata:**
+
 - `nspec` - Number of species
 - `nreact` - Number of reactions
 - `label` - Network label/name
@@ -103,16 +188,19 @@ $JAFF END$
 ### Collections
 
 **Species Collections:**
+
 - `species` - All species (iterate with index, species object)
 - `species_names` - Species names only
 
 **Reaction Collections:**
+
 - `reactions` - All reactions (iterate with index, reaction object)
 - `rates` - Rate expressions
 - `odes` - ODE expressions
 - `fluxes` - Flux expressions
 
 **Other:**
+
 - `elements` - Chemical elements in network
 
 ### Simple Iteration
@@ -173,6 +261,7 @@ $JAFF END$
 ```
 
 **Available tokens:**
+
 - `$idx$` - Reaction index
 - `$rate$` - Rate expression
 - `$reaction$` - Reaction verbatim string
@@ -186,6 +275,7 @@ $JAFF END$
 ```
 
 **Available tokens:**
+
 - `$idx$` - Species index
 - `$ode$` - ODE expression for species
 
@@ -200,6 +290,7 @@ $JAFF END$
 ```
 
 **Available tokens:**
+
 - `$idx$` - Species index
 - `$species$` - Species name
 - `$mass$` - Species mass
@@ -344,7 +435,7 @@ void compute_rates(double* k, double tgas) {
     // Common subexpressions
     const double x0 = sqrt(tgas);
     const double x1 = pow(tgas/300, 0.5);
-    
+
     // Rate calculations
     k[0] = 1.2e-10 * x1;
     k[1] = 3.4e-11 * x0 * exp(-500/tgas);
@@ -362,7 +453,7 @@ Each iteration on same line:
 
 ```cpp
 $JAFF REPEAT idx, sp IN species$
-$idx$, 
+$idx$,
 $JAFF END$
 
 // Output
@@ -424,24 +515,24 @@ $JAFF END$
 ! Template: chemistry.f90
 module chemistry
   implicit none
-  
+
   ! Species indices
 $JAFF REPEAT idx+1, species IN species$
   integer, parameter :: idx_$species$ = $idx$
 $JAFF END$
-  
+
   ! Counts
 $JAFF SUB nspec$
   integer, parameter :: nspec = $nspec$
   integer, parameter :: nreact = $nreact$
 $JAFF END$
-  
+
 contains
 
   subroutine compute_rates(k, tgas)
     real(8), intent(out) :: k(nreact)
     real(8), intent(in) :: tgas
-    
+
 $JAFF REPEAT idx+1 IN rates$
     k($idx$) = $rate$
 $JAFF END$

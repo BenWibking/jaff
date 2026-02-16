@@ -15,6 +15,14 @@ Supported JAFF Commands:
     - HAS: Check for existence of entities in the network
     - END: Mark the end of a parsing block
 
+REPLACE Directive:
+    All commands (SUB, REPEAT, REDUCE, GET, HAS) support optional REPLACE directives
+    for regex-based text replacement in the generated output. Syntax:
+        COMMAND args [REPLACE pattern1 replacement1 [REPLACE pattern2 replacement2 ...]]
+
+    Multiple REPLACE directives can be chained, and patterns are applied sequentially
+    as regular expressions.
+
 Example Template Syntax:
     // $JAFF SUB nspec
     const int NUM_SPECIES = $nspec$;
@@ -22,6 +30,15 @@ Example Template Syntax:
 
     // $JAFF REPEAT idx IN species
     species[$idx$] = "$specie$";
+    // $JAFF END
+
+    // $JAFF SUB nspec REPLACE const constexpr
+    const int NUM_SPECIES = $nspec$;  // 'const' will be replaced with 'constexpr'
+    // $JAFF END
+
+    // $JAFF REPEAT idx, specie IN species REPLACE H_(\d+) Hydrogen_$1 REPLACE He Helium
+    // Using multiple REPLACE directives and regex patterns with capture groups
+    species[$idx$] = "$specie$";  // H_2 -> Hydrogen_2, He -> Helium
     // $JAFF END
 """
 
@@ -104,6 +121,16 @@ class Fileparser:
     multiple programming languages and provides code generation capabilities
     for reaction rates, ODEs, Jacobians, and other chemical kinetics expressions.
 
+    Replacement Functionality:
+        All JAFF commands support optional REPLACE directives that apply regex-based
+        text replacements to the generated output. Replacements are applied after
+        the primary code generation step and use Python's re.sub() for pattern matching.
+        Multiple REPLACE directives can be specified and are applied sequentially.
+
+        The replacement state (self.replace and self.replacements) is automatically
+        reset when an END command is encountered, ensuring replacements only apply
+        within their designated parsing block.
+
     Attributes:
         net: Network object
         file: Path to the template file being parsed
@@ -115,6 +142,8 @@ class Fileparser:
         modified: Text generated after parsing
         indent: Indentation string for current line
         cached_return: Cached return value from previous function calls
+        replace: Whether regex replacements should be applied to output
+        replacements: List of (pattern, replacement) tuples for regex substitution
         cg: Code generator object for the target language
         parser_dict: Dictionary mapping command names to their handlers
 
@@ -133,6 +162,7 @@ class Fileparser:
         Args:
             network: Chemical reaction network to use for code generation
             file: Path to template file to parse
+            default_lang: Default language to use if file extension is not recognized
         """
         self.net = network
         self.file = file
@@ -144,6 +174,8 @@ class Fileparser:
         self.modified: str = ""
         self.indent: str = ""
         self.cached_return: Any = None
+        self.replace: bool = False
+        self.replacements: list[tuple[str, str]] = []
 
         ext: str = self.file.suffix[1:].lower()
         ext_map: dict[str, str] = {
@@ -223,7 +255,7 @@ class Fileparser:
         command = line.split()[0]
 
         # Execute the appropriate command handler with remaining parameters
-        self.__get_command_func(command)(line.lstrip(command).lstrip())
+        self.__get_command_func(command)(line.lstrip(command).strip())
 
     def __set_parser_inactive(self) -> None:
         """Disable the parser to stop processing subsequent lines."""
@@ -236,23 +268,66 @@ class Fileparser:
     def __end(self, _: str) -> None:
         """
         Handle the END command to stop parsing and reset cached state.
+
+        Deactivates the parser and clears any cached return values and replacement
+        patterns that were set during the current parsing block.
+
+        Args:
+            _: Unused parameter (END command takes no arguments)
         """
         self.__set_parser_inactive()
         if self.cached_return:
             self.cached_return = None
+        if self.replace:
+            self.replace = False
+            self.replacements = []
 
     def __sub(self, tokens: str) -> None:
         """
         Handle the SUB command for token substitution.
 
-        Sets up the parser to substitute a comma sparated list of tokens
+        Sets up the parser to substitute a comma-separated list of tokens
         like $nspec$, $label$, etc. with their actual values from the network.
+        Optionally supports REPLACE directive for regex-based text replacement.
+
+        Syntax:
+            SUB token1, token2, ... [REPLACE pattern1 replacement1 ...]
 
         Args:
-            tokens: Comma-separated list of tokens to substitute
+            tokens: Comma-separated list of tokens to substitute, optionally followed
+                   by REPLACE directives with space-separated pattern-replacement pairs
+
+        Raises:
+            SyntaxError: If REPLACE syntax is invalid (missing pattern or replacement)
+
+        Example:
+            // $JAFF SUB nspec, label REPLACE old_name new_name
+            const int NUM = $nspec$;  // Will also replace old_name -> new_name
+            // $JAFF END
         """
         token_list: list[str] = self.__get_stripped_tokens(tokens)
-        self.parse_function = lambda: self.__substitute_tokens(token_list, "SUB")
+        sub_tokens: list[str] = token_list
+        extras: list[str] = []
+
+        # Extract extras (REPLACE directives) from the last token if present
+        # Extras must appear after the last comma-separated token
+        if len(token_list[-1].split()) > 1:
+            new_tokens = self.__get_stripped_tokens(token_list[-1], " ")
+            sub_tokens[-1] = new_tokens[0]
+            extras = new_tokens[1:]
+
+        # Parse REPLACE directives: find positions of "REPLACE" keyword
+        # and extract (pattern, replacement) pairs that follow
+        repl_pos: list[int] = [i for i, extra in enumerate(extras) if extra == "REPLACE"]
+        if repl_pos:
+            try:
+                # Each REPLACE must be followed by pattern and replacement strings
+                self.replacements = [(extras[i + 1], extras[i + 2]) for i in repl_pos]
+            except IndexError:
+                raise SyntaxError(f"Invalid replacement syntax in {self.line}")
+            self.replace = True
+
+        self.parse_function = lambda: self.__substitute_tokens(sub_tokens, "SUB")
 
     def __repeat(self, rest: str) -> None:
         """
@@ -260,20 +335,31 @@ class Fileparser:
 
         Processes syntax like "REPEAT idx, specie IN species" to iterate over
         all species, reactions, elements, etc., generating code for each item.
+        Optionally supports REPLACE directive for regex-based text replacement.
 
-        If idx is present in variable list, the iterable is expanded vertically
-        The number of idx variable used inline must be equal to the dimension
-        of the array in this case
+        Vertical Expansion (with idx):
+            If idx is present in the variable list, items are expanded vertically
+            (one per line). The number of idx variables used inline must equal
+            the dimension of the array.
 
-        If idx is not present, horizontally and must have a format similar to
-        {"$specie_charge$", } i.e. braces must close the substitutable along with
-        optional quotes enclosing the substitutable and a separator following that
+        Horizontal Expansion (without idx):
+            If idx is not present, items are expanded horizontally in a format like
+            {"$specie_charge$", } with braces, optional quotes, and separators.
+
+        Syntax:
+            REPEAT var1, var2 IN property [REPLACE pattern1 replacement1 ...]
 
         Args:
             rest: Command parameters in format "vars IN property [extras]"
 
         Raises:
             ValueError: If IN keyword is missing or arguments are invalid
+            SyntaxError: If REPLACE syntax is invalid
+
+        Example:
+            // $JAFF REPEAT idx, specie IN species REPLACE old new
+            species[$idx$] = "$specie$";  // Will also replace old -> new
+            // $JAFF END
         """
         if "IN" not in rest:
             raise ValueError(f"IN keyword not found in {self.line}")
@@ -287,6 +373,16 @@ class Fileparser:
         # Extract property name and optional modifiers
         prop: str = props[0]
         extras: list[str] = props[1:]
+
+        # Parse REPLACE directives from extras
+        repl_pos: list[int] = [i for i, extra in enumerate(extras) if extra == "REPLACE"]
+        if repl_pos:
+            try:
+                # Each REPLACE must be followed by pattern and replacement strings
+                self.replacements = [(extras[i + 1], extras[i + 2]) for i in repl_pos]
+            except IndexError:
+                raise SyntaxError(f"Invalid replacement syntax in {self.line}")
+            self.replace = True
 
         # Get property configuration from parser dictionary
         prop_dict: dict[str, Any] = self.__get_command_props("REPEAT")[prop]
@@ -309,9 +405,19 @@ class Fileparser:
 
         Processes syntax like "GET specie_idx FOR CO" to get the index of
         a specific species, or similar queries for mass, charge, etc.
+        Optionally supports REPLACE directive for regex-based text replacement.
+
+        Syntax:
+            GET prop1, prop2 FOR entity [REPLACE pattern1 replacement1 ...]
 
         Args:
-            rest: Command parameters in format "props FOR entity"
+            rest: Command parameters in format "props FOR entity [extras]"
+
+
+        Example:
+            // $JAFF GET specie_idx FOR CO REPLACE CO Carbon_Monoxide
+            int idx = $specie_idx$;  // Will also replace CO -> Carbon_Monoxide
+            // $JAFF END
         """
         if "FOR" not in rest:
             raise ValueError(f"FOR keyword not found in {self.line}")
@@ -319,9 +425,21 @@ class Fileparser:
         # Parse "props FOR entity" syntax
         props_str: str
         entity: str
-        props_str, entity = rest.split("FOR")
-        props: list[str] = [prop.strip() for prop in props_str.split(",")]
-        entity = entity.strip()
+        props_str, entity_and_extras = rest.split("FOR")
+        props: list[str] = self.__get_stripped_tokens(props_str)
+        split_entity_and_extras = self.__get_stripped_tokens(entity_and_extras, " ")
+        entity = split_entity_and_extras[0]
+        extras: list[str] = split_entity_and_extras[1:]
+
+        # Parse REPLACE directives from extras
+        repl_pos: list[int] = [i for i, extra in enumerate(extras) if extra == "REPLACE"]
+        if repl_pos:
+            try:
+                # Each REPLACE must be followed by pattern and replacement strings
+                self.replacements = [(extras[i + 1], extras[i + 2]) for i in repl_pos]
+            except IndexError:
+                raise SyntaxError(f"Invalid replacement syntax in {self.line}")
+            self.replace = True
 
         # Set up token substitution for the requested properties
         self.parse_function = lambda: self.__substitute_tokens(props, "GET", entity)
@@ -330,15 +448,39 @@ class Fileparser:
         """
         Handle the HAS command to check entity existence.
 
-        Checks if a species, reaction or element exists in the network,
-        returning 1 if it exists, 0 otherwise.
+        Checks if a species, reaction, or element exists in the network,
+        returning 1 if it exists, 0 otherwise. Optionally supports REPLACE
+        directive for regex-based text replacement.
+
+        Syntax:
+            HAS identity entity [REPLACE pattern1 replacement1 ...]
 
         Args:
-            rest: Command parameters specifying entity type and name
+            rest: Command parameters specifying entity type and name, optionally
+                 followed by REPLACE directives
+
+        Raises:
+            SyntaxError: If REPLACE syntax is invalid
+
+        Example:
+            // $JAFF HAS specie CO REPLACE 1 true
+            bool has_co = $specie$;  // Will also replace 1 -> true
+            // $JAFF END
         """
-        tokens: list[str] = [token.strip() for token in rest.split()]
+        tokens: list[str] = self.__get_stripped_tokens(rest, " ")
         identity: str = tokens[0]
-        entity: str = " ".join(tokens[1:])
+        entity: str = tokens[1]
+        extras: list[str] = tokens[2:]
+
+        # Parse REPLACE directives from extras
+        repl_pos: list[int] = [i for i, extra in enumerate(extras) if extra == "REPLACE"]
+        if repl_pos:
+            try:
+                # Each REPLACE must be followed by pattern and replacement strings
+                self.replacements = [(extras[i + 1], extras[i + 2]) for i in repl_pos]
+            except IndexError:
+                raise SyntaxError(f"Invalid replacement syntax in {self.line}")
+            self.replace = True
 
         self.parse_function = lambda: self.__get_truth_value(identity, entity)
 
@@ -347,20 +489,50 @@ class Fileparser:
         Handle the REDUCE command to create reduction expressions.
 
         Processes syntax like "REDUCE var1, var2 IN props1, props2" to generate
-        expressions that sum arrays of values. Useful for computing
-        totals like total charge, total mass or some quantity using a combination
-        of these properties
+        expressions that sum arrays of values. Useful for computing totals like
+        total charge, total mass, or other quantities using a combination of
+        these properties. Optionally supports REPLACE directive for regex-based
+        text replacement.
+
+        Syntax:
+            REDUCE var1, var2 IN prop1, prop2 [REPLACE pattern1 replacement1 ...]
 
         Args:
-            rest: Command parameters in format "vars IN properties"
+            rest: Command parameters in format "vars IN properties [extras]"
+
+        Example:
+            // $JAFF REDUCE charge IN specie_charges REPLACE + plus
+            double total = $()$;  // Will also replace + -> plus
+            // $JAFF END
         """
         if rest.count("IN") != 1:
             raise SyntaxError(f"Invalid syntax detected: {self.line}")
 
-        # Get variables and props separated by IN
-        vars, props = rest.split("IN")
+        # Get variables and props, extras separated by IN
+        vars, props_and_extras = rest.split("IN")
         split_vars: list[str] = self.__get_stripped_tokens(vars)
-        split_props: list[str] = self.__get_stripped_tokens(props)
+        split_props_and_extras: list[str] = self.__get_stripped_tokens(props_and_extras)
+
+        split_props: list[str] = split_props_and_extras
+        extras: list[str] = []
+
+        # Extract extras (REPLACE directives) from the last property if present
+        # Extras must appear after the last comma-separated property
+        if len(split_props_and_extras[-1].split()) > 1:
+            new_tokens = self.__get_stripped_tokens(split_props_and_extras[-1], " ")
+            split_props[-1] = new_tokens[0]
+            extras = new_tokens[1:]
+
+        # Parse REPLACE directives: find positions of "REPLACE" keyword
+        # and extract (pattern, replacement) pairs that follow
+        repl_pos: list[int] = [i for i, extra in enumerate(extras) if extra == "REPLACE"]
+        if repl_pos:
+            try:
+                # Each REPLACE must be followed by pattern and replacement strings
+                self.replacements = [(extras[i + 1], extras[i + 2]) for i in repl_pos]
+            except IndexError:
+                raise SyntaxError(f"Invalid replacement syntax in {self.line}")
+            self.replace = True
 
         # Get supported props for the REDUCE command
         reduction_props = self.__get_command_props("REDUCE")
@@ -381,6 +553,36 @@ class Fileparser:
         self.parse_function = lambda: self.__get_reduction_expression(
             split_vars, split_props
         )
+
+    def __replace(self, text: str) -> str:
+        """
+        Apply regex-based replacements to generated text.
+
+        Iterates through all replacement patterns and applies them sequentially
+        using regex substitution. Patterns are compiled as regular expressions,
+        allowing for powerful text transformations.
+
+        Args:
+            text: The text to apply replacements to
+
+        Returns:
+            Text with all replacements applied
+
+        Example:
+            With replacements = [("old", "new"), (r"\s+", " ")]:
+            - "old text" -> "new text"
+            - "new  text" -> "new text" (collapses whitespace)
+        """
+        if not self.replacements:
+            raise SyntaxError(f"No valid replacements found in {self.line}")
+        for before, after in self.replacements:
+            try:
+                pattern = re.compile(before)
+                text = pattern.sub(after, text)
+            except re.error as e:
+                raise SyntaxError(f"Invalid regex pattern '{before}' in {self.line}: {e}")
+
+        return text
 
     def __get_reduction_expression(self, vars: list[str], props: list[str]) -> None:
         """
@@ -450,6 +652,9 @@ class Fileparser:
 
         # Replace the reduction pattern $()$ with the expanded expression
         line = line.replace(match.group(1), expression)
+        # Apply regex replacements if REPLACE directive was specified
+        if self.replace:
+            line = self.__replace(line)
 
         self.modified += self.indent + line + "\n"
 
@@ -590,14 +795,21 @@ class Fileparser:
                         continue
                     args = [_extras, line, f"${svar}$"]
                     output += self.__get_special_var_dict[svar]["func"](*args)
+                    # Apply regex replacements if REPLACE directive was specified
+                    if self.replace:
+                        output = self.__replace(output)
+
                     self.modified += output + "\n"
 
                     return
 
             # Get the generated vertically generated lines of array
-            self.modified += self.__apply_indexed_template(
-                items, line, f"${expected_vars[1]}$"
-            )
+            output = self.__apply_indexed_template(items, line, f"${expected_vars[1]}$")
+            # Apply regex replacements if REPLACE directive was specified
+            if self.replace:
+                output = self.__replace(output)
+            self.modified += output
+
             return
 
         # Horizontal mode: generate inline array/list
@@ -657,6 +869,9 @@ class Fileparser:
 
         # Replace the matched pattern with the generated items
         line = line[:begin] + output + line[end:]
+        # Apply regex replacements if REPLACE directive was specified
+        if self.replace:
+            line = self.__replace(line)
 
         self.modified += self.indent + line + "\n"
 
@@ -722,6 +937,10 @@ class Fileparser:
 
         # Perform all token substitutions in the line
         line: str = pattern.sub(repl, self.line)
+        # Apply regex replacements if REPLACE directive was specified
+        if self.replace:
+            line = self.__replace(line)
+
         self.modified += self.indent + line + "\n"
 
     def __get_command_props(self, command: str) -> dict[str, Any]:
@@ -894,18 +1113,25 @@ class Fileparser:
         return begin, end
 
     @staticmethod
-    def __get_stripped_tokens(tokens: str, sep: str = ",") -> list[str]:
+    def __get_stripped_tokens(
+        tokens: str, sep: str = ",", maxsplit: int = -1
+    ) -> list[str]:
         """
         Split a string into tokens and strip whitespace from each.
 
         Args:
             tokens: String to split
             sep: Separator character (default: comma)
+            maxsplit: Maximum number of splits to perform (default: -1 for no limit)
 
         Returns:
             List of stripped token strings
+
+        Example:
+            __get_stripped_tokens("a, b, c") -> ["a", "b", "c"]
+            __get_stripped_tokens("a b c", " ", 1) -> ["a", "b c"]
         """
-        return [token.strip() for token in tokens.strip().split(sep)]
+        return [token.strip() for token in tokens.strip().split(sep, maxsplit)]
 
     @cached_property
     def __get_parser_dict(self) -> dict[str, CommandProps]:

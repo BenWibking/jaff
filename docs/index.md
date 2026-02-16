@@ -20,19 +20,24 @@ JAFF is a comprehensive tool for working with astrochemical reaction networks. I
 
 ## Key Features
 
-### 🔄 **Multi-Format Support**
+### **Multi-Format Support**
+
 Parse networks from major astrochemistry databases including KIDA, UDFA, PRIZMO, KROME, and UCLCHEM with automatic format detection.
 
-### ✅ **Validation & Analysis**
+### **Validation & Analysis**
+
 Automatically validate mass and charge conservation, analyze stoichiometry, and extract elemental composition from complex chemical formulas.
 
-### 🚀 **Code Generation**
+### **Code Generation**
+
 Generate optimized C/C++/Fortran code for reaction rates, ODEs, Jacobians, and flux calculations with optional common subexpression elimination (CSE).
 
-### 📊 **Temperature-Dependent Rates**
+### **Temperature-Dependent Rates**
+
 Evaluate rate coefficients with support for complex temperature dependencies, photochemistry, and cosmic ray ionization.
 
-### 🎯 **Template System**
+### **Template System**
+
 Powerful template language (JAFF directives) for customizing code generation to match your simulation framework.
 
 ---
@@ -65,19 +70,23 @@ print(rate_code)
 ## Use Cases
 
 ### Astrochemistry Simulations
+
 Generate efficient ODE solvers for modeling chemical evolution in:
+
 - **Interstellar clouds** - dark clouds, molecular clouds
-- **Protoplanetary disks** - planet formation environments  
+- **Protoplanetary disks** - planet formation environments
 - **Planetary atmospheres** - exoplanet and solar system atmospheres
 - **Stellar outflows** - AGB stars, supernovae
 
 ### Network Analysis
+
 - Compare different reaction databases
 - Identify missing species or reactions
 - Validate stoichiometric conservation
 - Extract element density matrices
 
 ### Code Integration
+
 - Generate code compatible with existing simulation frameworks
 - Customize output format with templates
 - Optimize for performance with CSE
@@ -87,13 +96,13 @@ Generate efficient ODE solvers for modeling chemical evolution in:
 
 ## Supported Network Formats
 
-| Format | Description | Reference |
-|--------|-------------|-----------|
-| **KIDA** | Kinetic Database for Astrochemistry | [A&A, 689, A63 (2024)](https://doi.org/10.1051/0004-6361/202450606) |
-| **UDFA** | UMIST Database for Astrochemistry | [A&A, 682, A109 (2024)](https://doi.org/10.1051/0004-6361/202346908) |
-| **PRIZMO** | Uses `->` separator with `VARIABLES{}` | [MNRAS 494, 4471 (2020)](https://doi.org/10.1093/mnras/staa971) |
-| **KROME** | Comma-separated with `@format:` header | [MNRAS 439, 2386 (2014)](https://doi.org/10.1093/mnras/stu114) |
-| **UCLCHEM** | Comma-separated with `,NAN,` marker | [AJ 154 38 (2017)](https://doi.org/10.3847/1538-3881/aa773f) |
+| Format      | Description                            | Reference                                                            |
+| ----------- | -------------------------------------- | -------------------------------------------------------------------- |
+| **KIDA**    | Kinetic Database for Astrochemistry    | [A&A, 689, A63 (2024)](https://doi.org/10.1051/0004-6361/202450606)  |
+| **UDFA**    | UMIST Database for Astrochemistry      | [A&A, 682, A109 (2024)](https://doi.org/10.1051/0004-6361/202346908) |
+| **PRIZMO**  | Uses `->` separator with `VARIABLES{}` | [MNRAS 494, 4471 (2020)](https://doi.org/10.1093/mnras/staa971)      |
+| **KROME**   | Comma-separated with `@format:` header | [MNRAS 439, 2386 (2014)](https://doi.org/10.1093/mnras/stu114)       |
+| **UCLCHEM** | Comma-separated with `,NAN,` marker    | [AJ 154 38 (2017)](https://doi.org/10.3847/1538-3881/aa773f)         |
 
 ---
 
@@ -101,33 +110,33 @@ Generate efficient ODE solvers for modeling chemical evolution in:
 
 <div class="grid cards" markdown>
 
--   :material-rocket-launch:{ .lg .middle } __Getting Started__
+- :material-rocket-launch:{ .lg .middle } **Getting Started**
 
-    ---
+    ***
 
     Install JAFF and run your first network analysis
 
     [:octicons-arrow-right-24: Installation Guide](getting-started/installation.md)
 
--   :material-book-open-variant:{ .lg .middle } __User Guide__
+- :material-book-open-variant:{ .lg .middle } **User Guide**
 
-    ---
+    ***
 
     Learn how to work with networks, species, and reactions
 
     [:octicons-arrow-right-24: User Guide](user-guide/loading-networks.md)
 
--   :material-code-braces:{ .lg .middle } __Code Generation__
+- :material-code-braces:{ .lg .middle } **Code Generation**
 
-    ---
+    ***
 
     Generate optimized code for your simulations
 
     [:octicons-arrow-right-24: Code Generation Guide](user-guide/code-generation.md)
 
--   :material-api:{ .lg .middle } __API Reference__
+- :material-api:{ .lg .middle } **API Reference**
 
-    ---
+    ***
 
     Complete API documentation for all modules
 
@@ -168,7 +177,7 @@ JAFF is released under the [MIT License](about/license.md).
 ---
 
 !!! tip "New to astrochemistry?"
-    Check out our [Basic Concepts](getting-started/concepts.md) page to learn about chemical networks, reaction rates, and how JAFF can help your research.
+Check out our [Basic Concepts](getting-started/concepts.md) page to learn about chemical networks, reaction rates, and how JAFF can help your research.
 
 !!! example "Ready to dive in?"
-    Jump straight to the [Quick Start Guide](getting-started/quickstart.md) to start using JAFF in minutes!
+Jump straight to the [Quick Start Guide](getting-started/quickstart.md) to start using JAFF in minutes!

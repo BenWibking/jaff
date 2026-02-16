@@ -16,15 +16,10 @@ def main(
     pp = Preprocessor()
     charge_cons = "0.0"
 
-    ode = cg.get_ode_str(idx_offset=1, use_cse=True)
-    jac = cg.get_jacobian_str(idx_offset=1, use_cse=True)
-    sode = re.sub(r"f\[\s*(\d+)\s*\]", r"ydot(\1)", ode).replace(
-        "const double", "const amrex::Real"
+    ode = cg.get_ode_str(
+        idx_offset=1, use_cse=True, def_prefix="const amrex::Real", brac_format="()"
     )
-    sode = re.sub(r"nden\[\s*(\d+)\s*\]", r"nden(\1)", sode)
-    jac = re.sub(r"J\(\s*(\d+)\s*,\s*(\d+)\s*\)", r"jac(\1, \2)", jac).replace(
-        "const double", "const amrex::Real"
-    )
+    jac = cg.get_jacobian_str(idx_offset=1, use_cse=True, var_prefix="const amrex::Real")
     jac = re.sub(r"nden\[\s*(\d+)\s*\]", r"nden(\1)", jac)
 
     electron_found = False

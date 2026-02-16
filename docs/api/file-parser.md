@@ -197,6 +197,122 @@ The file parser recognizes six main JAFF commands:
 
 ---
 
+### REPLACE Directive
+
+All JAFF commands (SUB, REPEAT, REDUCE, GET, HAS) support optional **REPLACE** directives for regex-based text replacement in the generated output.
+
+**Syntax:**
+
+```cpp
+// $JAFF COMMAND arguments REPLACE pattern1 replacement1 [REPLACE pattern2 replacement2 ...]
+code
+// $JAFF END
+```
+
+**Key Features:**
+
+- Replacements are applied **after** primary code generation
+- Patterns use Python regex syntax (compiled with `re.compile()`)
+- Supports capture groups and backreferences (`\1`, `\2`, etc.)
+- Multiple REPLACE directives can be chained
+- Applied sequentially in the order specified
+- Replacement state is automatically reset at END
+
+**Basic Example:**
+
+```cpp
+// $JAFF SUB nspec REPLACE const constexpr
+const int NUM_SPECIES = $nspec$;
+// $JAFF END
+```
+
+**Output:**
+
+```cpp
+constexpr int NUM_SPECIES = 14;  // 'const' replaced with 'constexpr'
+```
+
+**Regex with Capture Groups:**
+
+```cpp
+// $JAFF REPEAT idx, specie IN species REPLACE H_(\d+) Hydrogen_\1 REPLACE He Helium
+species[$idx$] = "$specie$";
+// $JAFF END
+```
+
+**Output:**
+
+```cpp
+species[0] = "Hydrogen_1";  // H_1 -> Hydrogen_1 using capture group \1
+species[1] = "Hydrogen_2";  // H_2 -> Hydrogen_2
+species[2] = "Helium";      // He -> Helium
+```
+
+**Multiple Replacements:**
+
+```cpp
+// $JAFF REPEAT idx, specie IN species REPLACE \+ _plus REPLACE - _minus
+species[$idx$] = "$specie$";  // H+ -> H_plus, e- -> e_minus
+// $JAFF END
+```
+
+**Advanced Example - Normalizing Names:**
+
+```cpp
+// $JAFF GET specie_idx, specie_mass FOR H+ REPLACE H\+ H_PLUS REPLACE e-24 e-24
+const int idx = $specie_idx$;
+const double mass = $specie_mass$;  // 1.673773e-24 remains unchanged
+// $JAFF END
+```
+
+**Important Notes:**
+
+1. **REPLACE must appear after all command arguments**
+    - ✅ Correct: `// $JAFF SUB nspec REPLACE old new`
+    - ❌ Wrong: `// $JAFF SUB REPLACE old new nspec`
+
+2. **Pattern is regex, replacement is literal** (except backreferences)
+    - Pattern: `H_(\d+)` matches H_1, H_2, etc.
+    - Replacement: `Hydrogen_\1` becomes Hydrogen_1, Hydrogen_2, etc.
+
+3. **Each REPLACE needs both pattern and replacement**
+    - ✅ Correct: `REPLACE pattern replacement`
+    - ❌ Wrong: `REPLACE pattern` (missing replacement - raises SyntaxError)
+
+4. **Invalid regex patterns raise SyntaxError**
+    - Invalid: `REPLACE [invalid( bad_regex`
+    - Error: `SyntaxError: Invalid regex pattern '[invalid(' in line ...`
+
+5. **Replacements are scoped to the command block**
+    - Reset automatically at `// $JAFF END`
+    - Don't carry over to subsequent blocks
+
+**Use Cases:**
+
+- Convert naming conventions (e.g., `+` to `_plus`)
+- Sanitize species names for different languages
+- Replace keywords (e.g., `const` to `constexpr`)
+- Add prefixes/suffixes to generated identifiers
+- Transform numeric formats
+- Clean up special characters
+
+**Error Handling:**
+
+```python
+# Missing replacement string
+# $JAFF SUB nspec REPLACE pattern
+# Raises: SyntaxError: Invalid replacement syntax in ...
+
+# Invalid regex
+# $JAFF SUB nspec REPLACE [invalid regex
+# Raises: SyntaxError: Invalid regex pattern '[invalid' in ...: ...
+
+# REPLACE with no pairs defined (internal check)
+# Raises: SyntaxError: No valid replacements found in ...
+```
+
+---
+
 ### 1. SUB - Token Substitution
 
 Substitute template tokens with scalar values from the network.
@@ -204,8 +320,16 @@ Substitute template tokens with scalar values from the network.
 **Syntax:**
 
 ```cpp
-// $JAFF SUB token1, token2, ...
+// $JAFF SUB token1, token2, ... [REPLACE pattern replacement ...]
 code with $token1$ and $token2$
+// $JAFF END
+```
+
+**With REPLACE:**
+
+```cpp
+// $JAFF SUB nspec, label REPLACE test production
+const int NUM_SPECIES = $nspec$;  // Network: "$label$"
 // $JAFF END
 ```
 
@@ -257,6 +381,22 @@ int doubled = $nspec*2$;   // Multiply
 ### 2. REPEAT - Iteration
 
 Iterate over network components or generate indexed code expressions.
+
+**Syntax:**
+
+```cpp
+// $JAFF REPEAT var1, var2 IN property [SORT] [CSE TRUE/FALSE] [REPLACE pattern replacement ...]
+template with $var1$ and $var2$
+// $JAFF END
+```
+
+**With REPLACE:**
+
+```cpp
+// $JAFF REPEAT idx, specie IN species REPLACE \+ _plus REPLACE - _minus
+species[$idx$] = "$specie$";  // Converts H+ to H_plus, e- to e_minus
+// $JAFF END
+```
 
 **Syntax:**
 
@@ -473,13 +613,21 @@ const char* names[] = {"H+", "e-", "H", "C", "C+", "CO+", "CO"};
 
 ### 3. GET - Retrieve Properties
 
-Get specific properties for named entities.
+Retrieve specific properties for named entities (species, reactions, elements).
 
 **Syntax:**
 
 ```cpp
-// $JAFF GET property1, property2, ... FOR entity_name
+// $JAFF GET property1, property2 FOR entity_name [REPLACE pattern replacement ...]
 code with $property1$ and $property2$
+// $JAFF END
+```
+
+**With REPLACE:**
+
+```cpp
+// $JAFF GET specie_idx FOR H+ REPLACE 0 ZERO
+const int idx = $specie_idx$;  // 0 becomes ZERO
 // $JAFF END
 ```
 
@@ -568,13 +716,21 @@ double tmax = $reaction_tmax$;
 
 ### 4. HAS - Check Existence
 
-Check if an entity exists in the network (returns 1 or 0).
+Check if a species, reaction, or element exists in the network.
 
 **Syntax:**
 
 ```cpp
-// $JAFF HAS entity_type entity_name
+// $JAFF HAS entity_type entity_name [REPLACE pattern replacement ...]
 int result = $entity_type$;
+// $JAFF END
+```
+
+**With REPLACE:**
+
+```cpp
+// $JAFF HAS specie e- REPLACE 1 true REPLACE 0 false
+const bool has_electron = $specie$;  // 1 becomes true, 0 becomes false
 // $JAFF END
 ```
 
@@ -619,13 +775,21 @@ const int has_argon = 0;      // Ar not in network
 
 ### 5. REDUCE - Array Reduction Expressions
 
-Generate reduction expressions that combine array elements with operations (sum, product, etc.).
+Generate expressions that combine array elements (sum, product, etc.).
 
 **Syntax:**
 
 ```cpp
-// $JAFF REDUCE variable_name IN property_name
+// $JAFF REDUCE variable_name IN property_name [REPLACE pattern replacement ...]
 result = $($variable_name$ OPERATION $variable_name$)$;
+// $JAFF END
+```
+
+**With REPLACE:**
+
+```cpp
+// $JAFF REDUCE specie_mass_ne IN specie_masses_ne REPLACE \+ plus
+const double total = $($specie_mass_ne$ + $specie_mass_ne$)$;  // + becomes plus
 // $JAFF END
 ```
 
