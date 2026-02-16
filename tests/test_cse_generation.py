@@ -28,7 +28,7 @@ def test_codegen(test_network):
 
 def test_cse_generates_common_subexpressions(test_codegen):
     """Test that CSE identifies and extracts common subexpressions."""
-    rates_with_cse = test_codegen.get_rates(use_cse=True)
+    rates_with_cse = test_codegen.get_rates_str(use_cse=True)
 
     # Check that common subexpressions were found
     common_subexpr_count = rates_with_cse.count("const double x")
@@ -39,8 +39,8 @@ def test_cse_generates_common_subexpressions(test_codegen):
 
 def test_cse_reduces_redundancy(test_codegen):
     """Test that CSE reduces redundant calculations."""
-    rates_no_cse = test_codegen.get_rates(use_cse=False)
-    rates_with_cse = test_codegen.get_rates(use_cse=True)
+    rates_no_cse = test_codegen.get_rates_str(use_cse=False)
+    rates_with_cse = test_codegen.get_rates_str(use_cse=True)
 
     # Count occurrences of exp() calls as a proxy for redundant calculations
     exp_count_no_cse = rates_no_cse.count("exp(")
@@ -55,7 +55,7 @@ def test_cse_reduces_redundancy(test_codegen):
 
 def test_cse_output_structure(test_codegen):
     """Test that CSE generates properly structured C++ code."""
-    rates_with_cse = test_codegen.get_rates(use_cse=True)
+    rates_with_cse = test_codegen.get_rates_str(use_cse=True)
 
     # Check for proper C++ syntax
     assert "const double" in rates_with_cse, (
@@ -74,8 +74,8 @@ def test_cse_output_structure(test_codegen):
 
 def test_cse_vs_no_cse_consistency(test_codegen):
     """Test that both CSE and non-CSE versions generate valid C++ code."""
-    rates_no_cse = test_codegen.get_rates(use_cse=False)
-    rates_with_cse = test_codegen.get_rates(use_cse=True)
+    rates_no_cse = test_codegen.get_rates_str(use_cse=False)
+    rates_with_cse = test_codegen.get_rates_str(use_cse=True)
 
     # Both should generate rate assignments
     assert "k[" in rates_no_cse, "Non-CSE should generate rate assignments"
@@ -91,7 +91,7 @@ def test_cse_vs_no_cse_consistency(test_codegen):
 
 def test_cse_common_patterns(test_codegen):
     """Test that CSE identifies common patterns in the test network."""
-    rates_with_cse = test_codegen.get_rates(use_cse=True)
+    rates_with_cse = test_codegen.get_rates_str(use_cse=True)
 
     # The test network has reactions with common exp(-100/tgas) and exp(-200/tgas) terms
     # These should be extracted as common subexpressions

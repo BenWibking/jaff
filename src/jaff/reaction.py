@@ -149,12 +149,12 @@ class Reaction:
             species = [species]
         return any([x.name in species for x in self.products])
 
-    def get_code(self, lang="py"):
+    def get_code(self, lang="cpp"):
         fmap = {
-            "py": sympy.pycode,
+            "python": sympy.pycode,
             "c": sympy.ccode,
             "cxx": sympy.cxxcode,
-            "f90": sympy.fcode,
+            "fortran": sympy.fcode,
         }
 
         if not fmap.get(lang, ""):
@@ -168,7 +168,7 @@ class Reaction:
         ):
             # Return a placeholder that will be replaced later
             return (
-                f"photorates(#IDX#, {', '.join(str(arg) for arg in self.rate.args[1:])})"
+                f"photorates($IDX$, {', '.join(str(arg) for arg in self.rate.args[1:])})"
             )
 
         return fmap[lang](self.get_sympy(), strict=False)

@@ -24,10 +24,136 @@ net = Network("networks/react_COthin")
 cg = Codegen(network=net, lang="c++")
 
 # Generate code
-rates = cg.get_rates(use_cse=True)
-odes = cg.get_ode(use_cse=True)
-jac = cg.get_jacobian(use_cse=True)
+rates = cg.get_rates_str(use_cse=True)
+odes = cg.get_ode_str(use_cse=True)
+jac = cg.get_jacobian_str(use_cse=True)
 ```
+
+## Type Definitions
+
+The `codegen` module uses TypedDict classes to provide structured, type-safe return values.
+
+### ExtrasDict
+
+```python
+class ExtrasDict(TypedDict):
+    """Container for extra data in IndexedReturn."""
+    cse: IndexedList
+```
+
+Dictionary containing additional data alongside main expressions.
+
+**Attributes**:
+
+- `cse` (IndexedList): List of Common Subexpression Elimination (CSE) temporary variables
+    - Contains `IndexedValue` objects representing CSE variable assignments
+    - Example: `IndexedValue([0], "sqrt(tgas)")`
+
+---
+
+### IndexedReturn
+
+```python
+class IndexedReturn(TypedDict):
+    """Structured return value for indexed code generation methods."""
+    extras: ExtrasDict
+    expressions: IndexedList
+```
+
+Return structure for methods that generate indexed expressions with optional CSE optimization.
+
+**Attributes**:
+
+- `extras` (ExtrasDict): Dictionary containing CSE temporaries and other auxiliary data
+    - `extras["cse"]`: IndexedList of CSE temporary variable expressions
+- `expressions` (IndexedList): List of main expressions
+    - Contains `IndexedValue` objects for the primary output (rates, ODEs, Jacobian elements, etc.)
+
+**Methods Returning IndexedReturn**:
+
+- `get_indexed_rates()` - Rate coefficient expressions
+- `get_indexed_odes()` - ODE right-hand side expressions
+- `get_indexed_rhs()` - RHS expressions (alias for ODEs)
+- `get_indexed_jacobian()` - Jacobian matrix elements
+
+**Example**:
+
+```python
+from jaff import Network, Codegen
+from jaff.codegen import IndexedReturn
+from jaff.jaff_types import IndexedList
+
+net = Network("networks/react_COthin")
+cg = Codegen(network=net, lang="cxx")
+
+# Get indexed rates with type annotation
+result: IndexedReturn = cg.get_indexed_rates(use_cse=True, cse_var="cse")
+
+# Access CSE temporaries
+cse_list: IndexedList = result["extras"]["cse"]
+for iv in cse_list:
+    print(f"cse[{iv.indices[0]}] = {iv.value}")
+# Output: cse[0] = sqrt(tgas)
+#         cse[1] = exp(-100/tgas)
+
+# Access rate expressions
+rate_list: IndexedList = result["expressions"]
+for iv in rate_list:
+    print(f"k[{iv.indices[0]}] = {iv.value}")
+# Output: k[0] = 1.2e-10 * cse[0]
+#         k[1] = 3.4e-11 * cse[1]
+```
+
+---
+
+### LangModifier
+
+```python
+class LangModifier(TypedDict):
+    """Language-specific code generation configuration."""
+    brac: str
+    assignment_op: str
+    line_end: str
+    matrix_sep: str
+    code_gen: Callable[..., str]
+    idx_offset: int
+    comment: str
+    types: dict[str, str]
+    extras: dict[str, Any]
+```
+
+Type definition for language-specific code generation modifiers and settings.
+
+**Attributes**:
+
+- `brac` (str): Bracket style for 1D arrays
+    - C/C++: `"[]"`
+    - Fortran: `"()"`
+- `assignment_op` (str): Assignment operator (typically `"="`)
+- `line_end` (str): Statement terminator
+    - C/C++: `";"`
+    - Python/Fortran: `""`
+- `matrix_sep` (str): Separator for 2D array indexing
+    - C/C++: `"]["` (for `array[i][j]`)
+    - Fortran: `", "` (for `array(i, j)`)
+- `code_gen` (Callable): SymPy code generation function for the target language
+- `idx_offset` (int): Array indexing offset
+    - C/C++/Python: `0`
+    - Fortran: `1`
+- `comment` (str): Comment prefix
+    - C/C++: `"//"`
+    - Fortran: `"!!"`
+    - Python: `"#"`
+- `types` (dict[str, str]): Language-specific type declarations
+    - Example: `{"double": "double", "int": "int"}` for C++
+- `extras` (dict[str, Any]): Additional language-specific attributes
+    - Qualifiers, specifiers, and other language features
+
+**Usage**:
+
+This structure is used internally by `Codegen` to maintain language-specific settings.
+
+---
 
 ## Class Reference
 
@@ -38,11 +164,11 @@ jac = cg.get_jacobian(use_cse=True)
       members:
         - __init__
         - get_commons
-        - get_rates
-        - get_flux_expressions
-        - get_ode_expressions
-        - get_ode
-        - get_jacobian
+        - get_rates_str
+        - get_flux_expressions_str
+        - get_ode_expressions_str
+        - get_ode_str
+        - get_jacobian_str
         - get_dedt
 -->
 
@@ -131,6 +257,11 @@ cg_c = Codegen(network=net, lang="c", matrix_format="[,]")
 
 ## Methods
 
+The `Codegen` class provides two types of methods:
+
+1. **String Methods** - Return formatted code strings ready to use (e.g., `get_rates_str()`, `get_ode_str()`)
+2. **Indexed Methods** - Return structured `IndexedReturn` dictionaries with `IndexedList` objects (e.g., `get_indexed_rates()`, `get_indexed_odes()`)
+
 ### Common Constants
 
 #### `get_commons(idx_offset=-1, idx_prefix="", definition_prefix="", assignment_op="", line_end="")`
@@ -172,7 +303,40 @@ const int nreactions = 127;
 
 ### Rate Calculations
 
-#### `get_rates(idx_offset=-1, rate_variable="k", brac_format="", use_cse=True, cse_var="x", var_prefix="", assignment_op="", line_end="")`
+#### `get_indexed_rates(use_cse=True, cse_var="x")`
+
+Generate indexed rate expressions with optional CSE optimization.
+
+**Parameters:**
+
+- `use_cse` (bool): Whether to apply common subexpression elimination. Default: True
+- `cse_var` (str): Prefix for CSE temporary variable names. Default: "x"
+
+**Returns:**
+
+- `IndexedReturn`: Dictionary containing:
+    - `extras["cse"]`: IndexedList of CSE temporary expressions
+    - `expressions`: IndexedList of rate expressions
+
+**Example:**
+
+```python
+result = cg.get_indexed_rates(use_cse=True, cse_var="cse")
+
+# Access CSE temporaries
+for iv in result["extras"]["cse"]:
+    print(f"const double cse[{iv.indices[0]}] = {iv.value};")
+
+# Access rate expressions
+for iv in result["expressions"]:
+    print(f"k[{iv.indices[0]}] = {iv.value};")
+```
+
+**See Also**: [JAFF Types API](jaff-types.md) for details on `IndexedValue` and `IndexedList`.
+
+---
+
+#### `get_rates_str(idx_offset=-1, rate_variable="k", brac_format="", use_cse=True, cse_var="x", var_prefix="", assignment_op="", line_end="")`
 
 Generate code for reaction rate coefficient calculations.
 
@@ -194,7 +358,7 @@ Generate code for reaction rate coefficient calculations.
 **Example:**
 
 ```python
-rates = cg.get_rates(
+rates = cg.get_rates_str(
     idx_offset=0,
     rate_variable="k",
     use_cse=True
@@ -217,7 +381,48 @@ k[2] = 5.6e-12 * x0 * x1;
 
 ### Flux Calculations
 
-#### `get_flux_expressions(rate_var="k", species_var="y", idx_prefix="", idx_offset=-1, brac_format="", flux_var="flux", assignment_op="", line_end="")`
+#### `get_indexed_flux_expressions()`
+
+Generate indexed flux expressions for all reactions.
+
+This method creates IndexedValue objects representing flux calculations for each reaction. Fluxes are the products of rate coefficients and reactant concentrations.
+
+**Parameters:**
+
+None
+
+**Returns:**
+
+- `IndexedList`: List of IndexedValue([reaction_idx], flux_expression) objects
+    - Each flux expression contains the template placeholder `$IDX$` for the reaction index
+    - Uses language-specific bracket formats
+
+**Note:**
+
+- Flux expressions use template placeholders replaced during code generation
+- Use `get_flux_expressions_str()` for formatted code strings
+- Generated expressions are language-independent templates
+
+**Example:**
+
+```python
+fluxes = cg.get_indexed_flux_expressions()
+for iv in fluxes:
+    print(f"Reaction {iv.indices[0]}: {iv.value}")
+# Output:
+# Reaction 0: k[$IDX$] * y[h] * y[o]
+# Reaction 1: k[$IDX$] * y[co]
+```
+
+**See Also:**
+
+- `get_flux_expressions_str()` - Generate formatted string output with variable names
+
+---
+
+#### `get_flux_expressions_str(rate_var="k", species_var="y", idx_prefix="", idx_offset=-1, brac_format="", flux_var="flux", assignment_op="", line_end="")`
+
+Generate code for reaction flux calculations (rate × reactant concentrations).
 
 Generate code for reaction flux calculations (rate × reactant concentrations).
 
@@ -239,7 +444,7 @@ Generate code for reaction flux calculations (rate × reactant concentrations).
 **Example:**
 
 ```python
-fluxes = cg.get_flux_expressions(
+fluxes = cg.get_flux_expressions_str(
     rate_var="k",
     species_var="n",
     idx_prefix="idx_",
@@ -257,7 +462,75 @@ flux[2] = k[2] * n[idx_c] * n[idx_o2];
 
 ### ODE Expressions
 
-#### `get_ode_expressions(idx_offset=-1, flux_var="flux", species_var="y", idx_prefix="", derivative_prefix="d", derivative_var=None, brac_format="", assignment_op="", line_end="")`
+#### `get_indexed_ode_expressions()`
+
+Generate indexed ODE expressions from flux contributions.
+
+This method creates IndexedValue objects representing the time derivatives of species concentrations based on their participation in reactions (via fluxes).
+
+**Parameters:**
+
+None
+
+**Returns:**
+
+- `IndexedList`: List of IndexedValue([species_idx], ode_expression) objects
+    - Each ODE expression is the sum of flux contributions for that species
+    - Uses language-specific bracket formats
+
+**Note:**
+
+- Does NOT apply CSE optimization (use `get_indexed_odes()` for CSE)
+- Flux expressions must be generated separately
+- Use `get_ode_expressions_str()` for formatted code strings
+
+**Example:**
+
+```python
+ode_exprs = cg.get_indexed_ode_expressions()
+for iv in ode_exprs:
+    print(f"Species {iv.indices[0]}: dy/dt = {iv.value}")
+```
+
+**See Also:**
+
+- `get_ode_expressions_str()` - Generate formatted string output
+- `get_indexed_odes()` - Generate ODE system with CSE optimization
+
+---
+
+#### `get_indexed_odes(use_cse=True, cse_var="cse")`
+
+Generate indexed ODE expressions with optional CSE optimization.
+
+**Parameters:**
+
+- `use_cse` (bool): Whether to apply common subexpression elimination. Default: True
+- `cse_var` (str): Prefix for CSE temporary variable names. Default: "cse"
+
+**Returns:**
+
+- `IndexedReturn`: Dictionary containing:
+    - `extras["cse"]`: IndexedList of CSE temporary expressions
+    - `expressions`: IndexedList of ODE right-hand side expressions
+
+**Example:**
+
+```python
+result = cg.get_indexed_odes(use_cse=True)
+
+# Generate CSE declarations
+for iv in result["extras"]["cse"]:
+    print(f"const double cse[{iv.indices[0]}] = {iv.value};")
+
+# Generate ODE assignments
+for iv in result["expressions"]:
+    print(f"dydt[{iv.indices[0]}] = {iv.value};")
+```
+
+---
+
+#### `get_ode_expressions_str(idx_offset=-1, flux_var="flux", species_var="y", idx_prefix="", derivative_prefix="d", derivative_var=None, brac_format="", assignment_op="", line_end="")`
 
 Generate code for ODE right-hand side (dy/dt) from fluxes.
 
@@ -280,7 +553,7 @@ Generate code for ODE right-hand side (dy/dt) from fluxes.
 **Example:**
 
 ```python
-odes = cg.get_ode_expressions(
+odes = cg.get_ode_expressions_str(
     flux_var="flux",
     species_var="y",
     idx_prefix="idx_",
@@ -298,9 +571,100 @@ dy[idx_oh] = 0.0 + flux[0] + flux[1];
 
 ### Optimized ODE System
 
-#### `get_ode(idx_offset=0, use_cse=True, cse_var="cse", ode_var="f", brac_format="", def_prefix="", assignment_op="", line_end="")`
+#### `get_indexed_rhs(use_cse=True, cse_var="cse")`
 
-Generate optimized ODE system with CSE applied to the entire system.
+Generate indexed right-hand side expressions (ODE + energy equation).
+
+This method combines the ODE system with the specific internal energy derivative (dedt). The energy equation is appended as the last element in the expressions list.
+
+**Parameters:**
+
+- `use_cse` (bool): Whether to apply common subexpression elimination. Default: True
+- `cse_var` (str): Prefix for CSE temporary variable names. Default: "cse"
+
+**Returns:**
+
+- `IndexedReturn`: Dictionary containing:
+    - `extras["cse"]`: IndexedList of CSE temporary expressions
+    - `expressions`: IndexedList of RHS expressions (n_species + 1 elements, last is dedt)
+
+**Note:**
+
+- The energy equation is appended as the last element: `expressions[n_species]`
+- CSE temporaries are shared from the ODE system
+- Use `get_rhs_str()` for formatted code ready to write to file
+
+**Example:**
+
+```python
+result = cg.get_indexed_rhs(use_cse=True)
+
+# Last expression is the energy derivative
+n_species = len(cg.net.species)
+dedt_expr = result["expressions"][-1]
+print(f"Energy equation at index {dedt_expr.indices[0]}: {dedt_expr.value}")
+```
+
+**See Also:**
+
+- `get_rhs_str()` - Generate formatted string output
+- `get_indexed_odes()` - Generate only ODE system without energy equation
+- `get_dedt()` - Generate only the energy derivative expression
+
+---
+
+#### `get_rhs_str(idx_offset=0, use_cse=True, cse_var="cse", ode_var="f", brac_format="", def_prefix="", assignment_op="", line_end="")`
+
+Generate formatted code string for complete RHS (ODE + energy equation).
+
+This method combines the ODE system with the specific internal energy derivative. The energy equation is appended as the last element in the output array.
+
+**Parameters:**
+
+- `idx_offset` (int): Starting index for arrays. Default: 0
+- `use_cse` (bool): Apply common subexpression elimination. Default: True
+- `cse_var` (str): Prefix for CSE temporary variable names. Default: "cse"
+- `ode_var` (str): Name of output array. Default: "f"
+- `brac_format` (str): Override bracket format. Default: ""
+- `def_prefix` (str): Prefix for variable declarations. Default: ""
+- `assignment_op` (str): Override assignment operator. Default: ""
+- `line_end` (str): Override line terminator. Default: ""
+
+**Returns:**
+
+- `str`: Generated code with ODE system followed by energy equation assignment
+
+**Note:**
+
+- Energy equation is assigned to `ode_var[n_species]`
+- CSE optimizations from ODE system are included
+
+**Example:**
+
+```python
+rhs = cg.get_rhs_str(
+    idx_offset=0,
+    use_cse=True,
+    ode_var="f"
+)
+```
+
+**Output:**
+
+```cpp
+const double cse0 = k[0] * n[0];
+const double cse1 = k[1] * n[1];
+
+f[0] = -cse0 + cse1;
+f[1] = cse0 - cse1;
+f[2] = (some energy equation expression);
+```
+
+---
+
+#### `get_ode_str(idx_offset=0, use_cse=True, cse_var="cse", ode_var="f", brac_format="", def_prefix="", assignment_op="", line_end="")`
+
+Generate optimized ODE system with CSE applied to the entire system (without energy equation).
 
 **Parameters:**
 
@@ -322,7 +686,7 @@ Generate optimized ODE system with CSE applied to the entire system.
 **Example:**
 
 ```python
-ode = cg.get_ode(
+ode = cg.get_ode_str(
     idx_offset=0,
     use_cse=True,
     ode_var="dydt"
@@ -343,19 +707,60 @@ dydt[2] = cse2 - cse0;
 
 ### Jacobian Matrix
 
-#### `get_jacobian(idx_offset=0, use_cse=True, cse_var="cse", jac_var="jac", brac_format="", matrix_format="", def_prefix="", assignment_op="", line_end="")`
+#### `get_indexed_jacobian(use_dedt=False, use_cse=True, cse_var="cse")`
+
+Generate indexed Jacobian matrix elements with optional CSE optimization.
+
+**Parameters:**
+
+- `use_dedt` (bool): Include energy equation derivatives. Default: False
+- `use_cse` (bool): Whether to apply common subexpression elimination. Default: True
+- `cse_var` (str): Prefix for CSE temporary variable names. Default: "cse"
+
+**Returns:**
+
+- `IndexedReturn`: Dictionary containing:
+    - `extras["cse"]`: IndexedList of CSE temporary expressions
+    - `expressions`: IndexedList of Jacobian elements with 2D indices
+
+**Note**: Jacobian elements use 2D indexing (flattened representation).
+
+**Example:**
+
+```python
+result = cg.get_indexed_jacobian(use_cse=True)
+
+# CSE temporaries (1D indices)
+for iv in result["extras"]["cse"]:
+    print(f"const double cse[{iv.indices[0]}] = {iv.value};")
+
+# Jacobian elements (2D indices)
+for iv in result["expressions"]:
+    i, j = iv.indices
+    print(f"jac[{i}][{j}] = {iv.value};")
+
+# Convert to nested representation
+nested_jac = result["expressions"].nested()
+for iv in nested_jac:
+    row_idx = iv.indices[0]
+    print(f"Row {row_idx}: {len(iv.value)} elements")
+```
+
+---
+
+#### `get_jacobian_str(use_dedt=False, idx_offset=0, use_cse=True, cse_var="cse", jac_var="J", matrix_format="", var_prefix="", assignment_op="", line_end="")`
 
 Generate analytical Jacobian matrix (∂f_i/∂y_j).
 
 **Parameters:**
 
+- `use_dedt` (bool): Include energy equation derivatives. Default: False
 - `idx_offset` (int): Starting index. Default: 0
 - `use_cse` (bool): Apply CSE optimization. Default: True
 - `cse_var` (str): Prefix for CSE variables. Default: "cse"
-- `jac_var` (str): Name of Jacobian matrix variable. Default: "jac"
-- `brac_format` (str): Override bracket format. Default: ""
+- `jac_var` (str): Name of Jacobian matrix variable. Default: "J"
 - `matrix_format` (str): Override 2D array format. Default: ""
-- `def_prefix` (str): Prefix for variable definitions. Default: ""
+- `var_prefix` (str): Prefix for CSE variable declarations. Default: ""
 - `assignment_op` (str): Override assignment operator. Default: ""
 - `line_end` (str): Override line terminator. Default: ""
 
@@ -368,7 +773,7 @@ Generate analytical Jacobian matrix (∂f_i/∂y_j).
 **Example:**
 
 ```python
-jac = cg.get_jacobian(
+jac = cg.get_jacobian_str(
     idx_offset=0,
     use_cse=True,
     jac_var="J"
@@ -466,19 +871,19 @@ commons = cg.get_commons(
     definition_prefix="const int "
 )
 
-rates = cg.get_rates(
+rates = cg.get_rates_str(
     idx_offset=0,
     rate_variable="k",
     use_cse=True
 )
 
-odes = cg.get_ode(
+odes = cg.get_ode_str(
     idx_offset=0,
     use_cse=True,
     ode_var="dydt"
 )
 
-jac = cg.get_jacobian(
+jac = cg.get_jacobian_str(
     idx_offset=0,
     use_cse=True,
     jac_var="J"
@@ -523,7 +928,7 @@ commons = cg.get_commons(
     definition_prefix="integer, parameter :: "
 )
 
-rates = cg.get_rates(
+rates = cg.get_rates_str(
     idx_offset=1,
     rate_variable="k",
     use_cse=True
@@ -555,13 +960,13 @@ end module chemistry
 # Create Python code generator
 cg = Codegen(network=net, lang="python")
 
-rates = cg.get_rates(
+rates = cg.get_rates_str(
     idx_offset=0,
     rate_variable="k",
     use_cse=True
 )
 
-odes = cg.get_ode(
+odes = cg.get_ode_str(
     idx_offset=0,
     use_cse=True,
     ode_var="dydt"
@@ -584,31 +989,87 @@ def compute_odes(y, k):
 """
 ```
 
-### Example 4: Custom Bracket Formats
+### Example 4: Working with IndexedReturn and IndexedList
+
+```python
+from jaff import Network, Codegen
+from jaff.codegen import IndexedReturn
+from jaff.jaff_types import IndexedList, IndexedValue
+
+net = Network("networks/react_COthin")
+cg = Codegen(network=net, lang="cxx")
+
+# Get indexed rates (returns IndexedReturn)
+result: IndexedReturn = cg.get_indexed_rates(use_cse=True, cse_var="cse")
+
+# Access CSE temporaries (IndexedList)
+cse_temps: IndexedList = result["extras"]["cse"]
+print(f"Number of CSE temporaries: {len(cse_temps)}")
+
+# Iterate over CSE temporaries
+for iv in cse_temps:
+    idx = iv.indices[0]
+    expr = iv.value
+    print(f"const double cse[{idx}] = {expr};")
+
+# Access rate expressions (IndexedList)
+rate_exprs: IndexedList = result["expressions"]
+for iv in rate_exprs:
+    idx = iv.indices[0]
+    rate = iv.value
+    print(f"k[{idx}] = {rate};")
+
+# Get Jacobian with 2D indices
+jac_result = cg.get_indexed_jacobian(use_cse=True)
+jac_elements: IndexedList = jac_result["expressions"]
+
+# Jacobian is flattened by default
+print(f"List type: {jac_elements.type()}")  # "flattened"
+
+# Access individual elements (2D indices)
+for iv in jac_elements:
+    i, j = iv.indices  # Unpack 2D indices
+    print(f"J[{i}][{j}] = {iv.value};")
+
+# Convert to nested representation
+nested_jac = jac_elements.nested()
+print(f"List type: {nested_jac.type()}")  # "nested"
+
+for iv in nested_jac:
+    row_idx = iv.indices[0]
+    row_elements: IndexedList = iv.value  # Each row is an IndexedList
+    print(f"Row {row_idx} has {len(row_elements)} non-zero elements")
+
+    for col_iv in row_elements:
+        col_idx = col_iv.indices[0]
+        print(f"  J[{row_idx}][{col_idx}] = {col_iv.value}")
+```
+
+### Example 5: Custom Bracket Formats
 
 ```python
 # C with parentheses instead of brackets
 cg = Codegen(network=net, lang="c", brac_format="()")
 
-rates = cg.get_rates()
+rates = cg.get_rates_str()
 # Output: k(0) = ..., k(1) = ...
 
 # Python with comma-separated 2D indexing
 cg = Codegen(network=net, lang="py", matrix_format="[,]")
 
-jac = cg.get_jacobian(jac_var="J")
+jac = cg.get_jacobian_str(jac_var="J")
 # Output: J[0,0] = ..., J[0,1] = ...
 ```
 
-### Example 5: Comparing CSE vs Non-CSE
+### Example 6: Comparing CSE vs Non-CSE
 
 ```python
 # Without CSE
-rates_no_cse = cg.get_rates(use_cse=False)
+rates_no_cse = cg.get_rates_str(use_cse=False)
 print(f"Without CSE: {len(rates_no_cse)} characters")
 
 # With CSE
-rates_cse = cg.get_rates(use_cse=True)
+rates_with_cse = cg.get_rates_str(use_cse=True)
 print(f"With CSE: {len(rates_cse)} characters")
 
 # CSE typically reduces code size by 20-50%
@@ -623,8 +1084,8 @@ languages = ["c++", "c", "f90", "python"]
 for lang in languages:
     cg = Codegen(network=net, lang=lang)
 
-    rates = cg.get_rates(use_cse=True)
-    odes = cg.get_ode(use_cse=True)
+    rates = cg.get_rates_str(use_cse=True)
+    odes = cg.get_ode_str(use_cse=True)
 
     # Save language-specific file
     ext = {"c++": "cpp", "c": "c", "f90": "f90", "python": "py"}[lang]
@@ -640,9 +1101,9 @@ for lang in languages:
 
 ```python
 # CSE reduces redundant calculations significantly
-rates = cg.get_rates(use_cse=True)
-odes = cg.get_ode(use_cse=True)
-jac = cg.get_jacobian(use_cse=True)
+rates = cg.get_rates_str(use_cse=True)
+odes = cg.get_ode_str(use_cse=True)
+jac = cg.get_jacobian_str(use_cse=True)
 ```
 
 ### 2. Match Index Offsets to Your Framework
@@ -650,11 +1111,11 @@ jac = cg.get_jacobian(use_cse=True)
 ```python
 # For C/C++/Python arrays starting at 0
 cg = Codegen(network=net, lang="c++")
-code = cg.get_rates(idx_offset=0)
+code = cg.get_rates_str(idx_offset=0)
 
 # For Fortran arrays starting at 1
 cg = Codegen(network=net, lang="f90")
-code = cg.get_rates(idx_offset=1)
+code = cg.get_rates_str(idx_offset=1)
 ```
 
 ### 3. Use Consistent Variable Names
@@ -662,9 +1123,9 @@ code = cg.get_rates(idx_offset=1)
 ```python
 # Consistent naming across components
 commons = cg.get_commons(idx_prefix="idx_")
-rates = cg.get_rates(rate_variable="k")
-fluxes = cg.get_flux_expressions(rate_var="k", species_var="n")
-odes = cg.get_ode_expressions(flux_var="flux", species_var="n")
+rates = cg.get_rates_str(rate_variable="k")
+fluxes = cg.get_flux_expressions_str(rate_var="k", species_var="n")
+odes = cg.get_ode_expressions_str(flux_var="flux", species_var="n")
 ```
 
 ### 4. Cache Code Generator Objects
@@ -674,16 +1135,16 @@ odes = cg.get_ode_expressions(flux_var="flux", species_var="n")
 cg = Codegen(network=net, lang="c++")
 
 # Multiple calls reuse the same configuration
-rates = cg.get_rates(use_cse=True)
-odes = cg.get_ode(use_cse=True)
-jac = cg.get_jacobian(use_cse=True)
+rates = cg.get_rates_str(use_cse=True)
+odes = cg.get_ode_str(use_cse=True)
+jac = cg.get_jacobian_str(use_cse=True)
 ```
 
 ### 5. Review Generated Code
 
 ```python
 # Always inspect generated code
-code = cg.get_rates(use_cse=True)
+code = cg.get_rates_str(use_cse=True)
 print(code)  # Check for correctness
 
 # Or save to file and review
@@ -707,10 +1168,10 @@ Methods like `get_ode()` and `get_jacobian()` cache results:
 
 ```python
 # First call: computes and caches
-ode1 = cg.get_ode(use_cse=True)  # Slow
+ode1 = cg.get_ode_str(use_cse=True)  # Slow
 
 # Subsequent calls: returns cached result
-ode2 = cg.get_ode(use_cse=True)  # Fast (instant)
+ode2 = cg.get_ode_str(use_cse=True)  # Fast (instant)
 ```
 
 ### Large Networks
@@ -734,13 +1195,13 @@ def generate_full_chemistry(net, lang="c++"):
 {cg.get_commons(idx_prefix='idx_', definition_prefix='const int ')}
 
 // Rate coefficients
-{cg.get_rates(use_cse=True)}
+{cg.get_rates_str(use_cse=True)}
 
 // ODE system
-{cg.get_ode(use_cse=True)}
+{cg.get_ode_str(use_cse=True)}
 
 // Jacobian
-{cg.get_jacobian(use_cse=True)}
+{cg.get_jacobian_str(use_cse=True)}
 """
     return code
 ```
@@ -756,10 +1217,10 @@ def generate_modular_code(net):
         f.write(cg.get_commons())
 
     with open("rates.cpp", "w") as f:
-        f.write(cg.get_rates(use_cse=True))
+        f.write(cg.get_rates_str(use_cse=True))
 
     with open("odes.cpp", "w") as f:
-        f.write(cg.get_ode(use_cse=True))
+        f.write(cg.get_ode_str(use_cse=True))
 ```
 
 ### Pattern 3: Custom Formatting
@@ -783,10 +1244,10 @@ void chemistry(double* dydt, const double* y, double tgas) {{
     double k[{len(net.reactions)}];
 
     // Compute rates
-{cg.get_rates(rate_variable='k', use_cse=True)}
+{cg.get_rates_str(rate_variable='k', use_cse=True)}
 
     // Compute ODEs
-{cg.get_ode(ode_var='dydt', use_cse=True)}
+{cg.get_ode_str(ode_var='dydt', use_cse=True)}
 }}
 """
     return code
@@ -810,6 +1271,7 @@ except ValueError as e:
 
 ## See Also
 
+- [JAFF Types API](jaff-types.md) - IndexedValue and IndexedList type definitions
 - [Network API](network.md) - Loading and analyzing networks
 - [File Parser API](file-parser.md) - Template-based code generation
 - [CLI API](cli.md) - Command-line interface

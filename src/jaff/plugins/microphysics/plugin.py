@@ -16,8 +16,8 @@ def main(
     pp = Preprocessor()
     charge_cons = "0.0"
 
-    ode = cg.get_ode(idx_offset=1, use_cse=True)
-    jac = cg.get_jacobian(idx_offset=1, use_cse=True)
+    ode = cg.get_ode_str(idx_offset=1, use_cse=True)
+    jac = cg.get_jacobian_str(idx_offset=1, use_cse=True)
     sode = re.sub(r"f\[\s*(\d+)\s*\]", r"ydot(\1)", ode).replace(
         "const double", "const amrex::Real"
     )

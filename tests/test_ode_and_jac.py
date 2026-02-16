@@ -58,7 +58,7 @@ def test_network_reactions_loaded(test_network: Network):
 def test_rates(test_codegen: Codegen):
     "Test whether the correct rate has been loaded"
 
-    rates = test_codegen.get_rates().strip().split("\n")
+    rates = test_codegen.get_rates_str().strip().split("\n")
     rate = rates[-1].split("=")[-1].strip().rstrip(";")
     expected_rate = "nden[0]"
 
@@ -69,8 +69,8 @@ def test_rates(test_codegen: Codegen):
 def test_ode_and_jac(test_codegen: Codegen):
     "Test generated odes and jac with precalculated expression strings"
 
-    ode = test_codegen.get_ode(use_cse=False)
-    jac = test_codegen.get_jacobian(use_cse=False)
+    ode = test_codegen.get_ode_str(use_cse=False)
+    jac = test_codegen.get_jacobian_str(use_cse=False)
 
     expected_rhs: List[str] = [
         "-std::pow(nden[0], 2)*nden[1]",
@@ -119,7 +119,7 @@ def test_network_reactions_loaded_dedt(test_network_dedt: Network):
 def test_rates_dedt(test_codegen_dedt: Codegen):
     "Test whether the correct rate has been loaded"
 
-    rates = test_codegen_dedt.get_rates().strip().split("\n")
+    rates = test_codegen_dedt.get_rates_str().strip().split("\n")
     rate = rates[-1].split("=")[-1].strip().rstrip(";")
     expected_rate = "nden[0]"
 
@@ -139,8 +139,8 @@ def test_dedt(test_network_dedt: Network):
 def test_ode_and_jac_dedt(test_codegen_dedt: Codegen):
     "Test generated odes and jac with precalculated expression strings"
 
-    rhs = test_codegen_dedt.get_rhs(use_cse=False)
-    jac = test_codegen_dedt.get_jacobian(use_cse=False, use_dedt=True)
+    rhs = test_codegen_dedt.get_rhs_str(use_cse=False)
+    jac = test_codegen_dedt.get_jacobian_str(use_cse=False, use_dedt=True)
 
     expected_rhs: List[str] = [
         "-std::pow(nden[0], 2)*nden[1]",

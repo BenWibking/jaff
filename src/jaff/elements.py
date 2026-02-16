@@ -39,10 +39,6 @@ class Elements:
         """
         Extract unique chemical elements from all species in the network.
 
-        Analyzes the exploded representation of each species (where compound
-        formulas are broken down into individual atoms) and collects all unique
-        alphabetic element symbols.
-
         Returns:
             List of unique element symbols (alphabetic characters only).
         """
@@ -60,8 +56,7 @@ class Elements:
         Generate a binary matrix indicating element presence in each species.
 
         Creates a matrix where entry [i][j] is 1 if element i is present in
-        species j, and 0 otherwise. This is useful for checking element
-        conservation laws and identifying species composition.
+        species j, and 0 otherwise.
 
         Returns:
             2D matrix (nelems × nspecies) with binary values:
@@ -91,8 +86,7 @@ class Elements:
         Generate a matrix showing element counts in each species.
 
         Creates a matrix where entry [i][j] represents the number of atoms of
-        element i present in species j. This is essential for stoichiometric
-        calculations and mass balance equations.
+        element i present in species j.
 
         Returns:
             2D matrix (nelems × nspecies) with integer counts representing

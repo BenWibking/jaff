@@ -8,9 +8,9 @@ def main(network, path_template, path_build=None):
     cg = Codegen(network=network, lang="python")
 
     scommons = cg.get_commons()
-    rates = cg.get_rates()
-    flux = cg.get_flux_expressions()
-    sode = cg.get_ode_expressions()
+    rates = cg.get_rates_str()
+    flux = cg.get_flux_expressions_str()
+    sode = cg.get_ode_expressions_str()
 
     p.preprocess(
         path_template,

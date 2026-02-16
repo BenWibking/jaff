@@ -7,200 +7,199 @@ repo_name: tgrassi/jaff
 edit_uri: edit/main/docs/
 
 theme:
-  name: material
-  palette:
-    # Palette toggle for light mode
-    - scheme: default
-      primary: indigo
-      accent: deep purple
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    # Palette toggle for dark mode
-    - scheme: slate
-      primary: indigo
-      accent: deep purple
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
-  font:
-    text: Roboto
-    code: Roboto Mono
-  features:
-    - navigation.instant
-    - navigation.instant.prefetch
-    - navigation.instant.progress
-    - navigation.tracking
-    - navigation.tabs
-    - navigation.tabs.sticky
-    - navigation.sections
-    - navigation.expand
-    - navigation.path
-    - navigation.indexes
-    - navigation.top
-    - navigation.footer
-    - toc.follow
-    - toc.integrate
-    - search.suggest
-    - search.highlight
-    - search.share
-    - content.code.copy
-    - content.code.annotate
-    - content.tabs.link
-    - content.tooltips
-  icon:
-    repo: fontawesome/brands/github
-    logo: material/atom
-  favicon: assets/favicon.png
+    name: material
+    palette:
+        # Palette toggle for light mode
+        - scheme: default
+          primary: indigo
+          accent: deep purple
+          toggle:
+              icon: material/brightness-7
+              name: Switch to dark mode
+        # Palette toggle for dark mode
+        - scheme: slate
+          primary: indigo
+          accent: deep purple
+          toggle:
+              icon: material/brightness-4
+              name: Switch to light mode
+    font:
+        text: Roboto
+        code: Roboto Mono
+    features:
+        - navigation.instant
+        - navigation.instant.prefetch
+        - navigation.instant.progress
+        - navigation.tracking
+        - navigation.sections
+        - navigation.expand
+        - navigation.path
+        - navigation.indexes
+        - navigation.top
+        - navigation.footer
+        - toc.follow
+        - toc.integrate
+        - search.suggest
+        - search.highlight
+        - search.share
+        - content.code.copy
+        - content.code.annotate
+        - content.tabs.link
+        - content.tooltips
+    icon:
+        repo: fontawesome/brands/github
+        logo: material/atom
+    favicon: assets/favicon.png
 
 plugins:
-  - search:
-      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
-  - mkdocstrings:
-      handlers:
-        python:
-          paths: [src]
-          options:
-            docstring_style: google
-            docstring_section_style: table
-            show_root_heading: true
-            show_root_full_path: false
-            show_source: true
-            show_bases: true
-            show_inheritance_diagram: true
-            members_order: source
-            group_by_category: true
-            show_category_heading: true
-            show_if_no_docstring: false
-            show_signature: true
-            show_signature_annotations: true
-            separate_signature: true
-            line_length: 80
-            merge_init_into_class: true
-            signature_crossrefs: true
-  - git-revision-date-localized:
-      enable_creation_date: true
-      type: timeago
-  - git-authors
-  - minify:
-      minify_html: true
-      minify_js: true
-      minify_css: true
-      htmlmin_opts:
-        remove_comments: true
+    - search:
+          separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+    - mkdocstrings:
+          handlers:
+              python:
+                  paths: [src]
+                  options:
+                      docstring_style: google
+                      docstring_section_style: table
+                      show_root_heading: true
+                      show_root_full_path: false
+                      show_source: true
+                      show_bases: true
+                      show_inheritance_diagram: true
+                      members_order: source
+                      group_by_category: true
+                      show_category_heading: true
+                      show_if_no_docstring: false
+                      show_signature: true
+                      show_signature_annotations: true
+                      separate_signature: true
+                      line_length: 80
+                      merge_init_into_class: true
+                      signature_crossrefs: true
+    - git-revision-date-localized:
+          enable_creation_date: true
+          type: timeago
+    - git-authors
+    - minify:
+          minify_html: true
+          minify_js: true
+          minify_css: true
+          htmlmin_opts:
+              remove_comments: true
 
 markdown_extensions:
-  - abbr
-  - admonition
-  - attr_list
-  - def_list
-  - footnotes
-  - md_in_html
-  - toc:
-      permalink: true
-      permalink_title: Anchor link to this section
-      toc_depth: 3
-  - tables
-  - pymdownx.arithmatex:
-      generic: true
-  - pymdownx.betterem:
-      smart_enable: all
-  - pymdownx.caret
-  - pymdownx.mark
-  - pymdownx.tilde
-  - pymdownx.critic
-  - pymdownx.details
-  - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
-  - pymdownx.highlight:
-      anchor_linenums: true
-      line_spans: __span
-      pygments_lang_class: true
-      use_pygments: true
-  - pymdownx.inlinehilite
-  - pymdownx.keys
-  - pymdownx.magiclink:
-      repo_url_shorthand: true
-      user: tgrassi
-      repo: jaff
-  - pymdownx.smartsymbols
-  - pymdownx.snippets:
-      auto_append:
-        - includes/abbreviations.md
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.tabbed:
-      alternate_style: true
-  - pymdownx.tasklist:
-      custom_checkbox: true
+    - abbr
+    - admonition
+    - attr_list
+    - def_list
+    - footnotes
+    - md_in_html
+    - toc:
+          permalink: true
+          permalink_title: Anchor link to this section
+          toc_depth: 3
+    - tables
+    - pymdownx.arithmatex:
+          generic: true
+    - pymdownx.betterem:
+          smart_enable: all
+    - pymdownx.caret
+    - pymdownx.mark
+    - pymdownx.tilde
+    - pymdownx.critic
+    - pymdownx.details
+    - pymdownx.emoji:
+          emoji_index: !!python/name:material.extensions.emoji.twemoji
+          emoji_generator: !!python/name:material.extensions.emoji.to_svg
+    - pymdownx.highlight:
+          anchor_linenums: true
+          line_spans: __span
+          pygments_lang_class: true
+          use_pygments: true
+    - pymdownx.inlinehilite
+    - pymdownx.keys
+    - pymdownx.magiclink:
+          repo_url_shorthand: true
+          user: tgrassi
+          repo: jaff
+    - pymdownx.smartsymbols
+    - pymdownx.snippets:
+          auto_append:
+              - includes/abbreviations.md
+    - pymdownx.superfences:
+          custom_fences:
+              - name: mermaid
+                class: mermaid
+                format: !!python/name:pymdownx.superfences.fence_code_format
+    - pymdownx.tabbed:
+          alternate_style: true
+    - pymdownx.tasklist:
+          custom_checkbox: true
 
 extra:
-  analytics:
-    provider: google
-    property: !ENV [GOOGLE_ANALYTICS_KEY, ""]
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/tgrassi/jaff
-    - icon: fontawesome/brands/python
-      link: https://pypi.org/project/jaff/
-  version:
-    provider: mike
-    default: latest
+    analytics:
+        provider: google
+        property: !ENV [GOOGLE_ANALYTICS_KEY, ""]
+    social:
+        - icon: fontawesome/brands/github
+          link: https://github.com/tgrassi/jaff
+        - icon: fontawesome/brands/python
+          link: https://pypi.org/project/jaff/
+    version:
+        provider: mike
+        default: latest
 
 extra_css:
-  - stylesheets/extra.css
+    - stylesheets/extra.css
 
 extra_javascript:
-  - javascripts/mathjax.js
-  - https://polyfill.io/v3/polyfill.min.js?features=es6
-  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+    - javascripts/mathjax.js
+    - https://polyfill.io/v3/polyfill.min.js?features=es6
+    - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
 nav:
-  - Home: index.md
-  - Getting Started:
-    - Installation: getting-started/installation.md
-    - Quick Start: getting-started/quickstart.md
-    - Basic Concepts: getting-started/concepts.md
-  - User Guide:
-    - Loading Networks: user-guide/loading-networks.md
-    - Network Formats: user-guide/network-formats.md
-    - Working with Species: user-guide/species.md
-    - Working with Reactions: user-guide/reactions.md
-    - Rate Calculations: user-guide/rates.md
-    - Code Generation: user-guide/code-generation.md
-    - Template Syntax: user-guide/template-syntax.md
-  - Tutorials:
-    - Tutorial 1 - Basic Usage: tutorials/basic-usage.md
-    - Tutorial 2 - Code Generation: tutorials/code-generation.md
-    - Tutorial 3 - Custom Templates: tutorials/custom-templates.md
-    - Tutorial 4 - Network Analysis: tutorials/network-analysis.md
-  - API Reference:
-    - Overview: api/index.md
-    - Network: api/network.md
-    - Species: api/species.md
-    - Reaction: api/reaction.md
-    - Codegen: api/codegen.md
-    - File Parser: api/file-parser.md
-    - Elements: api/elements.md
-    - CLI: api/cli.md
-  - Reference:
-    - Supported Formats: reference/formats.md
-    - JAFF Commands: reference/jaff-commands.md
-    - Template Variables: reference/template-variables.md
-    - Primitive Variables: reference/primitive-variables.md
-    - Schema Specification: reference/schema.md
-  - Development:
-    - Contributing: development/contributing.md
-    - Code Style: development/code-style.md
-    - Testing: development/testing.md
-    - Release Process: development/releases.md
-  - About:
-    - License: about/license.md
-    - Changelog: about/changelog.md
-    - Credits: about/credits.md
+    - Home: index.md
+    - Getting Started:
+          - Installation: getting-started/installation.md
+          - Quick Start: getting-started/quickstart.md
+          - Basic Concepts: getting-started/concepts.md
+    - User Guide:
+          - Loading Networks: user-guide/loading-networks.md
+          - Network Formats: user-guide/network-formats.md
+          - Working with Species: user-guide/species.md
+          - Working with Reactions: user-guide/reactions.md
+          - Rate Calculations: user-guide/rates.md
+          - Code Generation: user-guide/code-generation.md
+          - Template Syntax: user-guide/template-syntax.md
+    - Tutorials:
+          - Tutorial 1 - Basic Usage: tutorials/basic-usage.md
+          - Tutorial 2 - Code Generation: tutorials/code-generation.md
+          - Tutorial 3 - Custom Templates: tutorials/custom-templates.md
+          - Tutorial 4 - Network Analysis: tutorials/network-analysis.md
+    - API Reference:
+          - Overview: api/index.md
+          - Network: api/network.md
+          - Species: api/species.md
+          - Reaction: api/reaction.md
+          - Codegen: api/codegen.md
+          - JAFF Types: api/jaff-types.md
+          - File Parser: api/file-parser.md
+          - Elements: api/elements.md
+          - CLI: api/cli.md
+    - Reference:
+          - Supported Formats: reference/formats.md
+          - JAFF Commands: reference/jaff-commands.md
+          - Template Variables: reference/template-variables.md
+          - Primitive Variables: reference/primitive-variables.md
+          - Schema Specification: reference/schema.md
+    - Development:
+          - Contributing: development/contributing.md
+          - Code Style: development/code-style.md
+          - Testing: development/testing.md
+          - Release Process: development/releases.md
+    - About:
+          - License: about/license.md
+          - Changelog: about/changelog.md
+          - Credits: about/credits.md
 
 copyright: Copyright &copy; 2024 JAFF Team

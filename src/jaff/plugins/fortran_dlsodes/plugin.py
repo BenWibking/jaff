@@ -6,9 +6,9 @@ def main(network, path_template, path_build=None):
     cg = Codegen(network=network, lang="fortran")
 
     scommons = cg.get_commons(idx_offset=1, definition_prefix="integer,parameter::")
-    rates = cg.get_rates()
-    flux = cg.get_flux_expressions()
-    sode = cg.get_ode_expressions(derivative_var="dn")
+    rates = cg.get_rates_str()
+    flux = cg.get_flux_expressions_str()
+    sode = cg.get_ode_expressions_str(derivative_var="dn")
 
     p.preprocess(
         path_template,

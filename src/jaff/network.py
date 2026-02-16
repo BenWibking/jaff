@@ -1,3 +1,5 @@
+import gzip
+import json
 import os
 import sys
 
@@ -17,8 +19,6 @@ from sympy import (
 )
 from sympy.core.function import UndefinedFunction
 from tqdm import tqdm
-import json
-import gzip
 
 from .fastlog import fast_log2, inverse_fast_log2
 from .function_parser import parse_funcfile
@@ -560,10 +560,13 @@ class Network:
         """
         filename = os.fspath(filename)
         if not (str(filename).endswith(".jaff") or str(filename).endswith(".jaff.gz")):
-            raise ValueError("Network.to_jaff_file requires a filename ending with '.jaff' or '.jaff.gz'")
+            raise ValueError(
+                "Network.to_jaff_file requires a filename ending with '.jaff' or '.jaff.gz'"
+            )
 
         from . import __version__ as jaff_version
-        from .sympy_json import to_jsonable as sympy_to_jsonable, SCHEMA_VERSION as SYMPY_SCHEMA
+        from .sympy_json import SCHEMA_VERSION as SYMPY_SCHEMA
+        from .sympy_json import to_jsonable as sympy_to_jsonable
 
         def has_undefined_functions(expr):
             if not isinstance(expr, sympy.Basic):
@@ -578,7 +581,9 @@ class Network:
                 return {"kind": "string", "value": value}
             if isinstance(value, sympy.Basic):
                 if has_undefined_functions(value):
-                    raise ValueError("Cannot serialize: expression contains undefined SymPy function(s)")
+                    raise ValueError(
+                        "Cannot serialize: expression contains undefined SymPy function(s)"
+                    )
                 return sympy_to_jsonable(value, include_assumptions=False)
             if value is None:
                 return None
@@ -617,7 +622,11 @@ class Network:
             "rate_symbols": [
                 {
                     "name": sym.name,
-                    "assumptions": {k: v for k, v in (sym.assumptions0 or {}).items() if isinstance(k, str) and isinstance(v, bool)},
+                    "assumptions": {
+                        k: v
+                        for k, v in (sym.assumptions0 or {}).items()
+                        if isinstance(k, str) and isinstance(v, bool)
+                    },
                 }
                 for sym in sorted(
                     {
@@ -678,7 +687,9 @@ class Network:
         if not isinstance(payload, dict) or payload.get("format") != "jaff.network_json":
             raise ValueError("Not a jaff.network_json file")
         if payload.get("schema_version") != 1:
-            raise ValueError(f"Unsupported Network schema_version={payload.get('schema_version')!r}")
+            raise ValueError(
+                f"Unsupported Network schema_version={payload.get('schema_version')!r}"
+            )
 
         # Build an instance without going through __init__ (which parses files).
         net = cls.__new__(cls)
@@ -733,7 +744,9 @@ class Network:
                 if not isinstance(name, str) or not isinstance(assumptions, dict):
                     continue
                 rate_symbol_assumptions[name] = {
-                    k: v for k, v in assumptions.items() if isinstance(k, str) and isinstance(v, bool)
+                    k: v
+                    for k, v in assumptions.items()
+                    if isinstance(k, str) and isinstance(v, bool)
                 }
 
         def apply_symbol_assumptions(expr):

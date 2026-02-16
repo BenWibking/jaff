@@ -27,11 +27,11 @@ static constexpr double DEFAULT_CRATE = 1.3e-17;      // Default cosmic ray ioni
     scommons = scommons + "\n" + chemistry_vars
 
     # Get reaction rates with C++ syntax and CSE optimization
-    rates = cg.get_rates(idx_offset=0, rate_variable="k", use_cse=True)
+    rates = cg.get_rates_str(idx_offset=0, rate_variable="k", use_cse=True)
 
     # Generate symbolic ODE and analytical Jacobian
-    sode = cg.get_ode(idx_offset=0, use_cse=True)
-    jacobian = cg.get_jacobian(
+    sode = cg.get_ode_str(idx_offset=0, use_cse=True)
+    jacobian = cg.get_jacobian_str(
         idx_offset=0,
         use_cse=True,
     )

@@ -68,6 +68,20 @@ rate_code = cg.get_rates(idx_offset=0, rate_var="rate", brac_format="[]")
 - C (`c`)
 - Fortran 90/95 (`f90`)
 
+**[JAFF Types](jaff-types.md)** - Type definitions for indexed expressions
+
+Specialized data structures for organizing code generation output with indexed values.
+
+```python
+from jaff.jaff_types import IndexedValue, IndexedList
+
+# IndexedValue represents array[index] = value
+iv = IndexedValue([0], "x + y")
+
+# IndexedList is a type-safe collection of IndexedValue objects
+items = IndexedList([IndexedValue([0], "expr1"), IndexedValue([1], "expr2")])
+```
+
 **[File Parser](file-parser.md)** - Template-based code generation
 
 Parse template files containing JAFF directives to generate customized code.
@@ -123,6 +137,7 @@ jaff/
 ├── species.py           # Species class
 ├── reaction.py          # Reaction class
 ├── codegen.py           # Code generator
+├── jaff_types.py        # Type definitions for indexed expressions
 ├── file_parser.py       # Template parser
 ├── elements.py          # Element analysis
 ├── generate.py          # CLI interface
@@ -143,6 +158,9 @@ jaff/
 # Core functionality
 from jaff import Network, Codegen
 
+# Type definitions
+from jaff.jaff_types import IndexedValue, IndexedList
+
 # Template parsing
 from jaff.file_parser import Fileparser
 
@@ -156,35 +174,35 @@ from jaff.reaction import Reaction
 
 ### Network Operations
 
-| Operation | Code |
-|-----------|------|
-| Load network | `net = Network("file.dat")` |
-| Get species count | `len(net.species)` |
-| Get reaction count | `len(net.reactions)` |
-| Find species index | `net.species_dict["CO"]` |
+| Operation           | Code                                |
+| ------------------- | ----------------------------------- |
+| Load network        | `net = Network("file.dat")`         |
+| Get species count   | `len(net.species)`                  |
+| Get reaction count  | `len(net.reactions)`                |
+| Find species index  | `net.species_dict["CO"]`            |
 | Find reaction index | `net.reactions_dict["H + O -> OH"]` |
-| Access species | `net.species[0]` |
-| Access reaction | `net.reactions[0]` |
+| Access species      | `net.species[0]`                    |
+| Access reaction     | `net.reactions[0]`                  |
 
 ### Code Generation
 
-| Operation | Code |
-|-----------|------|
-| Create generator | `cg = Codegen(net, "cxx")` |
-| Generate rates | `cg.get_rates(...)` |
-| Generate ODEs | `cg.get_ode(...)` |
-| Generate Jacobian | `cg.get_jacobian(...)` |
-| Parse template | `Fileparser(net, path).parse_file()` |
+| Operation         | Code                                 |
+| ----------------- | ------------------------------------ |
+| Create generator  | `cg = Codegen(net, "cxx")`           |
+| Generate rates    | `cg.get_rates(...)`                  |
+| Generate ODEs     | `cg.get_ode(...)`                    |
+| Generate Jacobian | `cg.get_jacobian(...)`               |
+| Parse template    | `Fileparser(net, path).parse_file()` |
 
 ### Element Analysis
 
-| Operation | Code |
-|-----------|------|
-| Create analyzer | `elem = Elements(net)` |
-| Get element list | `elem.elements` |
-| Get element count | `elem.nelems` |
-| Truth matrix | `elem.get_element_truth_matrix()` |
-| Density matrix | `elem.get_element_density_matrix()` |
+| Operation         | Code                                |
+| ----------------- | ----------------------------------- |
+| Create analyzer   | `elem = Elements(net)`              |
+| Get element list  | `elem.elements`                     |
+| Get element count | `elem.nelems`                       |
+| Truth matrix      | `elem.get_element_truth_matrix()`   |
+| Density matrix    | `elem.get_element_density_matrix()` |
 
 ---
 
@@ -231,29 +249,35 @@ Choose a module to explore:
 
 <div class="grid cards" markdown>
 
--   :material-network:{ .lg .middle } __Network API__
-    
+- :material-network:{ .lg .middle } **Network API**
+
     Load and manage chemical networks
-    
+
     [:octicons-arrow-right-24: Network Reference](network.md)
 
--   :material-code-braces:{ .lg .middle } __Codegen API__
-    
+- :material-code-braces:{ .lg .middle } **Codegen API**
+
     Generate optimized code
-    
+
     [:octicons-arrow-right-24: Codegen Reference](codegen.md)
 
--   :material-file-document:{ .lg .middle } __File Parser API__
-    
+- :material-file-document:{ .lg .middle } **File Parser API**
+
     Template-based generation
-    
+
     [:octicons-arrow-right-24: Parser Reference](file-parser.md)
 
--   :material-atom:{ .lg .middle } __Elements API__
-    
+- :material-atom:{ .lg .middle } **Elements API**
+
     Analyze element composition
-    
+
     [:octicons-arrow-right-24: Elements Reference](elements.md)
+
+- :material-code-tags:{ .lg .middle } **JAFF Types API**
+
+    Type-safe indexed expressions
+
+    [:octicons-arrow-right-24: Types Reference](jaff-types.md)
 
 </div>
 
@@ -267,6 +291,7 @@ Choose a module to explore:
 from jaff import Network, Codegen
 from jaff.file_parser import Fileparser
 from jaff.elements import Elements
+from jaff.jaff_types import IndexedList, IndexedValue
 from pathlib import Path
 
 # 1. Load network
@@ -279,6 +304,11 @@ print(f"Network has {elem.nelems} elements: {elem.elements}")
 # 3. Generate code programmatically
 cg = Codegen(network=net, lang="cxx")
 rates = cg.get_rates(idx_offset=0, rate_var="rate", brac_format="[]")
+
+# 3b. Get indexed expressions
+indexed_rates = cg.get_indexed_rates(use_cse=True)
+cse_exprs: IndexedList = indexed_rates["extras"]["cse"]
+rate_exprs: IndexedList = indexed_rates["expressions"]
 
 # 4. Generate from template
 parser = Fileparser(net, Path("template.cpp"))
