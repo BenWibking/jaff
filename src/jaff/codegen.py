@@ -15,6 +15,9 @@ Supported Languages:
     - C (c)
     - Fortran 90 (f90, fortran)
     - Python (py, python)
+    - Rust (rust, rs)
+    - Julia (julia, jl)
+    - R (r)
 
 Key Features:
     - Symbolic differentiation for analytical Jacobians
@@ -127,7 +130,7 @@ class Codegen:
 
     Attributes:
         net (Network): Chemical reaction network object containing species and reactions
-        lang (str): Internal language identifier ('cxx', 'c', 'f90', 'py')
+        lang (str): Internal language identifier ('cxx', 'c', 'f90', 'py', 'rust', 'julia', 'r')
         lb (str): Left bracket for 1D arrays (e.g., '[' for C++, '(' for Fortran)
         rb (str): Right bracket for 1D arrays (e.g., ']' for C++, ')' for Fortran)
         mlb (str): Left bracket for 2D arrays (matrices)
@@ -181,6 +184,9 @@ class Codegen:
                     - "c" → C (0-indexed, semicolons, '//' comments)
                     - "fortran", "f90" → Fortran 90 (1-indexed, no semicolons, '!!' comments)
                     - "python", "py" → Python (0-indexed, no semicolons, '#' comments)
+                    - "rust", "rs" → Rust (0-indexed, semicolons, '//' comments)
+                    - "julia", "jl" → Julia (1-indexed, no semicolons, '#' comments)
+                    - "r" → R (1-indexed, no semicolons, '#' comments)
             brac_format (str): Override for 1D array bracket style. Default: "" (use language default)
                 Options: "()", "[]", "{}", "<>"
                 Example: "[]" → array[i], "()" → array(i)
@@ -1299,6 +1305,11 @@ class Codegen:
             "f90": "f90",
             "python": "py",
             "py": "py",
+            "rust": "rust",
+            "rs": "rust",
+            "julia": "julia",
+            "jl": "julia",
+            "r": "r",
         }
 
         return aliases
@@ -1317,6 +1328,13 @@ class Codegen:
             - c: C (0-indexed, semicolons, const/static qualifiers)
             - f90: Fortran 90 (1-indexed, no semicolons, save qualifier)
             - py: Python (0-indexed, no semicolons, no type declarations)
+            - rust: Rust (0-indexed, semicolons, const/let bindings)
+            - julia: Julia (1-indexed, no semicolons, const qualifier)
+            - r: R (1-indexed, no semicolons, no type declarations)
+
+        Note:
+            Rust, Julia, and R support require SymPy >= 1.7 for rust_code,
+            julia_code, and rcode functions respectively.
         """
         # Language-specific modifiers: syntax, indexing, code generation
         tokens: dict[str, LangModifier] = {
@@ -1382,6 +1400,58 @@ class Codegen:
                 "matrix_sep": ", ",
                 "code_gen": sp.pycode,
                 "idx_offset": 0,
+                "comment": "# ",
+                "types": {},
+                "extras": {},
+            },
+            # rust
+            "rust": {
+                "brac": "[]",
+                "assignment_op": "=",
+                "line_end": ";",
+                "matrix_sep": "][",
+                "code_gen": sp.rust_code,
+                "idx_offset": 0,
+                "comment": "// ",
+                "types": {
+                    "int": "i32 ",
+                    "float": "f32 ",
+                    "double": "f64 ",
+                    "bool": "bool ",
+                },
+                "extras": {
+                    "type_qualifier": "const ",
+                    "class_specifier": "",
+                },
+            },
+            # julia
+            "julia": {
+                "brac": "[]",
+                "assignment_op": "=",
+                "line_end": "",
+                "matrix_sep": ", ",
+                "code_gen": sp.julia_code,
+                "idx_offset": 1,
+                "comment": "# ",
+                "types": {
+                    "int": "Int64 ",
+                    "float": "Float32 ",
+                    "double": "Float64 ",
+                    "bool": "Bool ",
+                },
+                "extras": {
+                    "type_qualifier": "const ",
+                    "class_specifier": "",
+                },
+            },
+            # r
+            "r": {
+                "brac": "[]",
+                "assignment_op": "<-",
+                "line_end": "",
+                "matrix_sep": ", ",
+                "code_gen": sp.rcode,
+                "idx_offset": 1,
                 "comment": "# ",
                 "types": {},
                 "extras": {},

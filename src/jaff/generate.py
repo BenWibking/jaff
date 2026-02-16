@@ -16,6 +16,7 @@ import argparse
 import warnings
 from pathlib import Path
 
+from jaff import Codegen as cg
 from jaff import Network
 from jaff.file_parser import Fileparser
 
@@ -46,6 +47,7 @@ def main() -> None:
     parser.add_argument("--indir", help="Input directory")
     parser.add_argument("--files", nargs="+", help="Input files")
     parser.add_argument("--network", help="Network file")
+    parser.add_argument("--lang", help="Default language for unsupported files")
     args: argparse.Namespace = parser.parse_args()
 
     # Extract command-line arguments
@@ -53,6 +55,7 @@ def main() -> None:
     input_dir: str | None = args.indir
     input_files: list[str] | None = args.files
     network_file: str | None = args.network
+    default_lang: str | None = args.lang
 
     # List to collect all files to process
     files: list[Path] = []
@@ -106,13 +109,17 @@ def main() -> None:
     if not files:
         raise RuntimeError("No valid input files have been supplied")
 
+    # Ensure default language is supported by jaff code generation
+    if default_lang and default_lang not in cg.__get_language_tokens():
+        raise ValueError(f"Unsupported language specified: {default_lang}")
+
     # Process each template file
     for file in files:
         # Create a new network instance for each file
         net: Network = Network(str(netfile))
 
         # Initialize file parser for this template
-        fparser: Fileparser = Fileparser(net, file)
+        fparser: Fileparser = Fileparser(net, file, default_lang)
 
         # Parse and generate code
         lines: str = fparser.parse_file()

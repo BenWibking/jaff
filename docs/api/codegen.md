@@ -203,6 +203,9 @@ Create a code generator for a specific language and network.
     - `"c"` → C
     - `"fortran"`, `"f90"` → Fortran 90
     - `"python"`, `"py"` → Python
+    - `"rust"`, `"rs"` → Rust
+    - `"julia"`, `"jl"` → Julia
+    - `"r"` → R
 - `brac_format` (str): Override 1D array bracket style. Default: "" (use language default)
     - Options: `"()"`, `"[]"`, `"{}"`, `"<>"`
 - `matrix_format` (str): Override 2D array format. Default: "" (use language default)
@@ -238,22 +241,22 @@ cg_c = Codegen(network=net, lang="c", matrix_format="[,]")
 
 ## Attributes
 
-| Attribute       | Type             | Description                                                 |
-| --------------- | ---------------- | ----------------------------------------------------------- |
-| `net`           | `Network`        | Chemical reaction network object                            |
-| `lang`          | `str`            | Internal language identifier ('cxx', 'c', 'f90', 'py')      |
-| `lb`            | `str`            | Left bracket for 1D arrays (e.g., '[', '(')                 |
-| `rb`            | `str`            | Right bracket for 1D arrays (e.g., ']', ')')                |
-| `mlb`           | `str`            | Left bracket for 2D arrays                                  |
-| `mrb`           | `str`            | Right bracket for 2D arrays                                 |
-| `matrix_sep`    | `str`            | Separator for 2D indices (e.g., '][', ', ')                 |
-| `assignment_op` | `str`            | Assignment operator (typically '=')                         |
-| `line_end`      | `str`            | Statement terminator (';' for C/C++, '' for Python/Fortran) |
-| `code_gen`      | `Callable`       | SymPy code generation function                              |
-| `ioff`          | `int`            | Default array indexing offset (0 or 1)                      |
-| `comment`       | `str`            | Comment prefix ('//', '!!', '#')                            |
-| `types`         | `dict[str, str]` | Type declarations for the language                          |
-| `extras`        | `dict[str, Any]` | Additional language-specific attributes                     |
+| Attribute       | Type             | Description                                                                  |
+| --------------- | ---------------- | ---------------------------------------------------------------------------- |
+| `net`           | `Network`        | Chemical reaction network object                                             |
+| `lang`          | `str`            | Internal language identifier ('cxx', 'c', 'f90', 'py', 'rust', 'julia', 'r') |
+| `lb`            | `str`            | Left bracket for 1D arrays (e.g., '[', '(')                                  |
+| `rb`            | `str`            | Right bracket for 1D arrays (e.g., ']', ')')                                 |
+| `mlb`           | `str`            | Left bracket for 2D arrays                                                   |
+| `mrb`           | `str`            | Right bracket for 2D arrays                                                  |
+| `matrix_sep`    | `str`            | Separator for 2D indices (e.g., '][', ', ')                                  |
+| `assignment_op` | `str`            | Assignment operator (typically '=')                                          |
+| `line_end`      | `str`            | Statement terminator (';' for C/C++, '' for Python/Fortran)                  |
+| `code_gen`      | `Callable`       | SymPy code generation function                                               |
+| `ioff`          | `int`            | Default array indexing offset (0 or 1)                                       |
+| `comment`       | `str`            | Comment prefix ('//', '!!', '#')                                             |
+| `types`         | `dict[str, str]` | Type declarations for the language                                           |
+| `extras`        | `dict[str, Any]` | Additional language-specific attributes                                      |
 
 ## Methods
 
@@ -1079,7 +1082,7 @@ print(f"With CSE: {len(rates_cse)} characters")
 
 ```python
 # Generate for all supported languages
-languages = ["c++", "c", "f90", "python"]
+languages = ["c++", "c", "f90", "python", "rust", "julia", "r"]
 
 for lang in languages:
     cg = Codegen(network=net, lang=lang)
@@ -1088,7 +1091,8 @@ for lang in languages:
     odes = cg.get_ode_str(use_cse=True)
 
     # Save language-specific file
-    ext = {"c++": "cpp", "c": "c", "f90": "f90", "python": "py"}[lang]
+    ext = {"c++": "cpp", "c": "c", "f90": "f90", "python": "py",
+           "rust": "rs", "julia": "jl", "r": "r"}[lang]
     with open(f"chemistry.{ext}", "w") as f:
         f.write(rates)
         f.write("\n\n")
@@ -1252,6 +1256,93 @@ void chemistry(double* dydt, const double* y, double tgas) {{
 """
     return code
 ```
+
+## Language-Specific Differences
+
+### Indexing Conventions
+
+Different languages use different array indexing conventions:
+
+| Language | Index Offset | Default Bracket | Example    |
+| -------- | ------------ | --------------- | ---------- |
+| C        | 0-based      | `[]`            | `array[0]` |
+| C++      | 0-based      | `[]`            | `array[0]` |
+| Python   | 0-based      | `[]`            | `array[0]` |
+| Rust     | 0-based      | `[]`            | `array[0]` |
+| Fortran  | 1-based      | `()`            | `array(1)` |
+| Julia    | 1-based      | `[]`            | `array[1]` |
+| R        | 1-based      | `[]`            | `array[1]` |
+
+### Statement Terminators
+
+| Language | Terminator | Example  |
+| -------- | ---------- | -------- |
+| C        | `;`        | `x = 1;` |
+| C++      | `;`        | `x = 1;` |
+| Rust     | `;`        | `x = 1;` |
+| Python   | (none)     | `x = 1`  |
+| Fortran  | (none)     | `x = 1`  |
+| Julia    | (none)     | `x = 1`  |
+| R        | (none)     | `x <- 1` |
+
+### Assignment Operators
+
+| Language | Operator | Example  |
+| -------- | -------- | -------- |
+| C/C++    | `=`      | `x = 5;` |
+| Python   | `=`      | `x = 5`  |
+| Rust     | `=`      | `x = 5;` |
+| Fortran  | `=`      | `x = 5`  |
+| Julia    | `=`      | `x = 5`  |
+| R        | `<-`     | `x <- 5` |
+
+### Comment Styles
+
+| Language | Prefix | Example                |
+| -------- | ------ | ---------------------- |
+| C/C++    | `//`   | `// This is a comment` |
+| Rust     | `//`   | `// This is a comment` |
+| Python   | `#`    | `# This is a comment`  |
+| Julia    | `#`    | `# This is a comment`  |
+| R        | `#`    | `# This is a comment`  |
+| Fortran  | `!!`   | `!! This is a comment` |
+
+### Type Declarations
+
+**C/C++:**
+
+```cpp
+const double x = 1.0;
+const int i = 42;
+const bool flag = true;
+```
+
+**Rust:**
+
+```rust
+const x: f64 = 1.0;
+const i: i32 = 42;
+const flag: bool = true;
+```
+
+**Julia:**
+
+```julia
+const x::Float64 = 1.0
+const i::Int64 = 42
+const flag::Bool = true
+```
+
+**Python, R, Fortran:**
+No explicit type declarations in generated code.
+
+### Requirements
+
+**Note:** Rust, Julia, and R support require **SymPy >= 1.7** which includes:
+
+- `sympy.rust_code()` - Rust code generation
+- `sympy.julia_code()` - Julia code generation
+- `sympy.rcode()` - R code generation
 
 ## Error Handling
 

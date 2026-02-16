@@ -150,11 +150,27 @@ class Reaction:
         return any([x.name in species for x in self.products])
 
     def get_code(self, lang="cpp"):
+        """
+        Generate code for the reaction rate in the specified language.
+
+        Args:
+            lang: Target programming language. Default: "cpp"
+                Supported: "python", "c", "cxx", "fortran", "rust", "julia", "r"
+
+        Returns:
+            Code string for the reaction rate expression
+
+        Raises:
+            ValueError: If the language is not supported
+        """
         fmap = {
             "python": sympy.pycode,
             "c": sympy.ccode,
             "cxx": sympy.cxxcode,
             "fortran": sympy.fcode,
+            "rust": sympy.rust_code,
+            "julia": sympy.julia_code,
+            "r": sympy.rcode,
         }
 
         if not fmap.get(lang, ""):

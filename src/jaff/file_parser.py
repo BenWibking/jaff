@@ -124,7 +124,9 @@ class Fileparser:
         >>> output = parser.parse_file()
     """
 
-    def __init__(self, network: Network, file: Path) -> None:
+    def __init__(
+        self, network: Network, file: Path, default_lang: str | None = None
+    ) -> None:
         """
         Initialize the file parser for a given network and template file.
 
@@ -160,11 +162,15 @@ class Fileparser:
             "f03": "fortran",
             "f08": "fortran",
             "py": "python",
+            "rs": "rust",
+            "jl": "julia",
+            "r": "r",
         }
-        if ext not in ext_map.keys():
-            raise RuntimeError(f"{ext} files are not yet supported")
+        lang = ext_map.get(ext, default_lang)
+        if lang is None:
+            raise RuntimeError(f"{ext} files are not yet supprted")
 
-        self.cg: Codegen = Codegen(network=self.net, lang=ext_map[ext])
+        self.cg: Codegen = Codegen(network=self.net, lang=lang)
         self.parser_dict: dict[str, CommandProps] = self.__get_parser_dict
 
     def parse_file(self) -> str:
