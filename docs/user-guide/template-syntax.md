@@ -51,12 +51,12 @@ All JAFF commands support optional **REPLACE** directives for regex-based text r
 **Syntax:**
 
 ```
-$JAFF COMMAND arguments [REPLACE pattern1 replacement1 [REPLACE pattern2 replacement2 ...]]
+$JAFF COMMAND arguments $[REPLACE pattern1 replacement1 REPLACE pattern2 replacement2 ...]$
 ```
 
 ### Key Features
 
-- REPLACE directives must be enclosed in square brackets `[...]`
+- REPLACE directives must be enclosed in dollar-brackets `$[...]$`
 - Replacements applied **after** code generation
 - Patterns use Python regex syntax
 - Supports capture groups and backreferences (`\1`, `\2`, etc.)
@@ -68,7 +68,7 @@ $JAFF COMMAND arguments [REPLACE pattern1 replacement1 [REPLACE pattern2 replace
 
 ```cpp
 // Template
-$JAFF SUB nspec [REPLACE const constexpr]$
+$JAFF SUB nspec $[REPLACE const constexpr]$
 const int NUM_SPECIES = $nspec$;
 $JAFF END$
 
@@ -80,7 +80,7 @@ constexpr int NUM_SPECIES = 14;
 
 ```cpp
 // Template
-$JAFF REPEAT idx, specie IN species [REPLACE H_(\d+) Hydrogen_\1 REPLACE He Helium]$
+$JAFF REPEAT idx, specie IN species $[REPLACE H_(\d+) Hydrogen_\1 REPLACE He Helium]$
 species[$idx$] = "$specie$";
 $JAFF END$
 
@@ -94,7 +94,7 @@ species[2] = "Helium";      // He -> Helium
 
 ```cpp
 // Template
-$JAFF REPEAT idx, specie IN species [REPLACE \+ _plus REPLACE - _minus]$
+$JAFF REPEAT idx, specie IN species $[REPLACE \+ _plus REPLACE - _minus]$
 species[$idx$] = "$specie$";
 $JAFF END$
 
@@ -112,17 +112,17 @@ species[1] = "e_minus";  // e- -> e_minus
 
 ### Important Notes
 
-1. **REPLACE directives must be enclosed in square brackets**
-    - ✅ Correct: `$JAFF SUB nspec [REPLACE old new]$`
-    - ❌ Wrong: `$JAFF SUB nspec REPLACE old new$` (missing brackets)
-    - ❌ Wrong: `$JAFF SUB [REPLACE old new] nspec$` (brackets must be after arguments)
+1. **REPLACE directives must be enclosed in dollar-brackets**
+    - ✅ Correct: `$JAFF SUB nspec $[REPLACE old new]$`
+    - ❌ Wrong: `$JAFF SUB nspec REPLACE old new$` (missing dollar-brackets)
+    - ❌ Wrong: `$JAFF SUB $[REPLACE old new]$ nspec$` (dollar-brackets must be after arguments)
 
 2. **Each REPLACE needs both pattern and replacement**
-    - ✅ Correct: `[REPLACE pattern replacement]`
-    - ❌ Wrong: `[REPLACE pattern]` (raises SyntaxError)
+    - ✅ Correct: `$[REPLACE pattern replacement]$`
+    - ❌ Wrong: `$[REPLACE pattern]$` (raises SyntaxError)
 
 3. **Invalid regex raises error**
-    - Invalid: `[REPLACE [invalid( bad]`
+    - Invalid: `$[REPLACE [invalid( bad]$`
     - Error: `SyntaxError: Invalid regex pattern...`
 
 4. **Replacements are block-scoped**

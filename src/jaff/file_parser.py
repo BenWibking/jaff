@@ -22,24 +22,6 @@ REPLACE Directive:
 
     Multiple REPLACE directives can be chained, and patterns are applied sequentially
     as regular expressions.
-
-Example Template Syntax:
-    // $JAFF SUB nspec
-    const int NUM_SPECIES = $nspec$;
-    // $JAFF END
-
-    // $JAFF REPEAT idx IN species
-    species[$idx$] = "$specie$";
-    // $JAFF END
-
-    // $JAFF SUB nspec [REPLACE const constexpr]
-    const int NUM_SPECIES = $nspec$;  // 'const' will be replaced with 'constexpr'
-    // $JAFF END
-
-    // $JAFF REPEAT idx, specie IN species [REPLACE H_(\d+) Hydrogen_$1 REPLACE He Helium]
-    // Using multiple REPLACE directives and regex patterns with capture groups
-    species[$idx$] = "$specie$";  // H_2 -> Hydrogen_2, He -> Helium
-    // $JAFF END
 """
 
 import re
@@ -302,7 +284,7 @@ class Fileparser:
             const int NUM = $nspec$;  // Will also replace old_name -> new_name
             // $JAFF END
         """
-        # Extract extras (REPLACE directives) from bracket notation
+        # Extract extras (REPLACE directives) from dollar-bracket notation
         rest, extras = self.__get_extras(rest)
         # Parse comma-separated token list
         sub_tokens: list[str] = self.__get_stripped_tokens(rest)
@@ -347,7 +329,7 @@ class Fileparser:
         if "IN" not in rest:
             raise ValueError(f"IN keyword not found in {self.line}")
 
-        # Extract extras (SORT, CSE, REPLACE directives) from bracket notation
+        # Extract extras (SORT, CSE, REPLACE directives) from dollar-bracket notation
         rest, extras = self.__get_extras(rest)
         # Parse "vars IN property" syntax (extras already removed)
         arg: str
@@ -398,7 +380,7 @@ class Fileparser:
         if "FOR" not in rest:
             raise ValueError(f"FOR keyword not found in {self.line}")
 
-        # Extract extras (REPLACE directives) from bracket notation
+        # Extract extras (REPLACE directives) from dollar-bracket notation
         rest, extras = self.__get_extras(rest)
         # Parse "props FOR entity" syntax (extras already removed)
         props_str, entity_str = rest.split("FOR")
@@ -434,7 +416,7 @@ class Fileparser:
             bool has_co = $specie$;  // Will also replace 1 -> true
             // $JAFF END
         """
-        # Extract extras (REPLACE directives) from bracket notation
+        # Extract extras (REPLACE directives) from dollar-bracket notation
         rest, extras = self.__get_extras(rest)
         # Parse space-separated tokens (identity and entity name)
         tokens: list[str] = self.__get_stripped_tokens(rest, " ")
@@ -469,7 +451,7 @@ class Fileparser:
         if rest.count("IN") != 1:
             raise SyntaxError(f"Invalid syntax detected: {self.line}")
 
-        # Extract extras (REPLACE directives) from bracket notation
+        # Extract extras (REPLACE directives) from dollar-bracket notation
         rest, extras = self.__get_extras(rest)
         # Get variables and props separated by IN keyword (extras already removed)
         vars, props = rest.split("IN")
@@ -513,7 +495,7 @@ class Fileparser:
             Text with all replacements applied
 
         Example:
-            With replacements = [("old", "new"), (r"\s+", " ")]:
+            With replacements = [("old", "new"), (r",", " ")]:
             - "old text" -> "new text"
             - "new  text" -> "new text" (collapses whitespace)
         """
@@ -538,7 +520,7 @@ class Fileparser:
         replacements are found.
 
         Args:
-            extras: List of extra arguments extracted from bracket notation.
+            extras: List of extra arguments extracted from dollar-bracket notation.
                    May contain REPLACE keywords followed by pattern-replacement pairs.
                    This list is modified in-place to remove REPLACE tokens.
 
@@ -561,26 +543,26 @@ class Fileparser:
                 self.replacements = [(extras[i + 1], extras[i + 2]) for i in repl_pos]
             except IndexError:
                 raise SyntaxError(
-                    f"Invalid replacement syntax in {self.line}: "
+                    f"Invalid replacement syntax in: {self.line}\n"
                     f"REPLACE must be followed by both pattern and replacement"
                 )
             self.replace = True
 
-            # Remove REPLACE tokens from extras list 
+            # Remove REPLACE tokens from extras list
             for pos in reversed(repl_pos):
                 del extras[pos : pos + 3]
 
     @staticmethod
     def __get_extras(line: str) -> tuple[str, list[str]]:
         """
-        Extract extras from bracket notation in command arguments.
+        Extract extras from dollar-bracket notation in command arguments.
 
-        Parses command strings that may contain extras in square brackets,
-        e.g., "SUB nspec [REPLACE old new]" or "REPEAT idx IN species [SORT]".
+        Parses command strings that may contain extras in dollar-bracket notation,
+        e.g., "SUB nspec $[REPLACE old new]$" or "REPEAT idx IN species $[SORT TRUE]$".
         Extracts and returns the main command arguments separately from the extras.
 
         Args:
-            line: Command argument string, possibly containing [...] extras
+            line: Command argument string, possibly containing $[...]$ extras
 
         Returns:
             Tuple of (main_args, extras_list) where:
@@ -589,26 +571,26 @@ class Fileparser:
                               empty list if no brackets present
 
         Examples:
-            >>> __get_extras("nspec, nreact [REPLACE old new]")
+            >>> __get_extras("nspec, nreact $[REPLACE old new]$")
             ("nspec, nreact", ["REPLACE", "old", "new"])
 
-            >>> __get_extras("idx IN species [SORT CSE TRUE]")
+            >>> __get_extras("idx IN species $[SORT CSE TRUE]$")
             ("idx IN species", ["SORT", "CSE", "TRUE"])
 
             >>> __get_extras("specie_idx FOR H+")
             ("specie_idx FOR H+", [])
 
         Note:
-            Only handles single [...] block. Multiple brackets will use first pair.
+            Only handles single $[...]$ block. Multiple brackets will use first pair.
         """
         # No brackets present - return entire line and empty extras
-        if "[" not in line and "]" not in line:
+        if "$[" not in line and "]$" not in line:
             return line.strip(), []
 
         # Split on first "[" to separate main args from extras
-        line, extras = line.split("[", 1)
+        line, extras = line.split("$[", 1)
         # Extract content between [ and ]
-        extras: str = extras.split("]")[0]
+        extras: str = extras.split("]$")[0]
         # Split extras into individual tokens
         extras_list = extras.split()
 

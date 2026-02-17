@@ -42,7 +42,7 @@ def main(
         {},
         {"CHARGE": charge_cons},
         {
-            "ODE": sode,
+            "ODE": ode,
             "JACOBIAN": jac,
         },
     ]
