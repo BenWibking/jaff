@@ -37,12 +37,16 @@
     --jaff-error: #dc2626; /* red-600 */
     --jaff-info: #0284c7; /* sky-600 */
 
+    /* Link colors */
+    --jaff-link: #0369a1; /* sky-700 - Bright blue for visibility */
+    --jaff-link-hover: #0369a1; /* sky-700 - Darker blue on hover */
+
     /* Material Design overrides - Light mode */
     --md-primary-fg-color: var(--jaff-primary);
     --md-primary-fg-color--light: var(--jaff-primary-light);
     --md-primary-fg-color--dark: var(--jaff-primary-dark);
 
-    --md-accent-fg-color: var(--jaff-accent);
+    --md-accent-fg-color: var(--jaff-link-hover);
     --md-accent-fg-color--transparent: rgba(124, 58, 237, 0.1);
 
     /* Text colors - High contrast for readability */
@@ -56,7 +60,7 @@
     --md-code-bg-color: var(--jaff-neutral-100);
 
     /* Component-specific colors */
-    --md-typeset-a-color: var(--jaff-primary); /* Links - 11.6:1 contrast */
+    --md-typeset-a-color: var(--jaff-link); /* Links */
     --md-typeset-color: var(--jaff-primary-darker);
 
     /* Header colors - White text on primary background */
@@ -79,7 +83,7 @@
     --md-primary-fg-color--dark: var(--jaff-neutral-400);
 
     /* Accent colors adjusted for dark backgrounds */
-    --md-accent-fg-color: var(--jaff-accent-light);
+    --md-accent-fg-color: var(--jaff-link-hover);
     --md-accent-fg-color--transparent: rgba(100, 116, 139, 0.12);
 
     /* Text colors for dark mode */
@@ -93,7 +97,11 @@
     --md-code-bg-color: var(--jaff-primary-dark);
 
     /* Links */
-    --md-typeset-a-color: var(--jaff-neutral-300);
+    --md-typeset-a-color: var(--jaff-link);
+
+    /* Link colors for dark mode */
+    --jaff-link: #7dd3fc; /* sky-300 - Bright blue for dark mode */
+    --jaff-link-hover: #7dd3fc; /* sky-300 - Lighter blue on hover */
 
     /* Header for dark mode */
     --md-header-bg-color: var(--jaff-primary-dark);
@@ -366,23 +374,23 @@ h4 {
 /* ============================================================================
    LINKS
    ============================================================================ */
-a {
-    color: var(--jaff-primary);
+.md-content a {
+    color: var(--jaff-link) !important;
     text-decoration: none;
     transition: color 0.2s ease;
 }
 
-a:hover {
-    color: var(--jaff-primary-dark);
+.md-content a:hover {
+    color: var(--jaff-link-hover) !important;
     text-decoration: underline;
 }
 
-[data-md-color-scheme="slate"] a {
-    color: var(--jaff-neutral-300);
+[data-md-color-scheme="slate"] .md-content a {
+    color: var(--jaff-link) !important;
 }
 
-[data-md-color-scheme="slate"] a:hover {
-    color: var(--jaff-neutral-200);
+[data-md-color-scheme="slate"] .md-content a:hover {
+    color: var(--jaff-link-hover) !important;
 }
 
 /* ============================================================================
@@ -785,6 +793,11 @@ blockquote {
         box-shadow 0.2s ease;
     border-radius: 0.5rem;
     border: 1px solid var(--jaff-neutral-200);
+}
+
+.grid.cards > ul > li {
+    border-radius: 0.5rem !important;
+    background-color: var(--md-code-bg-color);
 }
 
 [data-md-color-scheme="slate"] .grid.cards > * {

@@ -79,7 +79,11 @@ def main() -> None:
             f"Files will be generated at {Path.cwd()}"
         )
 
-    outdir: Path = Path(output_dir).resolve() if output_dir is not None else Path.cwd()
+    outdir: Path = (
+        Path(output_dir).resolve()
+        if output_dir is not None
+        else Path(__file__).parent / "generated"
+    )
     if not outdir.exists():
         # Create output directory if it doesn't exist
         Path.mkdir(outdir)

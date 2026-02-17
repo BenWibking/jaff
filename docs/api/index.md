@@ -130,22 +130,25 @@ python -m jaff.generate \
 
 ## Module Structure
 
-```
-jaff/
-├── __init__.py          # Main package exports
-├── network.py           # Network class
-├── species.py           # Species class
-├── reaction.py          # Reaction class
-├── codegen.py           # Code generator
-├── jaff_types.py        # Type definitions for indexed expressions
-├── file_parser.py       # Template parser
-├── elements.py          # Element analysis
-├── generate.py          # CLI interface
-├── cli.py               # Main CLI entry point
-├── parsers.py           # Format-specific parsers
-├── preprocessor.py      # Network preprocessing
-├── builder.py           # Network builder
-└── plugins/             # Plugin system
+```mermaid
+classDiagram
+    class jaff {
+        __init__.py
+        network.py
+        species.py
+        reaction.py
+        codegen.py
+        jaff_types.py
+        file_parser.py
+        elements.py
+        generate.py
+        cli.py
+        parsers.py
+        preprocessor.py
+        builder.py
+        plugins/
+    }
+
 ```
 
 ---

@@ -1,36 +1,38 @@
 # JAFF Documentation
 
-<div align="center">
-  <img src="assets/logo.png" alt="JAFF Logo" width="200" style="margin: 20px 0;">
-  
-  **Just Another Fancy Format**
-  
-  *An astrochemical network parser and multi-language code generator*
-  
-  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-  [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-  [![GitHub](https://img.shields.io/github/stars/tgrassi/jaff?style=social)](https://github.com/tgrassi/jaff)
+<div align="center" markdown>
+
+<img src="assets/logo.png" alt="JAFF Logo" width="200" style="margin: 20px 0;">
+
+**Just Another Fancy Format**
+
+_An astrochemical network parser and multi-language code generator_
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![GitHub](https://img.shields.io/github/stars/tgrassi/jaff?style=social)](https://github.com/tgrassi/jaff)
+
 </div>
 
 ---
 
 ## Welcome to JAFF
 
-JAFF is a comprehensive tool for working with astrochemical reaction networks. It provides a unified interface for parsing multiple network formats, analyzing chemical species and reactions, and generating optimized code for numerical simulations in C, C++, and Fortran.
+JAFF is a comprehensive tool for working with astrochemical reaction networks. It provides a unified interface for parsing multiple network formats, analyzing chemical species and reactions, and generating optimized code for numerical simulations in C, C++, Fortran and muliple other languages.
 
 ## Key Features
 
 ### **Multi-Format Support**
 
-Parse networks from major astrochemistry databases including KIDA, UDFA, PRIZMO, KROME, and UCLCHEM with automatic format detection.
+Parse networks from major astrochemistry databases including KIDA, UDFA, PRIZMO, KROME and UCLCHEM with automatic format detection.
 
 ### **Validation & Analysis**
 
-Automatically validate mass and charge conservation, analyze stoichiometry, and extract elemental composition from complex chemical formulas.
+Automatically validate mass and charge conservation, analyze stoichiometry and extract elemental composition from complex chemical formulas.
 
 ### **Code Generation**
 
-Generate optimized C/C++/Fortran code for reaction rates, ODEs, Jacobians, and flux calculations with optional common subexpression elimination (CSE).
+Generate optimized C/C++/Fortran/Rust/Python/Julia code for reaction rates, ODEs, Jacobians ,flux calculations with optional common subexpression elimination (CSE) and much more.
 
 ### **Temperature-Dependent Rates**
 
