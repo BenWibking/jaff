@@ -182,7 +182,11 @@ class Fileparser:
         }
         lang = ext_map.get(ext, default_lang)
         if lang is None:
-            raise RuntimeError(f"{ext} files are not yet supprted")
+            raise RuntimeError(
+                f"{ext} files are not yet supported\n"
+                "Please use the --lang option to specify a language for\n"
+                "unsupported files if you are using jaffgen"
+            )
 
         self.cg: Codegen = Codegen(network=self.net, lang=lang)
         self.parser_dict: dict[str, CommandProps] = self.__get_parser_dict
@@ -1230,13 +1234,13 @@ class Fileparser:
                     },
                     # Returns: list[str] - species names
                     "species": {
-                        "func": lambda: [specie.name for specie in self.net.species],
+                        "func": lambda: [specie.name() for specie in self.net.species],
                         "vars": ["idx", "specie"],
                     },
                     # Returns: list[str] - species names with +/-
                     "species_with_normalized_sign": {
                         "func": lambda: [
-                            specie.name.replace("+", "j").replace("-", "")
+                            specie.name.lower().replace("+", "j").replace("-", "")
                             for specie in self.net.species
                         ],
                         "vars": ["idx", "specie"],
@@ -1532,6 +1536,24 @@ class Fileparser:
                             if str(specie) != "e-"
                         ],
                         "var": "specie_charge_ne",
+                    },
+                    # Returns: list[int] - charge of charged species excluding electrons
+                    "charged_specie_charges_ne": {
+                        "func": lambda: [
+                            specie.charge
+                            for specie in self.net.species
+                            if str(specie) != "e-" and specie.charge != 0
+                        ],
+                        "var": "charged_specie_charge_ne",
+                    },
+                    # Returns: list[int] - charge of charged species
+                    "charged_specie_charges": {
+                        "func": lambda: [
+                            specie.charge
+                            for specie in self.net.species
+                            if specie.charge != 0
+                        ],
+                        "var": "charged_specie_charge",
                     },
                     # Returns: list[int] - 1 if charged, 0 if neutral (excluding electrons)
                     "charge_truths_ne": {

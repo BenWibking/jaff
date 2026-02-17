@@ -33,6 +33,7 @@ MANIFEST
 # build folder not needed
 builds/
 site/
+generated/
 
 # PyInstaller
 *.manifest

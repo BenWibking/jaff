@@ -148,11 +148,11 @@ int main(int argc, char *argv[]) {
   // $JAFF REPEAT element IN elements
   constexpr char* element_names[n_elements] = {"$element$", };
   // $JAFF END
-  // $JAFF REPEAT charge IN charges
-  constexpr int species_charge[ChemistryODE::neqs] = {$charge$, };
+  // $JAFF REPEAT specie_charge IN specie_charges
+  constexpr int species_charge[ChemistryODE::neqs] = {$specie_charge$, };
   // $JAFF END
   // $JAFF REPEAT element IN element_density_matrix
-  constexpr int elem_matrix[n_elements][ChemistryODE::neqs] = {"$element$", };
+  constexpr int elem_matrix[n_elements][ChemistryODE::neqs] = {$element$, };
   // $JAFF END
 
 #ifndef JAFF_HAS_CONSERVATION_METADATA

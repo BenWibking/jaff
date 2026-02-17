@@ -21,4 +21,4 @@ def main(network, path_template, path_build=None):
 
 if __name__ == "__main__":
     net = Network("networks/test.dat")
-    main(net, path_template="src/jaff/templates/fortran_dlsodes")
+    main(net, path_template="src/jaff/templates/preprocessor/fortran_dlsodes")

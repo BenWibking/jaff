@@ -43,22 +43,80 @@ def main() -> None:
         --files: Individual template files to process (optional)
         --template: Name of a predefined template directory to use (optional)
         --lang: Default programming language for files without language detection (optional)
-
-    Raises:
-        RuntimeError: If no network file is supplied or no valid input files are found
-        FileNotFoundError: If network file or input files don't exist or are invalid
-        NotADirectoryError: If the output path is not a directory
     """
-    # Set up argument parser
+    # Set up argument parser with comprehensive help text
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
-        description="JAFF code generator CLI interface"
+        prog="jaff.generate",
+        description="Generate code for chemical reaction networks in multiple programming languages.",
+        epilog="""
+Examples:
+  # Generate from a template directory
+  python -m jaff.generate --network networks/react_COthin --indir templates/ --outdir output/
+
+  # Use a predefined template collection
+  python -m jaff.generate --network networks/react_COthin --template chemistry_solver --outdir output/
+
+  # Process specific files with Rust
+  python -m jaff.generate --network networks/test.dat --files rates.txt odes.txt --lang rust --outdir output/
+
+  # Combine template and custom files
+  python -m jaff.generate --network networks/test.dat --template base --files custom.cpp --outdir output/
+
+Supported Languages:
+  c, cxx (c++, cpp), fortran (f90), python (py), rust (rs), julia (jl), r
+
+For more information, visit: https://github.com/tgrassi/jaff
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--outdir", help="Output directory")
-    parser.add_argument("--indir", help="Input directory")
-    parser.add_argument("--files", nargs="+", help="Input files")
-    parser.add_argument("--network", help="Network file")
-    parser.add_argument("--template", help="Template name")
-    parser.add_argument("--lang", help="Default language for unsupported files")
+
+    # Required arguments
+    parser.add_argument(
+        "--network",
+        required=True,
+        metavar="FILE",
+        help="Path to chemical reaction network file (required)",
+    )
+
+    # Output options
+    parser.add_argument(
+        "--outdir",
+        metavar="DIR",
+        help="Output directory for generated files (default: jaff/generated)",
+    )
+
+    # Input source options (mutually compatible)
+    input_group = parser.add_argument_group("Input sources (can combine multiple)")
+    input_group.add_argument(
+        "--indir", metavar="DIR", help="Directory containing template files to process"
+    )
+    input_group.add_argument(
+        "--files",
+        nargs="+",
+        metavar="FILE",
+        help="Individual template file(s) to process",
+    )
+    input_group.add_argument(
+        "--template",
+        metavar="NAME",
+        help="Name of predefined template collection in jaff/templates/generator/",
+    )
+
+    # Code generation options
+    gen_group = parser.add_argument_group("Code generation options")
+    gen_group.add_argument(
+        "--lang",
+        metavar="LANGUAGE",
+        choices=[
+            "c",
+            "cxx",
+            "fortran",
+            "python",
+            "rust",
+            "julia",
+        ],
+        help="Default programming language for unsupported files (choices: %(choices)s)",
+    )
     args: argparse.Namespace = parser.parse_args()
 
     # Extract command-line arguments
@@ -144,7 +202,7 @@ def main() -> None:
 
     # Ensure at least one input file was provided
     if not files:
-        raise RuntimeError("No valid input files have been supplied")
+        raise RuntimeError("No valid input file/folder/template have been supplied")
 
     # Ensure default language is supported by jaff code generation
     if default_lang and default_lang not in cg.get_language_tokens():
@@ -165,6 +223,10 @@ def main() -> None:
         outfile: Path = outdir / file.name
         with open(outfile, "w") as f:
             f.write(lines)
+
+        print(f"{file.name} created at {outdir}")
+
+    print(f"\nSuccessfully generated files\nGenerated files can be found at {outdir}")
 
 
 if __name__ == "__main__":

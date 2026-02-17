@@ -51,6 +51,7 @@ dev = [
 
 [project.scripts]
 jaff = "jaff.cli:main"
+jaffgen = "jaff.generate:main"
 
 [project.urls]
 "Homepage" = "https://github.com/tgrassi/jaff"

@@ -10,7 +10,7 @@ void balance_charge(burn_t &state) {
   const int e_idx = $e_idx$;
   // $JAFF END
 
-  // $JAFF REDUCE charged_specie_index_ne IN charged_specie_indices_ne
-  state.xn[e_idx] = $(state.xn[$charged_specie_index_ne$])$;
+  // $JAFF REDUCE charged_specie_index_ne, charged_specie_charge_ne IN charged_specie_indices_ne, charged_specie_charges_ne
+  state.xn[e_idx] = $($charged_specie_charge_ne$*state.xn[$charged_specie_index_ne$])$;
   // $JAFF END
 }

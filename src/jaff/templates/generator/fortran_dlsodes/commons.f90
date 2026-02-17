@@ -2,7 +2,7 @@ module commons
     implicit none
     !! $JAFF REPEAT idx, specie IN species_with_normalized_sign
 
-    integer,parameter::idx_$specie$ = $idx$
+    integer,parameter::idx_$specie$ = $idx+1$
 
     !! JAFF END
 
