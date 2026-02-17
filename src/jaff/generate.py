@@ -3,13 +3,21 @@ JAFF Code Generator CLI Interface.
 
 This module provides the command-line interface for the JAFF (Just Another File Format)
 code generator. It processes template files containing JAFF directives and generates
-code for chemical reaction networks in various programming languages (C, C++, Fortran).
+code for chemical reaction networks in various programming languages (C, C++, Fortran,
+Python, Rust, Julia, R).
 
 Usage:
     python -m jaff.generate --network <network_file> [--outdir <dir>] [--indir <dir>] [--files <file1> <file2> ...]
 
-Example:
+Examples:
+    # Generate code from a specific template directory
     python -m jaff.generate --network networks/react_COthin --indir templates/ --outdir output/
+
+    # Use a predefined template collection
+    python -m jaff.generate --network networks/react_COthin --template my_template --outdir output/
+
+    # Process specific files with a default language
+    python -m jaff.generate --network networks/test.dat --files file1.txt file2.txt --lang rust
 """
 
 import argparse
@@ -33,6 +41,8 @@ def main() -> None:
         --outdir: Output directory for generated files (optional, defaults to current directory)
         --indir: Input directory containing template files to process (optional)
         --files: Individual template files to process (optional)
+        --template: Name of a predefined template directory to use (optional)
+        --lang: Default programming language for files without language detection (optional)
 
     Raises:
         RuntimeError: If no network file is supplied or no valid input files are found
@@ -47,6 +57,7 @@ def main() -> None:
     parser.add_argument("--indir", help="Input directory")
     parser.add_argument("--files", nargs="+", help="Input files")
     parser.add_argument("--network", help="Network file")
+    parser.add_argument("--template", help="Template name")
     parser.add_argument("--lang", help="Default language for unsupported files")
     args: argparse.Namespace = parser.parse_args()
 
@@ -56,9 +67,15 @@ def main() -> None:
     input_files: list[str] | None = args.files
     network_file: str | None = args.network
     default_lang: str | None = args.lang
+    template: str | None = args.template
 
     # List to collect all files to process
     files: list[Path] = []
+
+    # Locate JAFF package directory and built-in template directory
+    # Templates are stored in jaff/templates/generator/
+    jaff_dir: Path = Path(__file__).parent
+    template_dir: Path = jaff_dir / "templates" / "generator"
 
     # Validate network file is provided
     if network_file is None:
@@ -80,9 +97,7 @@ def main() -> None:
         )
 
     outdir: Path = (
-        Path(output_dir).resolve()
-        if output_dir is not None
-        else Path(__file__).parent / "generated"
+        Path(output_dir).resolve() if output_dir is not None else jaff_dir / "generated"
     )
     if not outdir.exists():
         # Create output directory if it doesn't exist
@@ -90,6 +105,24 @@ def main() -> None:
 
     if not outdir.is_dir():
         raise NotADirectoryError(f"Output path is not a directory: {outdir}")
+
+    # Handle predefined template directory if specified
+    if template is not None:
+        # Get list of available template directory names
+        # Each subdirectory in templates/generator/ is a template collection
+        templates: list[str] = [
+            file.name for file in template_dir.iterdir() if file.is_dir()
+        ]
+
+        # Validate that the requested template exists
+        if template not in templates:
+            raise ValueError(
+                f"Invalid template name. Supported templates are {templates}"
+            )
+
+        # Recursively collect all files from the template directory
+        template_path: Path = template_dir / template
+        files.extend([file for file in template_path.rglob("*") if not file.is_dir()])
 
     # Collect files from input directory if specified
     if input_dir is not None:
@@ -114,7 +147,7 @@ def main() -> None:
         raise RuntimeError("No valid input files have been supplied")
 
     # Ensure default language is supported by jaff code generation
-    if default_lang and default_lang not in cg.__get_language_tokens():
+    if default_lang and default_lang not in cg.get_language_tokens():
         raise ValueError(f"Unsupported language specified: {default_lang}")
 
     # Process each template file

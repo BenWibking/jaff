@@ -205,7 +205,7 @@ class Codegen:
             >>> cg = Codegen(network=net, lang="py", matrix_format="[,]")
         """
         __lang_aliases = self.__get_language_aliases()
-        __lang_tokens = self.__get_language_tokens()
+        __lang_tokens = self.get_language_tokens()
         __matrix_formats = self.__get_matrix_formats()
         __brack_formats = self.__get_bracket_formats()
 
@@ -1316,7 +1316,7 @@ class Codegen:
 
     @staticmethod
     @cache
-    def __get_language_tokens() -> dict[str, LangModifier]:
+    def get_language_tokens() -> dict[str, LangModifier]:
         """
         Get language-specific code generation parameters.
 
