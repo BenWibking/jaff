@@ -1,22 +1,23 @@
 # Working with Reactions
 
-This guide explains how to work with chemical reactions in the codegen_class library, including loading, manipulating, and analyzing reactions from network files.
-
 ## Overview
 
-Reactions are the core building blocks of chemical reaction networks. Each reaction describes how species transform from reactants to products, potentially with modifiers (catalysts/inhibitors) and associated rate expressions.
+Reactions are the core building blocks of chemical reaction networks. Each reaction describes how species transform from reactants to products, potentially with modifiers (catalysts/inhibitors) and associated rate expressions which describe how fast the reaction occurs.
 
 ## Reaction Structure
 
 ### Basic Components
 
-A reaction in codegen_class consists of:
+A reaction in `Reaction` class consists of:
 
-- **Reactants**: Species consumed by the reaction
-- **Products**: Species produced by the reaction
-- **Modifiers**: Species that affect the reaction rate without being consumed (catalysts, inhibitors)
-- **Rate Expression**: Mathematical expression describing the reaction rate
-- **Reversibility**: Whether the reaction can proceed in both directions
+| Component   | Description                                          |
+| ----------- | ---------------------------------------------------- |
+| `reactants` | Species consumed by the reaction                     |
+| `products`  | Species produced by the reaction                     |
+| `rate`      | Mathematical expression describing the reaction rate |
+| `tmin`      | Minimum temperature clamp                            |
+| `tmax`      | Maximum temperature clamp                            |
+| `verbatim`  | Human readable representation of the reaction        |
 
 ### Reaction Representation
 
@@ -28,108 +29,10 @@ network = Network.from_file("network.jaff")
 
 # Access reactions
 for reaction in network.reactions:
-    print(f"Reaction ID: {reaction.id}")
+    print(f"Reaction: {reaction.verbatim}")
     print(f"Reactants: {reaction.reactants}")
     print(f"Products: {reaction.products}")
     print(f"Rate: {reaction.rate}")
-    print(f"Reversible: {reaction.reversible}")
-```
-
-## Creating Reactions
-
-### From Network Files
-
-Most commonly, reactions are loaded from network files:
-
-```python
-# From JAFF format
-network = Network.from_file("network.jaff")
-
-# From SBML
-network = Network.from_sbml("model.xml")
-
-# From Antimony
-network = Network.from_antimony("model.ant")
-```
-
-### Programmatic Creation
-
-You can also create reactions programmatically:
-
-```python
-from codegen_class import Reaction, Species
-
-# Create species
-A = Species(id="A", name="Species A")
-B = Species(id="B", name="Species B")
-C = Species(id="C", name="Species C")
-
-# Create a reaction: A + B -> C
-reaction = Reaction(
-    id="R1",
-    name="Formation of C",
-    reactants={"A": 1, "B": 1},
-    products={"C": 1},
-    rate="k1 * A * B"
-)
-```
-
-## Reaction Properties
-
-### Stoichiometry
-
-Access stoichiometric coefficients for reactants and products:
-
-```python
-reaction = network.get_reaction("R1")
-
-# Get stoichiometry
-for species_id, coefficient in reaction.reactants.items():
-    print(f"Reactant {species_id}: {coefficient}")
-
-for species_id, coefficient in reaction.products.items():
-    print(f"Product {species_id}: {coefficient}")
-
-# Calculate net stoichiometry
-net_stoich = reaction.net_stoichiometry()
-for species_id, net_coeff in net_stoich.items():
-    print(f"{species_id}: {net_coeff:+d}")
-```
-
-### Rate Expressions
-
-Work with reaction rate expressions:
-
-```python
-# Get rate expression
-rate = reaction.rate
-print(f"Rate law: {rate}")
-
-# Check if rate is mass action
-if reaction.is_mass_action():
-    print("This is a mass action reaction")
-    print(f"Rate constant: {reaction.rate_constant}")
-
-# Get rate parameters
-params = reaction.get_parameters()
-for param in params:
-    print(f"Parameter: {param}")
-```
-
-### Reversibility
-
-Handle reversible reactions:
-
-```python
-if reaction.reversible:
-    print(f"Forward rate: {reaction.forward_rate}")
-    print(f"Reverse rate: {reaction.reverse_rate}")
-    
-    # Get equilibrium constant
-    K_eq = reaction.equilibrium_constant()
-    print(f"K_eq = {K_eq}")
-else:
-    print("This is an irreversible reaction")
 ```
 
 ## Reaction Types
@@ -412,21 +315,21 @@ Trace reaction pathways:
 def find_pathway(network, start_species, end_species, max_steps=5):
     """Find reaction pathway from start to end species."""
     pathways = []
-    
+
     def search(current, target, path, steps):
         if steps > max_steps:
             return
         if current == target:
             pathways.append(path.copy())
             return
-            
+
         for reaction in network.get_reactions_producing(current):
             if reaction.id not in path:
                 path.append(reaction.id)
                 for reactant in reaction.reactants:
                     search(reactant, target, path, steps + 1)
                 path.pop()
-    
+
     search(end_species, start_species, [], 0)
     return pathways
 ```
