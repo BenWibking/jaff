@@ -225,7 +225,8 @@ class Fileparser:
         self.line = line
 
         # Check if this is a JAFF directive line
-        if not line.startswith(f"{comment}$JAFF"):
+        tokens = line.split()
+        if not (len(tokens) >= 2 and tokens[0] == comment and tokens[1] == "$JAFF"):
             # Not a JAFF line - either execute active parse function or copy line as-is
             if self.parsing_enabled and self.parse_function is not None:
                 self.parse_function()
@@ -1654,9 +1655,9 @@ class Fileparser:
                     },
                     # Returns: int - charge of specified species
                     "specie_charge": {
-                        "func": lambda s: self.net.species[
-                            self.net.species_dict[s]
-                        ].charge
+                        "func": lambda s: (
+                            self.net.species[self.net.species_dict[s]].charge
+                        )
                     },
                     # Returns: str - LaTeX representation of specified species
                     "specie_latex": {
@@ -1664,21 +1665,21 @@ class Fileparser:
                     },
                     # Returns: float - minimum temperature for specified reaction
                     "reaction_tmin": {
-                        "func": lambda r: self.net.reactions[
-                            self.net.reactions_dict[r]
-                        ].tmin
+                        "func": lambda r: (
+                            self.net.reactions[self.net.reactions_dict[r]].tmin
+                        )
                     },
                     # Returns: float - maximum temperature for specified reaction
                     "reaction_tmax": {
-                        "func": lambda r: self.net.reactions[
-                            self.net.reactions_dict[r]
-                        ].tmax
+                        "func": lambda r: (
+                            self.net.reactions[self.net.reactions_dict[r]].tmax
+                        )
                     },
                     # Returns: str - verbatim string representation of specified reaction
                     "reaction_verbatim": {
-                        "func": lambda r: self.net.reactions[
-                            self.net.reactions_dict[r]
-                        ].verbatim
+                        "func": lambda r: (
+                            self.net.reactions[self.net.reactions_dict[r]].verbatim
+                        )
                     },
                 },
             },
