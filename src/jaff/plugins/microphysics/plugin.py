@@ -16,7 +16,7 @@ def main(
     pp = Preprocessor()
     charge_cons = "0.0"
 
-    ode = cg.get_ode_str(
+    ode = cg.get_rhs_str(
         idx_offset=1,
         use_cse=True,
         def_prefix="const amrex::Real ",
@@ -25,6 +25,7 @@ def main(
     )
     jac = cg.get_jacobian_str(
         idx_offset=1,
+        use_dedt=True,
         use_cse=True,
         var_prefix="const amrex::Real ",
         jac_var="jac",
