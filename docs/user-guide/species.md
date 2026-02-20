@@ -1,7 +1,5 @@
 # Working with Species
 
-Guide to working with chemical species in JAFF.
-
 ## Overview
 
 Species represent individual chemical entities (atoms, molecules, ions) in a chemical reaction network.
@@ -20,13 +18,14 @@ for species in net.species:
 
 Each species object has the following attributes:
 
-| Attribute | Type | Description |
-|-----------|------|-------------|
-| `name` | str | Species identifier (e.g., "H2", "CO", "H+") |
-| `mass` | float | Molecular mass in atomic mass units (amu) |
-| `charge` | int | Electric charge (0 for neutral, ±1, ±2 for ions) |
-| `index` | int | Position in the species array |
-| `fidx` | str | Formatted index name for code generation |
+| Attribute | Type  | Description                                      |
+| --------- | ----- | ------------------------------------------------ |
+| `name`    | str   | Species identifier (e.g., "H2", "CO", "H+")      |
+| `mass`    | float | Molecular mass in atomic mass units (amu)        |
+| `charge`  | int   | Electric charge (0 for neutral, ±1, ±2 for ions) |
+| `index`   | int   | Position in the species array                    |
+| `fidx`    | str   | Formatted index name for code generation         |
+| `latex`   | str   | Formatted latex representation of the specie     |
 
 ## Accessing Species
 
@@ -79,13 +78,6 @@ Molecular mass in atomic mass units:
 ```python
 for species in net.species[:5]:
     print(f"{species.name}: {species.mass:.4f} amu")
-
-# Output:
-# H: 1.0079 amu
-# H2: 2.0159 amu
-# O: 15.9994 amu
-# OH: 17.0073 amu
-# CO: 28.0101 amu
 ```
 
 ### Charge
@@ -209,94 +201,6 @@ charge_dist = Counter(charges)
 
 for charge, count in sorted(charge_dist.items()):
     print(f"Charge {charge:+d}: {count} species")
-```
-
-## Common Patterns
-
-### Pattern 1: Species Lookup Table
-
-```python
-# Create lookup table
-species_data = {
-    s.name: {
-        'index': s.index,
-        'mass': s.mass,
-        'charge': s.charge
-    }
-    for s in net.species
-}
-
-# Use lookup
-if "CO" in species_data:
-    print(f"CO data: {species_data['CO']}")
-```
-
-### Pattern 2: Species Groups
-
-```python
-# Group by charge state
-by_charge = {}
-for species in net.species:
-    charge = species.charge
-    if charge not in by_charge:
-        by_charge[charge] = []
-    by_charge[charge].append(species)
-
-# Print groups
-for charge, species_list in sorted(by_charge.items()):
-    print(f"Charge {charge:+d}: {len(species_list)} species")
-```
-
-### Pattern 3: Mass-Ordered List
-
-```python
-# Sort by mass
-sorted_species = sorted(net.species, key=lambda s: s.mass)
-
-print("Lightest species:")
-for s in sorted_species[:5]:
-    print(f"  {s.name}: {s.mass:.4f} amu")
-
-print("\nHeaviest species:")
-for s in sorted_species[-5:]:
-    print(f"  {s.name}: {s.mass:.4f} amu")
-```
-
-## Best Practices
-
-### 1. Use Dictionary Lookup
-
-```python
-# Fast O(1) lookup
-idx = net.species_dict["CO"]
-
-# Avoid O(n) search
-for s in net.species:
-    if s.name == "CO":
-        idx = s.index
-```
-
-### 2. Check Existence
-
-```python
-# Check before accessing
-if "UnknownSpecies" in net.species_dict:
-    species = net.get_species_object("UnknownSpecies")
-else:
-    print("Species not found")
-```
-
-### 3. Cache Frequently Used Data
-
-```python
-# Cache species for repeated access
-h2_idx = net.species_dict["H2"]
-co_idx = net.species_dict["CO"]
-
-# Use cached indices
-for reaction in net.reactions:
-    # Fast access using cached indices
-    pass
 ```
 
 ## See Also

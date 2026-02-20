@@ -35,7 +35,7 @@ class TestCLanguage:
         assert cg.rb == "]"
         assert cg.ioff == 0  # C uses 0-based indexing
         assert cg.line_end == ";"
-        assert cg.comment == "// "
+        assert cg.comment == "//"
 
     def test_c_types(self, simple_network):
         """Test C type declarations."""
@@ -72,7 +72,7 @@ class TestCxxLanguage:
         assert cg.rb == "]"
         assert cg.ioff == 0  # C++ uses 0-based indexing
         assert cg.line_end == ";"
-        assert cg.comment == "// "
+        assert cg.comment == "//"
 
     def test_cxx_aliases(self, simple_network):
         """Test that 'c++' and 'cpp' aliases work for C++."""
@@ -117,7 +117,7 @@ class TestFortranLanguage:
         assert cg.rb == ")"
         assert cg.ioff == 1  # Fortran uses 1-based indexing
         assert cg.line_end == ""  # No semicolons
-        assert cg.comment == "!! "
+        assert cg.comment == "!"
 
     def test_fortran_alias(self, simple_network):
         """Test that 'f90' alias works for Fortran."""
@@ -167,7 +167,7 @@ class TestPythonLanguage:
         assert cg.rb == "]"
         assert cg.ioff == 0  # Python uses 0-based indexing
         assert cg.line_end == ""  # No semicolons
-        assert cg.comment == "# "
+        assert cg.comment == "#"
 
     def test_python_alias(self, simple_network):
         """Test that 'py' alias works for Python."""
@@ -209,7 +209,7 @@ class TestRustLanguage:
         assert cg.rb == "]"
         assert cg.ioff == 0  # Rust uses 0-based indexing
         assert cg.line_end == ";"
-        assert cg.comment == "// "
+        assert cg.comment == "//"
 
     def test_rust_alias(self, simple_network):
         """Test that 'rs' alias works for Rust."""
@@ -246,7 +246,7 @@ class TestJuliaLanguage:
         assert cg.rb == "]"
         assert cg.ioff == 1  # Julia uses 1-based indexing
         assert cg.line_end == ""  # No semicolons
-        assert cg.comment == "# "
+        assert cg.comment == "#"
 
     def test_julia_alias(self, simple_network):
         """Test that 'jl' alias works for Julia."""
@@ -292,7 +292,7 @@ class TestRLanguage:
         assert cg.rb == "]"
         assert cg.ioff == 1  # R uses 1-based indexing
         assert cg.line_end == ""  # No semicolons
-        assert cg.comment == "# "
+        assert cg.comment == "#"
 
     def test_r_assignment_operator(self, simple_network):
         """Test that R uses <- assignment operator."""

@@ -1,7 +1,5 @@
 # Installation
 
-This guide will help you install JAFF on your system.
-
 ## Requirements
 
 JAFF requires Python 3.9 or higher. Check your Python version:
@@ -12,108 +10,75 @@ python --version
 
 ## Installation Methods
 
-### Method 1: From PyPI (Recommended)
+### Method 1: Install from Source
 
-Once published, you can install JAFF directly from PyPI:
-
-```bash
-pip install jaff
-```
-
-### Method 2: From Source
-
-For the latest development version or to contribute:
+For the latest development version:
 
 ```bash
 # Clone the repository
 git clone https://github.com/tgrassi/jaff.git
 cd jaff
 
-# Install in regular mode
-pip install .
+# Install the package
+pip install -e .
 ```
 
-### Method 3: Development Installation
-
-If you plan to modify JAFF or contribute to development:
+Or using uv:
 
 ```bash
 # Clone the repository
 git clone https://github.com/tgrassi/jaff.git
 cd jaff
 
-# Install in editable mode with development dependencies
-pip install -e ".[dev]"
+# Install the package
+uv pip install -e .
 ```
-
-This installs JAFF in "editable" mode, so changes you make to the source code are immediately reflected without reinstalling.
-
-## Dependencies
-
-JAFF automatically installs the following dependencies:
-
-### Core Dependencies
-
-- **numpy** (≥2.0.0) - Numerical computations
-- **scipy** (≥1.13.0) - Scientific computing
-- **sympy** (≥1.14.0) - Symbolic mathematics
-- **tqdm** (≥4.67.1) - Progress bars
-- **h5py** (≥3.9.0) - HDF5 file support
-
-### Development Dependencies
-
-When installing with `[dev]`:
-
-- **pytest** (≥7.0) - Testing framework
-- **pytest-cov** - Code coverage
-- **ruff** - Linting and formatting
-- **check-jsonschema** - JSON schema validation
 
 ## Virtual Environment (Recommended)
 
 It's recommended to use a virtual environment to avoid conflicts with other packages:
 
-=== "Using venv"
+=== "venv"
 
     ```bash
     # Create virtual environment
-    python -m venv jaff-env
-    
+    python -m venv .venv
+
     # Activate (Linux/macOS)
-    source jaff-env/bin/activate
-    
+    source .venv/bin/activate
+
     # Activate (Windows)
-    jaff-env\Scripts\activate
-    
+    .venv\Scripts\activate
+
     # Install JAFF
-    pip install jaff
+    pip install jaff -e .
     ```
 
-=== "Using conda"
+=== "conda"
 
     ```bash
     # Create conda environment
-    conda create -n jaff-env python=3.11
-    
+    conda create -n .venv python=3.11
+
     # Activate
-    conda activate jaff-env
-    
+    conda activate venv
+
     # Install JAFF
-    pip install jaff
+    pip install jaff -e .
     ```
 
-=== "Using uv"
+=== "uv"
 
     ```bash
     # Create virtual environment with uv (faster)
     uv venv
-    
+
     # Activate
     source .venv/bin/activate  # Linux/macOS
     .venv\Scripts\activate     # Windows
-    
+
     # Install JAFF
-    uv pip install jaff
+    uv pip install jaff -e .
     ```
 
 ## Verifying Installation
@@ -124,24 +89,45 @@ After installation, verify that JAFF is working correctly:
 # Check JAFF version
 python -c "import jaff; print(jaff.__version__)"
 
-# Run the CLI
-jaff --help
+# Test the code generator CLI
+jaffgen --help
 ```
 
-You should see the JAFF help message listing available commands.
+You should see the JAFF code generator help message.
+
+### Available Commands
+
+After installation, JAFF provides the following command-line tools:
+
+- **`jaffgen`** - Code generator for chemical reaction networks
+    ```bash
+    jaffgen --network networks/test.dat --template microphysics
+    ```
+
+You can also use the module invocation:
+
+```bash
+python -m jaff.generate --network networks/test.dat --template microphysics
+```
 
 ## Testing Your Installation
 
-Try loading a sample network:
+Try loading a sample network and generating code:
 
 ```python
 from jaff import Network
 
-# This will work if you're in the cloned repository
-# or have sample network files
-net = Network("networks/test.dat")
+# Load a network file
+net = Network("path/to/network.dat")
 print(f"Loaded network with {len(net.species)} species")
 print(f"and {len(net.reactions)} reactions")
+```
+
+Or from the command line:
+
+```bash
+# Generate C++ code from a template
+jaffgen --network networks/test.dat --files template.cpp --outdir output/
 ```
 
 ## Troubleshooting
@@ -162,6 +148,13 @@ pip install --upgrade pip
 pip install jaff
 ```
 
+With uv:
+
+```bash
+# uv handles upgrades automatically
+uv pip install jaff
+```
+
 ### NumPy/SciPy Installation Issues
 
 On some systems, you may need to install NumPy and SciPy separately:
@@ -174,6 +167,12 @@ pip install numpy scipy
 pip install jaff
 ```
 
+With uv (handles dependencies better):
+
+```bash
+uv pip install jaff
+```
+
 ### Permission Errors
 
 If you get permission errors on Linux/macOS:
@@ -182,40 +181,10 @@ If you get permission errors on Linux/macOS:
 # Install for current user only
 pip install --user jaff
 
-# Or use sudo (not recommended)
-sudo pip install jaff
-```
-
-## Platform-Specific Notes
-
-### Windows
-
-On Windows, you may need to install Microsoft Visual C++ Build Tools for some dependencies.
-
-### macOS
-
-If using Homebrew Python:
-
-```bash
-# Use Homebrew Python
-brew install python
-pip3 install jaff
-```
-
-### Linux
-
-Most Linux distributions work out of the box. For minimal installations:
-
-```bash
-# Debian/Ubuntu - install Python and pip
-sudo apt-get update
-sudo apt-get install python3 python3-pip
-
-# Fedora
-sudo dnf install python3 python3-pip
-
-# Then install JAFF
-pip3 install jaff
+# Or use a virtual environment (recommended)
+python -m venv .venv
+source .venv/bin/activate
+pip install jaff
 ```
 
 ## Next Steps
@@ -225,7 +194,9 @@ Now that JAFF is installed:
 - **Quick Start**: Follow the [Quick Start Guide](quickstart.md) to run your first network analysis
 - **Basic Concepts**: Learn about [chemical networks and reactions](concepts.md)
 - **User Guide**: Explore detailed [usage documentation](../user-guide/loading-networks.md)
+- **Developer Guide**: If you want to contribute or develop JAFF, see the [Developer Installation Guide](../development/installation.md)
 
+<!--
 ## Updating JAFF
 
 To update to the latest version:
@@ -233,12 +204,15 @@ To update to the latest version:
 ```bash
 # Update from PyPI
 pip install --upgrade jaff
-
-# Update from source (development)
-cd jaff
-git pull
-pip install -e ".[dev]"
 ```
+
+Or with uv:
+
+```bash
+# Update from PyPI
+uv pip install --upgrade jaff
+```
+-->
 
 ## Uninstalling
 
@@ -246,4 +220,10 @@ To remove JAFF from your system:
 
 ```bash
 pip uninstall jaff
+```
+
+Or with uv:
+
+```bash
+uv pip uninstall jaff
 ```

@@ -29,6 +29,9 @@ rhs_specie(const burn_t &state, amrex::Array1D<amrex::Real, 1, neqs> &ydot,
   const amrex::Real cse$idx$ = $cse$;
   ydot($idx+1$) = $ode$;
   // $JAFF END
+  // $JAFF SUB nspec, dedt
+  ydot($nspec+1$) = $dedt$;
+  // $JAFF END
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_INLINE void
@@ -52,9 +55,9 @@ jac_chem(const burn_t &state, MatrixType &jac,
   amrex::Real crate = 0.0; // placeholder
   amrex::Real av = 0.0;    // placeholder
 
-  // $JAFF REPEAT idx, expr, cse IN jacobian $[REPLACE nden\[\s*(\d+)\s*\] nden(\1)]$
+  // $JAFF REPEAT idx, expr, cse IN jacobian $[REPLACE nden\[\s*(\d+)\s*\] nden(\1) DEDT TRUE]$
   const amrex::Real cse$idx$ = $cse$;
-  jac($idx$, $idx$) = $expr$;
+  jac($idx+1$, $idx+1$) = $expr$;
   // $JAFF END
 }
 

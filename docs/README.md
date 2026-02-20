@@ -65,11 +65,6 @@ docs/
 │   ├── rates.md
 │   ├── code-generation.md
 │   └── template-syntax.md
-├── tutorials/                  # Step-by-step tutorials
-│   ├── basic-usage.md
-│   ├── code-generation.md
-│   ├── custom-templates.md
-│   └── network-analysis.md
 ├── api/                        # API reference
 │   ├── index.md
 │   ├── network.md
@@ -79,21 +74,12 @@ docs/
 │   ├── file-parser.md
 │   ├── elements.md
 │   └── cli.md
-├── reference/                  # Reference documentation
-│   ├── formats.md
-│   ├── jaff-commands.md
-│   ├── template-variables.md
-│   ├── primitive-variables.md
-│   └── schema.md
 ├── development/                # Development guides
 │   ├── contributing.md
 │   ├── code-style.md
 │   ├── testing.md
-│   └── releases.md
 ├── about/                      # About pages
 │   ├── license.md
-│   ├── changelog.md
-│   └── credits.md
 ├── assets/                     # Images and media
 ├── stylesheets/                # Custom CSS
 │   └── extra.css
@@ -129,13 +115,13 @@ net = Network("networks/test.dat")
 
 ```markdown
 !!! note "Important Note"
-    This is a note with a custom title.
+This is a note with a custom title.
 
 !!! warning
-    This is a warning.
+This is a warning.
 
 !!! tip "Pro Tip"
-    This is a helpful tip.
+This is a helpful tip.
 ```
 
 ### API Documentation
@@ -144,9 +130,9 @@ API docs are auto-generated from docstrings using `mkdocstrings`:
 
 ```markdown
 ::: jaff.network.Network
-    options:
-      show_root_heading: true
-      show_source: true
+options:
+show_root_heading: true
+show_source: true
 ```
 
 ### LaTeX Math
@@ -158,7 +144,7 @@ Inline math: \( E = mc^2 \)
 
 Display math:
 \[
-\frac{dn_i}{dt} = \sum_j \nu_{ij} k_j \prod_k n_k^{\alpha_{jk}}
+\frac{dn*i}{dt} = \sum_j \nu*{ij} k*j \prod_k n_k^{\alpha*{jk}}
 \]
 ```
 
@@ -175,6 +161,7 @@ Display math:
 Documentation is automatically deployed to GitHub Pages via GitHub Actions.
 
 The workflow is defined in `.github/workflows/docs.yml` and triggers on:
+
 - Push to `main` or `master` branch
 - Pull requests (build only, no deploy)
 - Manual workflow dispatch
@@ -209,10 +196,10 @@ When adding new documentation:
 1. **Create the file** in the appropriate directory
 2. **Add to navigation** in `mkdocs.yml` under the `nav` section
 3. **Follow style guide**:
-   - Use clear, concise language
-   - Include code examples
-   - Add cross-references
-   - Use proper headings hierarchy
+    - Use clear, concise language
+    - Include code examples
+    - Add cross-references
+    - Use proper headings hierarchy
 4. **Test locally** with `mkdocs serve`
 5. **Build in strict mode** to catch issues
 6. **Submit PR** with documentation changes
@@ -222,17 +209,20 @@ When adding new documentation:
 ### Build Errors
 
 **Missing dependencies**:
+
 ```bash
 pip install -r docs/requirements.txt
 ```
 
 **Import errors**:
+
 ```bash
 # Install JAFF in editable mode
 pip install -e .
 ```
 
 **Plugin errors**:
+
 ```bash
 # Reinstall mkdocs-material and plugins
 pip install --upgrade mkdocs-material mkdocstrings[python]
@@ -241,12 +231,14 @@ pip install --upgrade mkdocs-material mkdocstrings[python]
 ### Preview Issues
 
 **Port already in use**:
+
 ```bash
 # Use a different port
 mkdocs serve -a localhost:8001
 ```
 
 **Live reload not working**:
+
 ```bash
 # Use polling mode
 mkdocs serve --dirtyreload
@@ -286,7 +278,7 @@ mkdocs serve --dirtyreload
 ### Formatting
 
 - **Bold** for UI elements and emphasis
-- *Italic* for introducing new terms
+- _Italic_ for introducing new terms
 - `Code` for code, filenames, and commands
 - Links for cross-references
 

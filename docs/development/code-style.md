@@ -1,7 +1,5 @@
 # Code Style Guide
 
-This guide outlines the coding standards and best practices for JAFF development.
-
 ## Python Version
 
 JAFF supports Python 3.9 and higher. Write code that is compatible with Python 3.9+.
@@ -18,51 +16,20 @@ def process(items: list[str]) -> dict[str, int]:  # Requires 3.9+
     pass
 ```
 
-## PEP 8 Compliance
-
-Follow [PEP 8](https://pep8.org/) with these modifications:
-
-- **Line length**: 88 characters (Black default)
-- **Indentation**: 4 spaces
-- **Quotes**: Double quotes preferred
-
 ## Code Formatting
 
-### Black
-
-Use [Black](https://black.readthedocs.io/) for automatic formatting:
+Use Ruff for both formatting and linting, replacing Black entirely.
 
 ```bash
 # Format all code
-black src/ tests/
+ruff format src/ tests/
 
-# Check without modifying
-black --check src/
+# Check formatting without modifying (Black --check equivalent)
+ruff format --check src/
 
 # Format specific file
-black src/jaff/network.py
-```
-
-Configuration in `pyproject.toml`:
-
-```toml
-[tool.black]
-line-length = 88
-target-version = ['py39']
-```
-
-### Line Length
-
-Maximum 88 characters per line:
-
-```python
-# Good
-result = some_function(
-    argument1, argument2, argument3, argument4
-)
-
-# Avoid
-result = some_function(argument1, argument2, argument3, argument4, argument5, argument6)
+ruff format src/jaff/network.py
+## Code Formatting
 ```
 
 ## Naming Conventions
@@ -122,10 +89,10 @@ class Network:
     def __init__(self):
         self._internal_data = []  # Private
         self.public_data = []     # Public
-    
+
     def _helper_method(self):  # Private
         pass
-    
+
     def public_method(self):   # Public
         pass
 ```
@@ -184,20 +151,20 @@ Use Google-style docstrings:
 ```python
 def compute_rates(network: Network, temperature: float) -> np.ndarray:
     """Compute reaction rate coefficients.
-    
+
     This function calculates rate coefficients for all reactions
     in the network at the specified temperature.
-    
+
     Args:
         network: Chemical reaction network
         temperature: Gas temperature in Kelvin
-        
+
     Returns:
         Array of rate coefficients in cm³/s
-        
+
     Raises:
         ValueError: If temperature is negative
-        
+
     Example:
         >>> net = Network("network.dat")
         >>> rates = compute_rates(net, 100.0)
@@ -214,24 +181,24 @@ def compute_rates(network: Network, temperature: float) -> np.ndarray:
 ```python
 class Codegen:
     """Multi-language code generator for chemical networks.
-    
+
     This class generates optimized code for evaluating reaction rates,
     ODEs, and Jacobians in multiple programming languages.
-    
+
     Attributes:
         net: Chemical reaction network
         lang: Target programming language
         ioff: Array indexing offset (0 or 1)
-        
+
     Example:
         >>> net = Network("network.dat")
         >>> cg = Codegen(network=net, lang="c++")
         >>> rates = cg.get_rates(use_cse=True)
     """
-    
+
     def __init__(self, network: Network, lang: str = "c++"):
         """Initialize code generator.
-        
+
         Args:
             network: Chemical reaction network
             lang: Target language (c++, c, fortran, python)
@@ -251,56 +218,6 @@ Example:
     >>> from jaff import Network
     >>> net = Network("network.dat")
 """
-```
-
-## Imports
-
-### Order
-
-1. Standard library
-2. Third-party packages
-3. Local modules
-
-```python
-# Standard library
-import os
-import sys
-from pathlib import Path
-from typing import List, Dict, Optional
-
-# Third-party
-import numpy as np
-import sympy as sp
-from tqdm import tqdm
-
-# Local
-from jaff import Network
-from jaff.codegen import Codegen
-from jaff.utils import parse_expression
-```
-
-### Grouping
-
-Separate groups with blank lines:
-
-```python
-import os
-import sys
-
-import numpy as np
-import sympy as sp
-
-from jaff import Network
-```
-
-### Use isort
-
-```bash
-# Sort imports automatically
-isort src/ tests/
-
-# Check without modifying
-isort --check src/
 ```
 
 ## Error Handling
@@ -351,42 +268,7 @@ raise ValueError(f"Temperature must be positive, got {temp}")
 raise ValueError("Bad temperature")
 ```
 
-## Comments
-
-### When to Comment
-
-```python
-# Good - explain WHY
-# Use CSE to reduce redundant calculations
-rates = cg.get_rates(use_cse=True)
-
-# Avoid - explain WHAT (code is self-documenting)
-# Get rates with CSE
-rates = cg.get_rates(use_cse=True)
-```
-
-### TODO Comments
-
-```python
-# TODO: Add support for three-body reactions
-# FIXME: Handle edge case when network is empty
-# NOTE: This assumes 1-based indexing
-```
-
-### Block Comments
-
-```python
-# This function implements the algorithm described in:
-# Smith et al. (2020), "Fast Chemical Kinetics"
-# The basic approach is to:
-# 1. Compute rate coefficients
-# 2. Apply CSE optimization
-# 3. Generate language-specific code
-def generate_code(network: Network) -> str:
-    pass
-```
-
-## Functions
+<!--## Functions
 
 ### Single Responsibility
 
@@ -445,10 +327,10 @@ def compute_ode(species, reactions, cse, optimize, cache, debug):
 # Good - single responsibility
 class Network:
     """Represents a chemical reaction network."""
-    
+
     def load(self, filename: str) -> None:
         pass
-    
+
     def validate(self) -> bool:
         pass
 
@@ -466,56 +348,12 @@ class Network:
     def num_species(self) -> int:
         """Number of species (property - no computation)."""
         return len(self._species)
-    
+
     def calculate_rates(self, temperature: float) -> np.ndarray:
         """Calculate rates (method - requires computation)."""
         return self._compute_rates(temperature)
 ```
-
-## Linting
-
-### Ruff
-
-Use [Ruff](https://github.com/astral-sh/ruff) for fast linting:
-
-```bash
-# Check for issues
-ruff check src/
-
-# Fix automatically
-ruff check --fix src/
-```
-
-Configuration in `pyproject.toml`:
-
-```toml
-[tool.ruff]
-line-length = 88
-select = ["E", "F", "W", "I", "N"]
-ignore = []
-```
-
-### mypy
-
-Use mypy for type checking:
-
-```bash
-# Type check
-mypy src/
-
-# Strict mode
-mypy --strict src/
-```
-
-Configuration in `pyproject.toml`:
-
-```toml
-[tool.mypy]
-python_version = "3.9"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-```
+-->
 
 ## Testing Style
 
@@ -539,11 +377,11 @@ def test1():
 ```python
 class TestNetwork:
     """Tests for Network class."""
-    
+
     def test_load_from_file(self):
         """Test loading network from file."""
         pass
-    
+
     def test_validate_species(self):
         """Test species validation."""
         pass
@@ -581,23 +419,8 @@ for s in network.species:
 # Good - f-strings (fast, readable)
 message = f"Network has {n} species"
 
-# Acceptable
-message = "Network has {} species".format(n)
-
 # Avoid - slow
 message = "Network has " + str(n) + " species"
-```
-
-### NumPy
-
-```python
-# Good - vectorized
-result = np.sum(array * coefficients)
-
-# Avoid - loops
-result = 0
-for i in range(len(array)):
-    result += array[i] * coefficients[i]
 ```
 
 ## Best Practices
@@ -633,21 +456,6 @@ if os.path.exists(path):
         content = f.read()
 ```
 
-### Use Enums
-
-```python
-from enum import Enum
-
-class Language(Enum):
-    CPP = "c++"
-    C = "c"
-    FORTRAN = "f90"
-    PYTHON = "python"
-
-# Usage
-lang = Language.CPP
-```
-
 ### Early Returns
 
 ```python
@@ -655,10 +463,10 @@ lang = Language.CPP
 def process(value: Optional[int]) -> int:
     if value is None:
         return 0
-    
+
     if value < 0:
         return -1
-    
+
     return value * 2
 
 # Avoid - nested if
@@ -676,19 +484,18 @@ def process(value):
 
 Before submitting code:
 
-- [ ] Code formatted with Black
-- [ ] No linting errors (ruff)
-- [ ] Type hints added (mypy clean)
-- [ ] Docstrings written
-- [ ] Tests added/updated
-- [ ] No commented-out code
-- [ ] No print statements (use logging)
-- [ ] No hardcoded paths
-- [ ] Error handling in place
+- [x] Code formatted with ruff
+- [x] Sort imports with ruff
+- [x] No linting errors (ruff)
+- [x] Type hints added
+- [x] Docstrings written
+- [x] Tests added/updated
+- [x] No commented-out code
+- [x] No hardcoded paths
+- [x] Error handling in place
 
 ## See Also
 
-- [Contributing Guide](contributing.md)
 - [Testing Guide](testing.md)
 - [PEP 8](https://pep8.org/)
 - [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html)

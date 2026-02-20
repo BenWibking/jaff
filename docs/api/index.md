@@ -113,21 +113,6 @@ density_matrix = elem.get_element_density_matrix()
 
 ---
 
-### Command-Line Interface
-
-**[CLI](cli.md)** - Command-line code generation tool
-
-Process template files from the command line.
-
-```bash
-python -m jaff.generate \
-    --network networks/react_COthin \
-    --files template.cpp \
-    --outdir output/
-```
-
----
-
 ## Module Structure
 
 ```mermaid
@@ -209,43 +194,6 @@ from jaff.reaction import Reaction
 
 ---
 
-## Type Annotations
-
-JAFF is fully type-annotated for better IDE support and type checking:
-
-```python
-from jaff import Network
-from pathlib import Path
-from typing import List
-
-def load_network(path: str | Path) -> Network:
-    """Load a chemical network."""
-    return Network(str(path))
-
-def get_species_names(net: Network) -> List[str]:
-    """Get all species names."""
-    return [s.name for s in net.species]
-```
-
-Use with type checkers:
-
-```bash
-mypy your_script.py
-pyright your_script.py
-```
-
----
-
-## API Stability
-
-JAFF follows semantic versioning:
-
-- **Public API** (documented here): Stable, breaking changes increment major version
-- **Private API** (names starting with `_`): Internal, may change without notice
-- **Experimental features**: Marked clearly in documentation
-
----
-
 ## Next Steps
 
 Choose a module to explore:
@@ -286,62 +234,8 @@ Choose a module to explore:
 
 ---
 
-## Examples
-
-### Complete Workflow
-
-```python
-from jaff import Network, Codegen
-from jaff.file_parser import Fileparser
-from jaff.elements import Elements
-from jaff.jaff_types import IndexedList, IndexedValue
-from pathlib import Path
-
-# 1. Load network
-net = Network("networks/react_COthin")
-
-# 2. Analyze elements
-elem = Elements(net)
-print(f"Network has {elem.nelems} elements: {elem.elements}")
-
-# 3. Generate code programmatically
-cg = Codegen(network=net, lang="cxx")
-rates = cg.get_rates(idx_offset=0, rate_var="rate", brac_format="[]")
-
-# 3b. Get indexed expressions
-indexed_rates = cg.get_indexed_rates(use_cse=True)
-cse_exprs: IndexedList = indexed_rates["extras"]["cse"]
-rate_exprs: IndexedList = indexed_rates["expressions"]
-
-# 4. Generate from template
-parser = Fileparser(net, Path("template.cpp"))
-output = parser.parse_file()
-
-# 5. Save output
-with open("generated.cpp", "w") as f:
-    f.write(output)
-```
-
-### Error Handling
-
-```python
-from jaff import Network
-
-try:
-    net = Network("mynetwork.dat", errors=True)
-except FileNotFoundError:
-    print("Network file not found")
-except ValueError as e:
-    print(f"Invalid network format: {e}")
-except RuntimeError as e:
-    print(f"Network validation error: {e}")
-```
-
----
-
 ## Getting Help
 
-- **Tutorial**: Start with the [Basic Usage Tutorial](../tutorials/basic-usage.md)
 - **User Guide**: Read the [User Guide](../user-guide/loading-networks.md)
 - **Examples**: Check the `examples/` directory
 - **Issues**: Report bugs on [GitHub](https://github.com/tgrassi/jaff/issues)

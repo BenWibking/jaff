@@ -422,7 +422,7 @@ net2 = Network("mynetwork.jaff")
 
 The Network class automatically detects and parses various file formats:
 
-### JAFF Format
+<!--### JAFF Format
 
 Native JAFF format with simple reaction syntax:
 
@@ -431,6 +431,7 @@ Native JAFF format with simple reaction syntax:
 H + O -> OH, 1.2e-10 * (tgas/300)^0.5
 H2 + O -> OH + H, 3.4e-11 * exp(-500/tgas)
 ```
+-->
 
 ### KROME Format
 
@@ -497,226 +498,14 @@ for i, coef in enumerate(products):
         print(f"{net.species[i].name}: {coef}")
 ```
 
-## Usage Examples
-
-### Example 1: Basic Network Loading
-
-```python
-from jaff import Network
-
-# Load network
-net = Network("networks/react_COthin")
-
-# Display info
-print(f"Network: {net.label}")
-print(f"Species: {len(net.species)}")
-print(f"Reactions: {len(net.reactions)}")
-
-# List species
-print("\nFirst 5 species:")
-for sp in net.species[:5]:
-    print(f"  {sp.name}: mass={sp.mass:.2f}, charge={sp.charge}")
-```
-
-### Example 2: Finding Species
-
-```python
-# Fast lookup using dictionary
-idx = net.species_dict["CO"]
-co = net.species[idx]
-
-# Or use helper method
-co = net.get_species_object("CO")
-
-print(f"CO: index={co.index}, mass={co.mass}, charge={co.charge}")
-```
-
-### Example 3: Exploring Reactions
-
-```python
-# Iterate through reactions
-for i, reaction in enumerate(net.reactions[:5]):
-    print(f"{i}: {reaction.verbatim}")
-
-    # Calculate rate at 100 K
-    k = reaction.rate(100.0)
-    print(f"   Rate at 100K: {k:.2e}")
-```
-
-### Example 4: Network Validation
-
-```python
-# Load with full validation
-try:
-    net = Network("mynetwork.dat", errors=True)
-    print("Network is valid!")
-except Exception as e:
-    print(f"Validation error: {e}")
-```
-
-### Example 5: Element Conservation
-
-```python
-from jaff.elements import Elements
-
-net = Network("networks/react_COthin")
-elem = Elements(net)
-
-print(f"Elements: {elem.elements}")
-print(f"Number of elements: {elem.nelems}")
-
-# Get element density matrix
-density = elem.get_element_density_matrix()
-print(f"Density matrix shape: {len(density)} × {len(density[0])}")
-```
-
-### Example 6: Comparing Networks
-
-```python
-# Load two versions of a network
-net_old = Network("networks/version1.dat", label="v1")
-net_new = Network("networks/version2.dat", label="v2")
-
-# Compare them
-net_old.compare_species(net_new)
-net_old.compare_reactions(net_new)
-```
-
-### Example 7: Symbolic ODEs
-
-```python
-# Get symbolic ODE expressions
-odes = net.get_sodes()
-
-# Print first 3 ODEs
-for i, ode in enumerate(odes[:3]):
-    species = net.species[i]
-    print(f"d{species.name}/dt = {ode}")
-```
-
-### Example 8: Network Export
-
-```python
-# Save to JAFF format
-net.to_jaff_file("output/network.jaff")
-
-# Reload (much faster than parsing original format)
-net2 = Network("output/network.jaff")
-```
-
-## Best Practices
-
-### 1. Always Validate New Networks
-
-```python
-# Enable error checking for new networks
-net = Network("mynetwork.dat", errors=True)
-```
-
-### 2. Use Species Dictionary for Lookups
-
-```python
-# Fast O(1) lookup
-idx = net.species_dict["CO"]
-
-# Slower O(n) search - avoid
-for sp in net.species:
-    if sp.name == "CO":
-        idx = sp.index
-```
-
-### 3. Cache Network Objects
-
-```python
-# Load once, reuse many times
-net = Network("networks/react_COthin")
-
-# Use net for multiple code generations
-from jaff import Codegen
-cg_cpp = Codegen(network=net, lang="c++")
-cg_f90 = Codegen(network=net, lang="f90")
-```
-
-### 4. Handle Missing Species Gracefully
-
-```python
-try:
-    idx = net.species_dict["UnknownSpecies"]
-except KeyError:
-    print("Species not found in network")
-```
-
-### 5. Use JAFF Format for Performance
-
-```python
-# Convert to JAFF format for faster loading
-net = Network("large_network.dat")
-net.to_jaff_file("large_network.jaff")
-
-# Future loads are much faster
-net = Network("large_network.jaff")
-```
-
-## Common Patterns
-
-### Pattern 1: Filter Reactions by Type
-
-```python
-# Get all photo-reactions
-photo_reactions = [r for r in net.reactions if r.rtype == "photo"]
-print(f"Found {len(photo_reactions)} photo-reactions")
-```
-
-### Pattern 2: Find Species by Element
-
-```python
-from jaff.elements import Elements
-
-elem = Elements(net)
-truth_matrix = elem.get_element_truth_matrix()
-
-# Find all species containing carbon
-carbon_idx = elem.elements.index("C")
-carbon_species = [
-    net.species[i] for i in range(len(net.species))
-    if truth_matrix[i][carbon_idx]
-]
-```
-
-### Pattern 3: Calculate Network Statistics
-
-```python
-# Species statistics
-masses = [sp.mass for sp in net.species]
-charges = [sp.charge for sp in net.species]
-
-print(f"Average mass: {np.mean(masses):.2f} amu")
-print(f"Charged species: {sum(1 for c in charges if c != 0)}")
-
-# Reaction statistics
-reaction_types = {}
-for r in net.reactions:
-    reaction_types[r.rtype] = reaction_types.get(r.rtype, 0) + 1
-
-for rtype, count in reaction_types.items():
-    print(f"{rtype}: {count} reactions")
-```
-
-## Performance Notes
-
-- **Loading**: First load parses the file format (slow). Use `to_jaff_file()` to create a fast-loading binary format.
-- **Species Lookup**: Use `species_dict` for O(1) lookups instead of iterating.
-- **Validation**: Disable `errors=False` for faster loading if network is already validated.
-- **Large Networks**: Networks with 1000+ species/reactions may take several seconds to load.
-
 ## See Also
 
-- [Species API](../api/species.md) - Species class documentation
-- [Reaction API](../api/reactions.md) - Reaction class documentation
+- [Species API](species.md) - Species class documentation
+- [Reaction API](reaction.md) - Reaction class documentation
 - [Elements API](elements.md) - Element analysis
 - [Codegen API](codegen.md) - Code generation
 - [File Parser API](file-parser.md) - Template processing
 
 ---
 
-**Next**: Learn about [Code Generation](codegen.md) with the Codegen class.
+**Next**: Learn about [Species](species.md) with the Codegen class.

@@ -238,7 +238,7 @@ class Fileparser:
         self.modified += self.og_line
         self.__set_parser_active()
         # Strip the JAFF prefix to extract the command
-        line = line.lstrip(f"{comment}$JAFF").lstrip()
+        line = line.lstrip(f"{comment} $JAFF").lstrip()
         command = line.split()[0]
 
         # Execute the appropriate command handler with remaining parameters
@@ -1244,7 +1244,7 @@ class Fileparser:
                             specie.name.lower().replace("+", "j").replace("-", "")
                             for specie in self.net.species
                         ],
-                        "vars": ["idx", "specie"],
+                        "vars": ["idx", "specie_with_normalized_sign"],
                     },
                     # Returns: list[str] - element symbols
                     "elements": {

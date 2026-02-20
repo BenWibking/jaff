@@ -26,6 +26,16 @@
     --jaff-neutral-800: #1e293b;
     --jaff-neutral-900: #0f172a;
 
+    /* Separator colors with reduced opacity */
+    --jaff-separator-primary: rgba(51, 65, 85, 0.3); /* Primary color at 30% */
+    --jaff-separator-primary-dark: rgba(30, 41, 59, 0.3); /* Primary dark at 30% */
+    --jaff-separator-neutral-200: rgba(226, 232, 240, 0.3); /* Neutral 200 at 30% */
+    --jaff-separator-neutral-300: rgba(203, 213, 225, 0.3); /* Neutral 300 at 30% */
+
+    /* Scrollbar colors */
+    --jaff-scrollbar: var(--jaff-neutral-200); /* Light slate for scrollbar thumb */
+    --jaff-scrollbar-hover: var(--jaff-neutral-300); /* Slightly darker on hover */
+
     /* Accent colors - Minimalist slate tones */
     --jaff-accent: #475569; /* slate-600 - Subtle accent */
     --jaff-accent-light: #64748b; /* slate-500 */
@@ -49,6 +59,10 @@
     --md-accent-fg-color: var(--jaff-link-hover);
     --md-accent-fg-color--transparent: rgba(124, 58, 237, 0.1);
 
+    /* Scrollbar color overrides for Material theme */
+    --md-scrollbar-fg-color: var(--jaff-scrollbar);
+    --md-scrollbar-fg-color--hover: var(--jaff-scrollbar-hover);
+
     /* Text colors - High contrast for readability */
     --md-default-fg-color: var(--jaff-primary-darker); /* 16.1:1 contrast */
     --md-default-fg-color--light: var(--jaff-primary-light); /* 8.6:1 contrast */
@@ -64,8 +78,8 @@
     --md-typeset-color: var(--jaff-primary-darker);
 
     /* Header colors - White text on primary background */
-    --md-header-fg-color: #ffffff; /* 11.6:1 contrast on #334155 */
-    --md-header-bg-color: var(--jaff-primary);
+    --md-header-bg-color: #ffffff; /* 11.6:1 contrast on #334155 */
+    --md-header-fg-color: var(--jaff-primary);
 
     /* Footer colors */
     --md-footer-fg-color: var(--jaff-neutral-50); /* 14.8:1 contrast */
@@ -86,6 +100,10 @@
     --md-accent-fg-color: var(--jaff-link-hover);
     --md-accent-fg-color--transparent: rgba(100, 116, 139, 0.12);
 
+    /* Scrollbar color overrides for Material theme in dark mode */
+    --md-scrollbar-fg-color: var(--jaff-scrollbar);
+    --md-scrollbar-fg-color--hover: var(--jaff-scrollbar-hover);
+
     /* Text colors for dark mode */
     --md-default-fg-color: var(--jaff-neutral-200); /* 12.6:1 contrast */
     --md-default-fg-color--light: var(--jaff-neutral-300); /* 10.8:1 contrast */
@@ -99,17 +117,98 @@
     /* Links */
     --md-typeset-a-color: var(--jaff-link);
 
+    /* Separator colors for dark mode with reduced opacity */
+    --jaff-separator-dark-200: rgba(226, 232, 240, 0.2); /* Neutral 200 at 20% */
+    --jaff-separator-dark-600: rgba(71, 85, 105, 0.2); /* Neutral 600 at 20% */
+    --jaff-separator-dark-700: rgba(51, 65, 85, 0.2); /* Neutral 700 at 20% */
+
+    /* Scrollbar colors for dark mode */
+    --jaff-scrollbar: var(--jaff-neutral-600); /* Light slate for scrollbar thumb in dark mode */
+    --jaff-scrollbar-hover: var(--jaff-neutral-500); /* Lighter on hover in dark mode */
+
     /* Link colors for dark mode */
     --jaff-link: #7dd3fc; /* sky-300 - Bright blue for dark mode */
     --jaff-link-hover: #7dd3fc; /* sky-300 - Lighter blue on hover */
 
     /* Header for dark mode */
     --md-header-bg-color: var(--jaff-primary-dark);
+    --md-header-fg-color: var(--jaff-neutral-100);
 
     /* Footer for dark mode */
     --md-footer-bg-color: var(--jaff-primary-darker);
 }
 
+/* Container for the masked background effect */
+body {
+    position: relative;
+    width: 100%;
+    min-height: 100vh; /* full page height */
+}
+
+/* Left Masked Circuit Board - Light Pattern */
+body::before {
+    content: "";
+    position: absolute;
+    inset: 0; /* top:0; right:0; bottom:0; left:0; */
+    z-index: 0;
+    pointer-events: none;
+
+    background-image:
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 19px,
+            rgba(75, 85, 99, 0.04) 19px,
+            rgba(75, 85, 99, 0.04) 20px,
+            transparent 20px,
+            transparent 39px,
+            rgba(75, 85, 99, 0.04) 39px,
+            rgba(75, 85, 99, 0.04) 40px
+        ),
+        repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 19px,
+            rgba(75, 85, 99, 0.04) 19px,
+            rgba(75, 85, 99, 0.04) 20px,
+            transparent 20px,
+            transparent 39px,
+            rgba(75, 85, 99, 0.04) 39px,
+            rgba(75, 85, 99, 0.04) 40px
+        ),
+        radial-gradient(circle at 20px 20px, rgba(55, 65, 81, 0.06) 2px, transparent 2px),
+        radial-gradient(circle at 40px 40px, rgba(55, 65, 81, 0.06) 2px, transparent 2px);
+
+    background-size:
+        40px 40px,
+        40px 40px,
+        40px 40px,
+        40px 40px;
+}
+
+.jaff-logo {
+    border-radius: 15px;
+    border: 2px solid #005281;
+}
+
+.md-grid {
+    max-width: 1750px;
+}
+
+.md-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.md-content__inner {
+    max-width: 960px;
+    width: 100%;
+}
+
+.md-typeset {
+    font-size: 0.75rem;
+}
 /* ============================================================================
    HEADER & NAVIGATION
    ============================================================================ */
@@ -120,7 +219,7 @@
 }
 
 .md-header__button {
-    color: #ffffff !important;
+    color: var(--md-header-fg-color) !important;
     opacity: 0.9;
     transition: opacity 0.2s ease;
 }
@@ -130,21 +229,22 @@
 }
 
 .md-header__title {
-    color: #ffffff !important;
-    font-weight: 600;
+    font-weight: 400 !important;
+    color: var(--md-header-fg-color) !important;
 }
 
 .md-header__topic {
-    color: #ffffff !important;
+    font-weight: 400 !important;
+    color: var(--md-header-fg-color) !important;
 }
 
 /* Repository icon and link */
 .md-source {
-    color: #ffffff !important;
+    color: var(--md-header-fg-color) !important;
 }
 
 .md-source__icon {
-    color: #ffffff !important;
+    color: var(--md-header-fg-color) !important;
 }
 
 .md-source:hover {
@@ -155,32 +255,33 @@
    SEARCH
    ============================================================================ */
 .md-search__form {
-    background-color: rgba(255, 255, 255, 0.15) !important;
+    background-color: rgba(0, 0, 0, 0.1) !important;
+    color: var(--md-header-fg-color) !important;
     border-radius: 9999px;
     transition: background-color 0.2s ease;
 }
 
 .md-search__form:hover {
-    background-color: rgba(255, 255, 255, 0.2) !important;
+    background-color: rgba(0, 0, 0, 0.15) !important;
 }
 
 .md-search__input {
-    color: #ffffff !important;
+    color: var(--md-header-fg-color) !important;
     background-color: transparent !important;
 }
 
 .md-search__input::placeholder {
-    color: rgba(255, 255, 255, 0.6) !important;
+    color: rgba(var(--md-header-fg-color), 0.6) !important;
 }
 
 .md-search__icon {
-    color: #ffffff !important;
+    color: var(--md-header-fg-color) !important;
 }
 
 /* Search results */
 .md-search__output {
-    background-color: #ffffff !important;
-    border-radius: 0.5rem;
+    color: var(--md-header-fg-color) !important;
+    border-radius: 0.5rem !important;
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
 }
 
@@ -190,12 +291,12 @@
 
 .md-search-result__link {
     color: var(--md-default-fg-color) !important;
-    border-bottom: 1px solid var(--jaff-neutral-200);
+    border-bottom: 1px solid var(--jaff-separator-neutral-200);
     transition: background-color 0.2s ease;
 }
 
 [data-md-color-scheme="slate"] .md-search-result__link {
-    border-bottom-color: var(--jaff-neutral-700);
+    border-bottom-color: var(--jaff-separator-dark-700);
 }
 
 .md-search-result__link:hover {
@@ -301,19 +402,78 @@
     color: var(--jaff-neutral-200) !important;
 }
 
-/* Scrollbar */
-.md-sidebar__scrollwrap::-webkit-scrollbar {
+/* Scrollbar - Global */
+::-webkit-scrollbar {
     width: 0.5rem;
+    height: 0.5rem;
 }
 
-.md-sidebar__scrollwrap::-webkit-scrollbar-thumb {
-    background-color: var(--jaff-neutral-300);
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--jaff-scrollbar);
     border-radius: 0.25rem;
     transition: background-color 0.2s ease;
 }
 
+::-webkit-scrollbar-thumb:hover {
+    background-color: var(--jaff-scrollbar-hover);
+}
+/* ============================================================================
+   REPLACE LINES 349-366 WITH THIS BLOCK
+   ============================================================================ */
+
+/* Scrollbar - Sidebar specific (override Material theme) */
+.md-sidebar__scrollwrap {
+    /* Firefox and modern browsers standard */
+    scrollbar-width: thin;
+    scrollbar-color: var(--jaff-scrollbar) transparent !important;
+}
+
+/* Chrome, Edge, Safari */
+.md-sidebar__scrollwrap::-webkit-scrollbar {
+    width: 8px !important;
+    height: 8px !important;
+}
+
+.md-sidebar__scrollwrap::-webkit-scrollbar-track {
+    background-color: transparent !important;
+}
+
+.md-sidebar__scrollwrap::-webkit-scrollbar-thumb {
+    /* Use !important to override Material defaults */
+    background-color: var(--jaff-scrollbar) !important;
+    border-radius: 4px !important;
+
+    /* These two lines create a 'floating' look and prevent blocky rendering */
+    border: 2px solid transparent !important;
+    background-clip: content-box !important;
+}
+
 .md-sidebar__scrollwrap::-webkit-scrollbar-thumb:hover {
-    background-color: var(--jaff-primary);
+    background-color: var(--jaff-scrollbar-hover) !important;
+}
+
+/* Force override for when the mouse is anywhere inside the sidebar */
+.md-sidebar__scrollwrap:hover::-webkit-scrollbar-thumb,
+.md-sidebar__scrollwrap:focus-within::-webkit-scrollbar-thumb {
+    background-color: var(--jaff-scrollbar) !important;
+}
+
+.md-sidebar__scrollwrap:hover::-webkit-scrollbar-thumb:hover {
+    background-color: var(--jaff-scrollbar-hover) !important;
+}
+/* Override Material's hover and focus-within states */
+.md-sidebar__scrollwrap:hover::-webkit-scrollbar-thumb,
+.md-sidebar__scrollwrap:focus-within::-webkit-scrollbar-thumb {
+    background-color: var(--jaff-scrollbar) !important;
+}
+
+.md-sidebar__scrollwrap:hover::-webkit-scrollbar-thumb:hover,
+.md-sidebar__scrollwrap:focus-within::-webkit-scrollbar-thumb:hover {
+    background-color: var(--jaff-scrollbar-hover) !important;
 }
 
 /* ============================================================================
@@ -333,14 +493,13 @@ h6 {
 
 h1 {
     color: var(--jaff-primary);
-    border-bottom: 3px solid var(--jaff-primary);
     padding-bottom: 0.5em;
     font-size: 2em;
 }
 
 h2 {
     color: var(--jaff-primary);
-    border-bottom: 2px solid var(--jaff-neutral-300);
+    border-bottom: 2px solid var(--jaff-separator-neutral-300);
     padding-bottom: 0.375em;
     font-size: 1.5em;
 }
@@ -358,12 +517,11 @@ h4 {
 /* Dark mode heading colors */
 [data-md-color-scheme="slate"] h1 {
     color: var(--jaff-neutral-200);
-    border-bottom-color: var(--jaff-neutral-200);
 }
 
 [data-md-color-scheme="slate"] h2 {
     color: var(--jaff-neutral-200);
-    border-bottom-color: var(--jaff-neutral-600);
+    border-bottom-color: var(--jaff-separator-dark-600);
 }
 
 [data-md-color-scheme="slate"] h3,
@@ -459,9 +617,15 @@ td code,
     color: var(--jaff-primary);
 }
 
+.admonition,
+.md-typeset table {
+    backdrop-filter: blur(20px);
+}
+
 /* ============================================================================
    TABLES
    ============================================================================ */
+
 .md-typeset table:not([class]) {
     border-radius: 0.5rem;
     overflow: hidden;
@@ -497,7 +661,7 @@ thead th {
     padding: 1rem !important;
     font-weight: 600;
     text-align: left;
-    border-bottom: 2px solid var(--jaff-primary-dark);
+    border-bottom: 2px solid var(--jaff-separator-primary-dark);
 }
 
 thead th:first-child {
@@ -509,12 +673,12 @@ thead th:last-child {
 }
 
 tbody tr {
-    border-bottom: 1px solid var(--jaff-neutral-200);
+    border-bottom: 1px solid var(--jaff-separator-neutral-200);
     transition: background-color 0.2s ease;
 }
 
 [data-md-color-scheme="slate"] tbody tr {
-    border-bottom-color: var(--jaff-neutral-700);
+    border-bottom-color: var(--jaff-separator-dark-700);
 }
 
 tbody tr:hover {
@@ -618,16 +782,17 @@ tbody tr:last-child td:last-child {
    FOOTER
    ============================================================================ */
 .md-footer {
-    background-color: var(--md-footer-bg-color);
-    color: var(--md-footer-fg-color);
+    background-color: transparent;
+    /*color: var(--md-fg-color);*/
+    color: black;
 }
 
 .md-footer-meta {
-    background-color: var(--md-footer-bg-color--dark);
+    background-color: var(--jaff-neutral-800);
 }
 
 .md-footer__link {
-    color: var(--md-footer-fg-color);
+    color: var(--md-fg-color);
     opacity: 0.9;
     transition: opacity 0.2s ease;
 }
@@ -693,12 +858,12 @@ kbd {
 /* Horizontal rules */
 hr {
     border: none;
-    border-top: 2px solid var(--jaff-neutral-200);
+    border-top: 2px solid var(--jaff-separator-neutral-200);
     margin: 2em 0;
 }
 
 [data-md-color-scheme="slate"] hr {
-    border-top-color: var(--jaff-neutral-700);
+    border-top-color: var(--jaff-separator-dark-700);
 }
 
 /* Lists */
@@ -734,9 +899,10 @@ blockquote {
    ============================================================================ */
 .tabbed-set {
     margin: 1.5em 0;
-    border-radius: 0.5rem;
+    border-radius: 0.5rem !important;
     overflow: hidden;
     border: 1px solid var(--jaff-neutral-200);
+    backdrop-filter: blur(20px);
 }
 
 [data-md-color-scheme="slate"] .tabbed-set {
@@ -745,12 +911,12 @@ blockquote {
 
 .tabbed-labels {
     background-color: var(--jaff-neutral-100);
-    border-bottom: 2px solid var(--jaff-neutral-200);
+    border-bottom: 2px solid var(--jaff-separator-neutral-200);
 }
 
 [data-md-color-scheme="slate"] .tabbed-labels {
     background-color: rgba(255, 255, 255, 0.03);
-    border-bottom-color: var(--jaff-neutral-700);
+    border-bottom-color: var(--jaff-separator-dark-700);
 }
 
 .tabbed-labels > label {
@@ -785,6 +951,7 @@ blockquote {
    ============================================================================ */
 .grid.cards {
     margin: 2em 0;
+    backdrop-filter: blur(20px);
 }
 
 .grid.cards > * {
@@ -940,6 +1107,24 @@ blockquote {
 [data-md-color-scheme="slate"] .highlight .k {
     color: #cbd5e1;
 }
+[data-md-color-scheme="slate"] .highlight .o {
+    color: #cbd5e1;
+}
+[data-md-color-scheme="slate"] .highlight .cm {
+    color: #94a3b8;
+    font-style: italic;
+}
+[data-md-color-scheme="slate"] .highlight .cp {
+    color: #fbbf24;
+}
+[data-md-color-scheme="slate"] .highlight .c1 {
+    color: #94a3b8;
+    font-style: italic;
+}
+[data-md-color-scheme="slate"] .highlight .cs {
+    color: #94a3b8;
+    font-style: italic;
+}
 [data-md-color-scheme="slate"] .highlight .s {
     color: #6ee7b7;
 }
@@ -952,9 +1137,24 @@ blockquote {
 [data-md-color-scheme="slate"] .highlight .nc {
     color: #cbd5e1;
 }
+[data-md-color-scheme="slate"] .highlight .nd {
+    color: #94a3b8;
+}
 [data-md-color-scheme="slate"] .highlight .nf {
     color: #7dd3fc;
 }
+[data-md-color-scheme="slate"] .highlight .nn {
+    color: #cbd5e1;
+}
+[data-md-color-scheme="slate"] .highlight .nt {
+    color: #94a3b8;
+}
+[data-md-color-scheme="slate"] .highlight .nv {
+    color: #fca5a5;
+}
 [data-md-color-scheme="slate"] .highlight .mi {
+    color: #fbbf24;
+}
+[data-md-color-scheme="slate"] .highlight .mf {
     color: #fbbf24;
 }

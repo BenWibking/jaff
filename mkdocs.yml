@@ -14,14 +14,14 @@ theme:
           primary: custom
           accent: custom
           toggle:
-              icon: material/brightness-7
+              icon: material/weather-sunny
               name: Switch to dark mode
         # Palette toggle for dark mode
         - scheme: slate
           primary: custom
           accent: custom
           toggle:
-              icon: material/brightness-4
+              icon: material/weather-night
               name: Switch to light mode
     font:
         text: Roboto
@@ -152,6 +152,7 @@ extra_css:
     - stylesheets/extra.css
 
 extra_javascript:
+    - javascripts/layout.js
     - javascripts/mathjax.js
     - https://polyfill.io/v3/polyfill.min.js?features=es6
     - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
@@ -169,14 +170,10 @@ nav:
           - Network Formats: user-guide/network-formats.md
           - Working with Species: user-guide/species.md
           - Working with Reactions: user-guide/reactions.md
-          - Rate Calculations: user-guide/rates.md
-          - Code Generation: user-guide/code-generation.md
+          - Using the Builder: user-guide/builder.md
           - Template Syntax: user-guide/template-syntax.md
-    - Tutorials:
-          - Tutorial 1 - Basic Usage: tutorials/basic-usage.md
-          - Tutorial 2 - Code Generation: tutorials/code-generation.md
-          - Tutorial 3 - Custom Templates: tutorials/custom-templates.md
-          - Tutorial 4 - Network Analysis: tutorials/network-analysis.md
+          - jaffgen Command: user-guide/jaffgen-command.md
+          - Custom Code Generation: user-guide/code-generation.md
     - API Reference:
           - Overview: api/index.md
           - Network: api/network.md
@@ -186,21 +183,12 @@ nav:
           - JAFF Types: api/jaff-types.md
           - File Parser: api/file-parser.md
           - Elements: api/elements.md
-          - CLI: api/cli.md
-    - Reference:
-          - Supported Formats: reference/formats.md
-          - JAFF Commands: reference/jaff-commands.md
-          - Template Variables: reference/template-variables.md
-          - Primitive Variables: reference/primitive-variables.md
-          - Schema Specification: reference/schema.md
     - Development:
-          - Contributing: development/contributing.md
+          - Developer Installation: development/installation.md
+          # - Contributing: development/contributing.md
           - Code Style: development/code-style.md
           - Testing: development/testing.md
-          - Release Process: development/releases.md
     - About:
           - License: about/license.md
-          - Changelog: about/changelog.md
-          - Credits: about/credits.md
 
 copyright: Copyright &copy; 2024 JAFF Team

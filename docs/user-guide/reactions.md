@@ -2,430 +2,459 @@
 
 ## Overview
 
-Reactions are the core building blocks of chemical reaction networks. Each reaction describes how species transform from reactants to products, potentially with modifiers (catalysts/inhibitors) and associated rate expressions which describe how fast the reaction occurs.
-
-## Reaction Structure
-
-### Basic Components
-
-A reaction in `Reaction` class consists of:
-
-| Component   | Description                                          |
-| ----------- | ---------------------------------------------------- |
-| `reactants` | Species consumed by the reaction                     |
-| `products`  | Species produced by the reaction                     |
-| `rate`      | Mathematical expression describing the reaction rate |
-| `tmin`      | Minimum temperature clamp                            |
-| `tmax`      | Maximum temperature clamp                            |
-| `verbatim`  | Human readable representation of the reaction        |
-
-### Reaction Representation
+Reactions describe how chemical species transform from reactants to products. Each reaction has an associated rate expression that determines how fast the transformation occurs.
 
 ```python
-from codegen_class import Network
+from jaff import Network
 
 # Load a network
-network = Network.from_file("network.jaff")
+net = Network("networks/react_COthin")
 
 # Access reactions
-for reaction in network.reactions:
-    print(f"Reaction: {reaction.verbatim}")
-    print(f"Reactants: {reaction.reactants}")
-    print(f"Products: {reaction.products}")
-    print(f"Rate: {reaction.rate}")
+for rxn in net.reactions:
+    print(f"{rxn.verbatim}")
+    print(f"  Type: {rxn.guess_type()}")
+    print(f"  Rate: {rxn.rate}")
 ```
 
-## Reaction Types
+## Reaction Attributes
 
-### Elementary Reactions
+Each reaction object has the following attributes:
 
-Elementary reactions follow mass action kinetics:
+| Attribute             | Type          | Description                                    |
+| --------------------- | ------------- | ---------------------------------------------- |
+| `reactants`           | list          | List of Species objects consumed               |
+| `products`            | list          | List of Species objects produced               |
+| `rate`                | sympy.Expr    | Symbolic expression for the reaction rate      |
+| `tmin`                | float or None | Minimum temperature (K)                        |
+| `tmax`                | float or None | Maximum temperature (K)                        |
+| `dE`                  | float         | Energy change or activation energy             |
+| `verbatim`            | str           | Human-readable equation (e.g., "H + H -> H2")  |
+| `serialized`          | str           | Serialized form using species names            |
+| `serialized_exploded` | str           | Serialized form using atomic composition       |
+| `xsecs`               | dict or None  | Cross-section data for photochemical reactions |
+
+## Accessing Reactions
+
+### By Index
 
 ```python
-# Unimolecular: A -> B
-# Rate = k * A
+# Get first reaction
+rxn = net.reactions[0]
+print(f"First reaction: {rxn.verbatim}")
 
-# Bimolecular: A + B -> C
-# Rate = k * A * B
-
-# Trimolecular: A + B + C -> D
-# Rate = k * A * B * C
+# Iterate over all reactions
+for i, rxn in enumerate(net.reactions):
+    print(f"{i}: {rxn.verbatim}")
 ```
 
-### Enzymatic Reactions
-
-Michaelis-Menten and Hill kinetics:
+### Count Reactions
 
 ```python
-# Michaelis-Menten
-# Rate = Vmax * S / (Km + S)
-
-# Hill equation
-# Rate = Vmax * S^n / (Km^n + S^n)
-
-# Check for enzymatic kinetics
-if reaction.is_enzymatic():
-    print(f"Enzyme: {reaction.enzyme}")
-    print(f"Substrate: {reaction.substrate}")
-    print(f"Km: {reaction.Km}")
-    print(f"Vmax: {reaction.Vmax}")
+total = len(net.reactions)
+print(f"Network has {total} reactions")
 ```
 
-### Custom Kinetics
+## Filtering Reactions
 
-Reactions with arbitrary rate laws:
+### By Reaction Type
 
 ```python
-# Custom rate expression
-reaction = Reaction(
-    id="R_custom",
-    rate="k * A^2 * B / (1 + K * C)"
-)
+# Find photochemical reactions
+photo_rxns = [r for r in net.reactions if r.guess_type() == "photo"]
+print(f"Found {len(photo_rxns)} photochemical reactions")
 
-# Extract variables from rate
-variables = reaction.get_rate_variables()
-print(f"Variables in rate: {variables}")
+# Find cosmic ray reactions
+cr_rxns = [r for r in net.reactions if r.guess_type() == "cosmic_ray"]
+
+# Find three-body reactions
+tb_rxns = [r for r in net.reactions if r.guess_type() == "3_body"]
+
+# Find reactions with visual extinction dependence
+av_rxns = [r for r in net.reactions if r.guess_type() == "photo_av"]
 ```
 
-## Modifiers and Catalysis
-
-### Working with Modifiers
-
-Modifiers affect reaction rates without being consumed:
+### By Species Involvement
 
 ```python
-# Create reaction with modifier
-reaction = Reaction(
-    id="R_catalyzed",
-    reactants={"A": 1},
-    products={"B": 1},
-    modifiers={"E": "catalyst"},
-    rate="k * E * A / (Km + A)"
-)
+# Find all reactions involving H2
+h2_reactions = [r for r in net.reactions if r.has_any_species("H2")]
 
-# Access modifiers
-for modifier_id, role in reaction.modifiers.items():
-    print(f"Modifier {modifier_id}: {role}")
+# Find reactions that consume H2
+h2_destruction = [r for r in net.reactions if r.has_reactant("H2")]
+
+# Find reactions that produce H2
+h2_formation = [r for r in net.reactions if r.has_product("H2")]
+
+# Multiple species
+water_rxns = [r for r in net.reactions if r.has_any_species(["H2O", "OH"])]
 ```
 
-### Catalytic Cycles
-
-Model enzyme catalysis:
+### By Number of Reactants/Products
 
 ```python
-# Enzyme catalysis: E + S <-> ES -> E + P
-reactions = [
-    Reaction(
-        id="R1",
-        reactants={"E": 1, "S": 1},
-        products={"ES": 1},
-        rate="k1 * E * S",
-        reversible=True
-    ),
-    Reaction(
-        id="R2",
-        reactants={"ES": 1},
-        products={"E": 1, "P": 1},
-        rate="k2 * ES"
-    )
-]
-```
+# Unimolecular reactions (1 reactant)
+unimolecular = [r for r in net.reactions if len(r.reactants) == 1]
 
-## Reaction Filtering and Selection
+# Bimolecular reactions (2 reactants)
+bimolecular = [r for r in net.reactions if len(r.reactants) == 2]
 
-### Query Reactions
-
-Find reactions matching specific criteria:
-
-```python
-# Get all reactions involving a species
-reactions_with_A = network.get_reactions_with_species("A")
-
-# Get reactions by type
-unimolecular = network.get_reactions_by_order(1)
-bimolecular = network.get_reactions_by_order(2)
-
-# Get reversible reactions
-reversible = network.get_reversible_reactions()
-
-# Get reactions with modifiers
-catalyzed = network.get_reactions_with_modifiers()
-```
-
-### Filter by Properties
-
-```python
-# Filter by rate constant range
-fast_reactions = [
-    r for r in network.reactions
-    if r.has_rate_constant() and r.rate_constant > 100
-]
-
-# Filter by stoichiometry
-synthesis_reactions = [
-    r for r in network.reactions
-    if len(r.products) == 1 and len(r.reactants) > 1
-]
-
-# Filter by complexity
-simple_reactions = [
-    r for r in network.reactions
-    if len(r.reactants) + len(r.products) <= 3
-]
+# Reactions with single product
+simple_products = [r for r in net.reactions if len(r.products) == 1]
 ```
 
 ## Reaction Analysis
 
-### Stoichiometric Analysis
+### Conservation Checks
 
-Analyze reaction stoichiometry:
-
-```python
-# Build stoichiometric matrix
-S = network.stoichiometric_matrix()
-print(f"Stoichiometric matrix shape: {S.shape}")
-
-# Get conservation laws
-conservation = network.conservation_laws()
-for law in conservation:
-    print(f"Conservation: {law}")
-
-# Check for conservation
-if network.is_conservative():
-    print("Network conserves total mass")
-```
-
-### Rate Analysis
-
-Analyze reaction rates:
+Check mass and charge conservation:
 
 ```python
-# Get maximum possible rate
-max_rate = reaction.max_rate(species_concentrations)
+# Check individual reaction
+rxn = net.reactions[0]
+if not rxn.check_mass():
+    print(f"Mass not conserved: {rxn.verbatim}")
 
-# Calculate sensitivity
-sensitivity = reaction.rate_sensitivity("A", concentrations)
+if not rxn.check_charge():
+    print(f"Charge not conserved: {rxn.verbatim}")
 
-# Compare rates
-rates = {r.id: r.evaluate_rate(concentrations) for r in network.reactions}
-sorted_rates = sorted(rates.items(), key=lambda x: x[1], reverse=True)
-print("Fastest reactions:")
-for rxn_id, rate in sorted_rates[:5]:
-    print(f"  {rxn_id}: {rate}")
+# Check all reactions
+errors = []
+for i, rxn in enumerate(net.reactions):
+    if not rxn.check_mass():
+        errors.append(f"Reaction {i}: mass error - {rxn.verbatim}")
+    if not rxn.check_charge():
+        errors.append(f"Reaction {i}: charge error - {rxn.verbatim}")
+
+if errors:
+    print(f"Found {len(errors)} conservation errors")
+else:
+    print("All reactions pass conservation checks")
 ```
 
-### Thermodynamic Analysis
-
-Check thermodynamic consistency:
+### Reaction Statistics
 
 ```python
-# Check for detailed balance
-if reaction.satisfies_detailed_balance(concentrations):
-    print("Reaction satisfies detailed balance")
+from collections import Counter
 
-# Calculate Gibbs free energy
-delta_G = reaction.gibbs_free_energy(concentrations)
-print(f"ΔG = {delta_G} kJ/mol")
+# Count reaction types
+types = Counter(r.guess_type() for r in net.reactions)
+print("Reaction type distribution:")
+for rtype, count in types.items():
+    print(f"  {rtype}: {count}")
 
-# Check reversibility from thermodynamics
-if delta_G < 0:
-    print("Forward reaction is thermodynamically favorable")
+# Count by number of reactants
+n_reactants = Counter(len(r.reactants) for r in net.reactions)
+print("\nReactant count:")
+for n, count in sorted(n_reactants.items()):
+    print(f"  {n} reactants: {count} reactions")
+
+# Count by number of products
+n_products = Counter(len(r.products) for r in net.reactions)
+print("\nProduct count:")
+for n, count in sorted(n_products.items()):
+    print(f"  {n} products: {count} reactions")
 ```
 
-## Reaction Modification
-
-### Updating Reactions
-
-Modify existing reactions:
+### Find Duplicate Reactions
 
 ```python
-# Update rate
-reaction.rate = "k_new * A * B"
+# Find identical reactions
+duplicates = []
+for i, r1 in enumerate(net.reactions):
+    for r2 in net.reactions[i+1:]:
+        if r1.is_same(r2):
+            duplicates.append((i, r1.verbatim))
 
-# Add modifier
-reaction.add_modifier("E", role="catalyst")
-
-# Change stoichiometry
-reaction.set_product("C", coefficient=2)
-
-# Toggle reversibility
-reaction.reversible = True
-reaction.reverse_rate = "k_rev * C"
+if duplicates:
+    print(f"Found {len(duplicates)} duplicate reactions")
+    for idx, rxn_str in duplicates[:5]:
+        print(f"  {idx}: {rxn_str}")
 ```
 
-### Reaction Transformations
-
-Transform reactions systematically:
+### Find Isomer Versions
 
 ```python
-# Scale all rate constants
-for reaction in network.reactions:
-    if reaction.is_mass_action():
-        reaction.rate_constant *= 1.5
+# Find reactions with same composition but different species names
+isomers = []
+for i, r1 in enumerate(net.reactions):
+    for j, r2 in enumerate(net.reactions[i+1:], start=i+1):
+        if r1.is_isomer_version(r2):
+            isomers.append((i, j, r1.verbatim, r2.verbatim))
 
-# Convert to reversible
-for reaction in network.reactions:
-    if not reaction.reversible:
-        reaction.make_reversible(K_eq=1.0)
-
-# Normalize stoichiometry
-for reaction in network.reactions:
-    reaction.normalize_stoichiometry()
+if isomers:
+    print(f"Found {len(isomers)} isomer pairs")
+    for i, j, v1, v2 in isomers[:3]:
+        print(f"  {i}: {v1}")
+        print(f"  {j}: {v2}")
 ```
+
+## String Representations
+
+### Human-Readable Format
+
+```python
+# Get verbatim string
+equation = rxn.get_verbatim()
+print(equation)  # "H + H -> H2"
+
+# Print directly (uses __str__)
+print(rxn)  # Same as above
+
+# Representation (uses __repr__)
+print(repr(rxn))  # "Reaction(H + H -> H2, tmin=None, tmax=None, dE=0.0)"
+```
+
+### LaTeX Format
+
+```python
+# Get LaTeX equation
+latex = rxn.get_latex()
+print(latex)  # "${\rm H} + {\rm H} \to {\rm H_{2}}$"
+
+# Use in Jupyter notebooks
+from IPython.display import display, Latex
+for rxn in net.reactions[:5]:
+    display(Latex(rxn.get_latex()))
+```
+
+### Serialized Forms
+
+```python
+# Serialize using species names
+ser = rxn.serialize()
+print(ser)  # "H_H__H2" (reactants__products)
+
+# Serialize using atomic composition
+ser_exp = rxn.serialize_exploded()
+print(ser_exp)  # "H/H__H/H" (sorted elements)
+```
+
+## Code Generation
+
+### Generate Rate Expressions
+
+```python
+# Generate Python code
+for rxn in net.reactions[:3]:
+    py_code = rxn.get_code(lang="python")
+    print(f"{rxn.verbatim}: {py_code}")
+
+# Generate C++ code
+for rxn in net.reactions[:3]:
+    cpp_code = rxn.get_code(lang="cxx")
+    print(f"{rxn.verbatim}: {cpp_code}")
+
+# Generate Fortran code
+for rxn in net.reactions[:3]:
+    f_code = rxn.get_code(lang="fortran")
+    print(f"{rxn.verbatim}: {f_code}")
+```
+
+Supported languages:
+
+- `"python"` - Python
+- `"c"` - C
+- `"cxx"` - C++
+- `"fortran"` - Fortran
+- `"rust"` - Rust
+- `"julia"` - Julia
+- `"r"` - R
+
+### Generate Flux Expressions
+
+```python
+# Generate flux expression for ODE system
+for i, rxn in enumerate(net.reactions[:3]):
+    flux = rxn.get_flux_expression(
+        idx=i,
+        rate_variable="k",
+        species_variable="y",
+        brackets="[]"
+    )
+    print(f"flux[{i}] = {flux}")
+    # Output: "flux[0] = k[0] * y[idx_h] * y[idx_h]"
+
+# Custom bracket style
+flux = rxn.get_flux_expression(
+    idx=0,
+    rate_variable="rates",
+    species_variable="conc",
+    brackets="()",
+    idx_prefix="n_"
+)
+```
+
+### Symbolic Manipulation
+
+```python
+import sympy
+
+# Get sympy expression
+rate_expr = rxn.get_sympy()
+
+# Symbolic differentiation
+tgas = sympy.Symbol('tgas')
+derivative = sympy.diff(rate_expr, tgas)
+print(f"drate/dT = {derivative}")
+
+# Evaluate numerically
+rate_func = sympy.lambdify(tgas, rate_expr, "numpy")
+import numpy as np
+temps = np.logspace(1, 4, 100)
+rates = rate_func(temps)
+```
+
+## Visualization
+
+### Plot Rate vs Temperature
+
+```python
+import matplotlib.pyplot as plt
+
+# Plot single reaction
+rxn = net.reactions[0]
+rxn.plot()
+
+# Plot multiple reactions on same axis
+fig, ax = plt.subplots(figsize=(10, 6))
+for rxn in net.reactions[:5]:
+    rxn.plot(ax=ax)
+plt.legend([r.verbatim for r in net.reactions[:5]])
+plt.title("Reaction Rates vs Temperature")
+plt.show()
+```
+
+### Plot Cross Sections
+
+For photochemical reactions with cross-section data:
+
+```python
+# Find photochemical reactions with cross sections
+photo_rxns = [r for r in net.reactions if r.xsecs is not None]
+
+if photo_rxns:
+    # Plot in eV (default)
+    photo_rxns[0].plot_xsecs()
+
+    # Plot as wavelength in nanometers
+    photo_rxns[0].plot_xsecs(energy_unit="nm")
+
+    # Plot in micrometers with linear scales
+    photo_rxns[0].plot_xsecs(
+        energy_unit="um",
+        energy_log=False,
+        xsecs_log=False
+    )
+
+    # Compare multiple reactions
+    fig, ax = plt.subplots()
+    for rxn in photo_rxns[:3]:
+        rxn.plot_xsecs(ax=ax, energy_unit="nm")
+    plt.legend([r.verbatim for r in photo_rxns[:3]])
+    plt.show()
+```
+
+Energy unit options: `"eV"`, `"erg"`, `"nm"`, `"um"` (or `"micron"`)
 
 ## Common Patterns
 
-### Reaction Enumeration
-
-Iterate through all reactions:
+### Formation/Destruction Analysis
 
 ```python
-for i, reaction in enumerate(network.reactions):
-    print(f"{i+1}. {reaction}")
-    print(f"   Rate: {reaction.rate}")
-    print()
+def analyze_species(net, species_name):
+    """Analyze formation and destruction of a species."""
+    formation = [r for r in net.reactions if r.has_product(species_name)]
+    destruction = [r for r in net.reactions if r.has_reactant(species_name)]
+
+    print(f"\n{species_name} Chemistry:")
+    print(f"  Formation reactions: {len(formation)}")
+    print(f"  Destruction reactions: {len(destruction)}")
+    print(f"  Ratio: {len(formation)/len(destruction):.2f}")
+
+    print("\nMain formation pathways:")
+    for rxn in formation[:5]:
+        print(f"  {rxn.verbatim}")
+
+    print("\nMain destruction pathways:")
+    for rxn in destruction[:5]:
+        print(f"  {rxn.verbatim}")
+
+# Example usage
+analyze_species(net, "H2O")
+analyze_species(net, "CO")
 ```
 
-### Reaction Comparison
-
-Compare two reactions:
+### Export Reaction List
 
 ```python
-def reactions_equivalent(r1, r2):
-    """Check if two reactions are equivalent."""
-    return (
-        r1.reactants == r2.reactants and
-        r1.products == r2.products and
-        r1.modifiers == r2.modifiers
-    )
+# Export to text file
+with open("reactions.txt", "w") as f:
+    for i, rxn in enumerate(net.reactions):
+        f.write(f"{i}: {rxn.verbatim}\n")
+        f.write(f"   Type: {rxn.guess_type()}\n")
+        f.write(f"   Rate: {rxn.rate}\n")
+        f.write(f"   T range: {rxn.tmin} - {rxn.tmax} K\n")
+        f.write("\n")
 
-# Find duplicate reactions
-duplicates = []
-for i, r1 in enumerate(network.reactions):
-    for r2 in network.reactions[i+1:]:
-        if reactions_equivalent(r1, r2):
-            duplicates.append((r1.id, r2.id))
+# Export to CSV
+import csv
+with open("reactions.csv", "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["Index", "Reaction", "Type", "N_Reactants", "N_Products"])
+    for i, rxn in enumerate(net.reactions):
+        writer.writerow([
+            i,
+            rxn.verbatim,
+            rxn.guess_type(),
+            len(rxn.reactants),
+            len(rxn.products)
+        ])
 ```
 
-### Reaction Pathways
-
-Trace reaction pathways:
+### Filter by Multiple Criteria
 
 ```python
-def find_pathway(network, start_species, end_species, max_steps=5):
-    """Find reaction pathway from start to end species."""
-    pathways = []
+# Complex filtering
+selected = []
+for rxn in net.reactions:
+    # Must involve H2
+    if not rxn.has_any_species("H2"):
+        continue
 
-    def search(current, target, path, steps):
-        if steps > max_steps:
-            return
-        if current == target:
-            pathways.append(path.copy())
-            return
+    # Must be thermal (not photo)
+    if rxn.guess_type() != "unknown":
+        continue
 
-        for reaction in network.get_reactions_producing(current):
-            if reaction.id not in path:
-                path.append(reaction.id)
-                for reactant in reaction.reactants:
-                    search(reactant, target, path, steps + 1)
-                path.pop()
+    # Must have temperature range defined
+    if rxn.tmin is None or rxn.tmax is None:
+        continue
 
-    search(end_species, start_species, [], 0)
-    return pathways
-```
+    # Must conserve mass and charge
+    if not (rxn.check_mass() and rxn.check_charge()):
+        continue
 
-## Best Practices
+    selected.append(rxn)
 
-### Naming Conventions
-
-```python
-# Use descriptive reaction IDs
-reaction.id = "glucose_phosphorylation"  # Good
-reaction.id = "R1"  # Less descriptive
-
-# Include direction for reversible reactions
-forward = Reaction(id="ATP_hydrolysis_forward", ...)
-reverse = Reaction(id="ATP_hydrolysis_reverse", ...)
-```
-
-### Rate Expression Clarity
-
-```python
-# Use clear parameter names
-rate = "k_cat * E * S / (K_m + S)"  # Good
-rate = "a * b * c / (d + c)"  # Unclear
-
-# Document units in comments
-reaction.rate = "k * A * B"  # k in M^-1 s^-1
-```
-
-### Validation
-
-Always validate reactions:
-
-```python
-# Check for mass balance
-if not reaction.is_balanced():
-    print(f"Warning: Reaction {reaction.id} is not balanced")
-
-# Check for valid rate
-try:
-    reaction.validate_rate()
-except ValueError as e:
-    print(f"Invalid rate: {e}")
-
-# Check for negative stoichiometry
-if any(c < 0 for c in reaction.reactants.values()):
-    print("Error: Negative reactant coefficient")
-```
-
-## Troubleshooting
-
-### Common Issues
-
-**Issue**: Rate expression contains undefined variables
-
-```python
-# Check for undefined parameters
-undefined = reaction.get_undefined_parameters(network.parameters)
-if undefined:
-    print(f"Undefined parameters: {undefined}")
-```
-
-**Issue**: Stoichiometry doesn't balance
-
-```python
-# Check element balance
-if not reaction.check_element_balance():
-    print("Elements don't balance")
-    print(f"Reactant elements: {reaction.get_reactant_elements()}")
-    print(f"Product elements: {reaction.get_product_elements()}")
-```
-
-**Issue**: Rate evaluation fails
-
-```python
-# Safely evaluate rate
-try:
-    rate_value = reaction.evaluate_rate(concentrations)
-except Exception as e:
-    print(f"Rate evaluation failed: {e}")
-    print(f"Rate expression: {reaction.rate}")
-    print(f"Available concentrations: {concentrations.keys()}")
+print(f"Selected {len(selected)} reactions matching all criteria")
 ```
 
 ## See Also
 
-- [Species](species.md) - Working with chemical species
-- [Rates](rates.md) - Rate law expressions and kinetics
-- [Network Formats](network-formats.md) - File format specifications
-- [Code Generation](code-generation.md) - Generating code from reactions
+- [Working with Species](species.md) - Chemical species
+- [Loading Networks](loading-networks.md) - Network file formats
+- [Code Generation](code-generation.md) - Building simulation code
 - [API Reference: Reaction](../api/reaction.md) - Complete API documentation
 
-## Examples
+## Notes
 
-For complete examples of working with reactions, see:
+- Reactions are created by loading network files, not by direct instantiation
+- Mass conservation allows for electron mass tolerance (9.1093837e-28)
+- Charge conservation must be exact
+- Rate expressions are stored as sympy expressions
+- Cross-section data is only available for photochemical reactions
+- Temperature ranges are optional and used primarily for plotting and codegen
 
-- [Basic Usage Tutorial](../tutorials/basic-usage.md)
-- [Network Analysis Tutorial](../tutorials/network-analysis.md)
-- Example networks in the `examples/` directory
+---
+
+**Next:** Learn about [Code Generation](code-generation.md).

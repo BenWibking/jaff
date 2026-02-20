@@ -1346,7 +1346,7 @@ class Codegen:
                 "matrix_sep": "][",
                 "code_gen": sp.cxxcode,
                 "idx_offset": 0,
-                "comment": "// ",
+                "comment": "//",
                 "types": {
                     "int": "int ",
                     "float": "float ",
@@ -1366,7 +1366,7 @@ class Codegen:
                 "matrix_sep": "][",
                 "code_gen": sp.ccode,
                 "idx_offset": 0,
-                "comment": "// ",
+                "comment": "//",
                 "types": {
                     "int": "int ",
                     "float": "float ",
@@ -1386,7 +1386,7 @@ class Codegen:
                 "matrix_sep": ", ",
                 "code_gen": sp.fcode,
                 "idx_offset": 1,
-                "comment": "!! ",
+                "comment": "!",
                 "types": {},
                 "extras": {
                     "class_specifier": "save ",
@@ -1400,7 +1400,7 @@ class Codegen:
                 "matrix_sep": "][",
                 "code_gen": sp.pycode,
                 "idx_offset": 0,
-                "comment": "# ",
+                "comment": "#",
                 "types": {},
                 "extras": {},
             },
@@ -1412,7 +1412,7 @@ class Codegen:
                 "matrix_sep": "][",
                 "code_gen": sp.rust_code,
                 "idx_offset": 0,
-                "comment": "// ",
+                "comment": "//",
                 "types": {
                     "int": "i32 ",
                     "float": "f32 ",
@@ -1432,7 +1432,7 @@ class Codegen:
                 "matrix_sep": ", ",
                 "code_gen": sp.julia_code,
                 "idx_offset": 1,
-                "comment": "# ",
+                "comment": "#",
                 "types": {
                     "int": "Int64 ",
                     "float": "Float32 ",
@@ -1452,7 +1452,7 @@ class Codegen:
                 "matrix_sep": ", ",
                 "code_gen": sp.rcode,
                 "idx_offset": 1,
-                "comment": "# ",
+                "comment": "#",
                 "types": {},
                 "extras": {},
             },

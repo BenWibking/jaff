@@ -4,7 +4,8 @@ Thank you for your interest in contributing to JAFF! This guide will help you ge
 
 ## Table of Contents
 
-- [Code of Conduct](#code-of-conduct)
+<!--- [Code of Conduct](#code-of-conduct)-->
+
 - [Getting Started](#getting-started)
 - [Development Setup](#development-setup)
 - [Making Changes](#making-changes)
@@ -14,7 +15,7 @@ Thank you for your interest in contributing to JAFF! This guide will help you ge
 - [Code Style](#code-style)
 - [Review Process](#review-process)
 
-## Code of Conduct
+<!--## Code of Conduct
 
 We are committed to providing a welcoming and inclusive environment. Please be respectful and considerate in all interactions.
 
@@ -24,7 +25,7 @@ We are committed to providing a welcoming and inclusive environment. Please be r
 - Respect differing viewpoints and experiences
 - Accept constructive criticism gracefully
 - Focus on what's best for the community
-- Show empathy towards others
+- Show empathy towards others-->
 
 ## Getting Started
 
@@ -127,6 +128,7 @@ git commit -m "update"
 ```
 
 **Format:**
+
 ```
 type: Short description (50 chars or less)
 
@@ -137,6 +139,7 @@ Fixes #123
 ```
 
 **Types:**
+
 - `feat:` - New feature
 - `fix:` - Bug fix
 - `docs:` - Documentation
@@ -201,20 +204,20 @@ Use Google-style docstrings:
 ```python
 def my_function(arg1: int, arg2: str) -> bool:
     """Short description.
-    
+
     Longer description if needed. Explain what the function
     does, not how it does it.
-    
+
     Args:
         arg1: Description of arg1
         arg2: Description of arg2
-        
+
     Returns:
         Description of return value
-        
+
     Raises:
         ValueError: When something is wrong
-        
+
     Example:
         >>> result = my_function(42, "test")
         >>> print(result)
@@ -252,7 +255,7 @@ mkdocs serve
 
 Add examples to documentation:
 
-```markdown
+````markdown
 ## Example
 
 ```python
@@ -261,7 +264,9 @@ from jaff import Network
 net = Network("network.dat")
 # ...
 ```
-```
+````
+
+````
 
 ## Submitting Changes
 
@@ -282,7 +287,7 @@ Checklist:
 ```bash
 # Push your branch
 git push origin feature/your-feature-name
-```
+````
 
 Then on GitHub:
 
@@ -483,7 +488,6 @@ Don't be shy! We're happy to help new contributors.
 
 Contributors are recognized:
 
-- Listed in [Credits](../about/credits.md)
 - Mentioned in release notes
 - GitHub contributions graph
 
@@ -501,5 +505,3 @@ Your contributions help make JAFF better for everyone.
 
 - [Code Style Guide](code-style.md)
 - [Testing Guide](testing.md)
-- [Release Process](releases.md)
-- [Credits](../about/credits.md)

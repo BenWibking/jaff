@@ -1,7 +1,5 @@
 # Testing Guide
 
-Comprehensive guide to testing JAFF.
-
 ## Overview
 
 JAFF uses pytest for testing. This guide covers how to write, run, and organize tests.
@@ -42,6 +40,8 @@ open htmlcov/index.html
 
 ### Markers
 
+> NOTE: Markers have not yet been added
+
 ```bash
 # Run only fast tests
 pytest -m "not slow"
@@ -74,6 +74,8 @@ tests/
         └── test_template.cpp
 ```
 
+> NOTE: `networks` and `templates` folder bifurcation will be done once templating tests are added to the test suite
+
 ### Test File Structure
 
 ```python
@@ -85,13 +87,13 @@ from jaff import Network
 
 class TestNetwork:
     """Network class tests."""
-    
+
     def test_load_basic_network(self):
         """Test loading basic network."""
         net = Network("tests/fixtures/networks/test_small.dat")
         assert len(net.species) > 0
         assert len(net.reactions) > 0
-    
+
     def test_load_krome_format(self):
         """Test loading KROME format."""
         net = Network("tests/fixtures/networks/test_krome.dat")
@@ -100,7 +102,7 @@ class TestNetwork:
 
 class TestNetworkValidation:
     """Network validation tests."""
-    
+
     def test_duplicate_reactions(self):
         """Test detection of duplicate reactions."""
         # Test implementation
@@ -233,11 +235,11 @@ def test_network_save_load(tmp_path):
     """Test saving and loading network."""
     # Create network
     net = Network("tests/fixtures/networks/test.dat")
-    
+
     # Save to temporary file
     output_file = tmp_path / "test.jaff"
     net.to_jaff_file(str(output_file))
-    
+
     # Load and verify
     net2 = Network(str(output_file))
     assert len(net2.species) == len(net.species)
@@ -352,21 +354,21 @@ def test_complete_code_generation_workflow(tmp_path):
     """Test complete workflow from network to code."""
     # Load network
     net = Network("tests/fixtures/networks/test.dat")
-    
+
     # Create code generator
     cg = Codegen(network=net, lang="c++")
-    
+
     # Generate code
     rates = cg.get_rates(use_cse=True)
     odes = cg.get_ode(use_cse=True)
-    
+
     # Save to file
     output_file = tmp_path / "chemistry.cpp"
     with open(output_file, 'w') as f:
         f.write(rates)
         f.write("\n\n")
         f.write(odes)
-    
+
     # Verify file exists and has content
     assert output_file.exists()
     content = output_file.read_text()
@@ -387,7 +389,7 @@ def test_large_network_performance():
     start = time.time()
     net = Network("tests/fixtures/networks/large.dat")
     duration = time.time() - start
-    
+
     assert duration < 30.0  # Should load in < 30 seconds
 ```
 
@@ -400,14 +402,14 @@ import tracemalloc
 def test_memory_usage():
     """Test memory usage is reasonable."""
     tracemalloc.start()
-    
+
     net = Network("tests/fixtures/networks/test.dat")
     cg = Codegen(network=net, lang="c++")
     rates = cg.get_rates(use_cse=True)
-    
+
     current, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
-    
+
     # Peak memory should be reasonable
     assert peak < 100 * 1024 * 1024  # < 100 MB
 ```
@@ -423,26 +425,26 @@ name: Tests
 on: [push, pull_request]
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [3.9, '3.10', 3.11]
-    
-    steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        pip install -e ".[dev]"
-    - name: Run tests
-      run: |
-        pytest --cov=jaff --cov-report=xml
-    - name: Upload coverage
-      uses: codecov/codecov-action@v3
+    test:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                python-version: [3.9, "3.10", 3.11]
+
+        steps:
+            - uses: actions/checkout@v3
+            - name: Set up Python
+              uses: actions/setup-python@v4
+              with:
+                  python-version: ${{ matrix.python-version }}
+            - name: Install dependencies
+              run: |
+                  pip install -e ".[dev]"
+            - name: Run tests
+              run: |
+                  pytest --cov=jaff --cov-report=xml
+            - name: Upload coverage
+              uses: codecov/codecov-action@v3
 ```
 
 ## Coverage Goals
@@ -486,13 +488,13 @@ pytest --lf
 def test_debug_example():
     """Test with debugging."""
     net = Network("test.dat")
-    
+
     # Add breakpoint
     import pdb; pdb.set_trace()
-    
+
     # Or use pytest's built-in
     pytest.set_trace()
-    
+
     assert len(net.species) > 0
 ```
 

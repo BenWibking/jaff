@@ -1,44 +1,40 @@
 # JAFF Documentation
 
-<div align="center" markdown>
-
-<img src="assets/logo.png" alt="JAFF Logo" width="200" style="margin: 20px 0;">
-
-**Just Another Fancy Format**
-
-_An astrochemical network parser and multi-language code generator_
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![GitHub](https://img.shields.io/github/stars/tgrassi/jaff?style=social)](https://github.com/tgrassi/jaff)
-
+<div align="left" markdown>
+<div style="display: flex; align-items: center;">
+    <img class="jaff-logo" src="assets/logo.svg" alt="JAFF Logo" width="60" style="margin-right: 20px;">
+    <div>
+    <strong>Just Another Fancy Format</strong>
+    <br>
+    <em>An astrochemical network parser and multi-language code generator</em>
+    </div>
 </div>
 
 ---
 
 ## Welcome to JAFF
 
-JAFF is a comprehensive tool for working with astrochemical reaction networks. It provides a unified interface for parsing multiple network formats, analyzing chemical species and reactions, and generating optimized code for numerical simulations in C, C++, Fortran and muliple other languages.
+JAFF is a comprehensive tool for working with astrochemical reaction networks. It provides a unified interface for parsing multiple network formats, analyzing chemical species and reactions, and generating optimized code for numerical simulations in multiple programming languages: **C**, **C++**, **Fortran**, **Python**, **Rust**, **Julia**, and **R**.
 
 ## Key Features
 
-### **Multi-Format Support**
+### _Multi-Format Support_
 
 Parse networks from major astrochemistry databases including KIDA, UDFA, PRIZMO, KROME and UCLCHEM with automatic format detection.
 
-### **Validation & Analysis**
+### _Validation & Analysis_
 
 Automatically validate mass and charge conservation, analyze stoichiometry and extract elemental composition from complex chemical formulas.
 
-### **Code Generation**
+### _Code Generation_
 
-Generate optimized C/C++/Fortran/Rust/Python/Julia code for reaction rates, ODEs, Jacobians ,flux calculations with optional common subexpression elimination (CSE) and much more.
+Generate optimized code for reaction rates, ODEs, Jacobians, and flux calculations in **C**, **C++**, **Fortran**, **Python**, **Rust**, **Julia**, and **R** with optional common subexpression elimination (CSE).
 
-### **Temperature-Dependent Rates**
+### _Temperature Dependent Rates_
 
 Evaluate rate coefficients with support for complex temperature dependencies, photochemistry, and cosmic ray ionization.
 
-### **Template System**
+### _Template System_
 
 Powerful template language (JAFF directives) for customizing code generation to match your simulation framework.
 

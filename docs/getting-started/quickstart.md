@@ -1,7 +1,5 @@
 # Quick Start Guide
 
-Get started with JAFF in just a few minutes!
-
 ## Prerequisites
 
 Make sure you have Python 3.9 or higher installed:
@@ -12,13 +10,7 @@ python --version
 
 ## Installation
 
-Install JAFF using pip:
-
-```bash
-pip install jaff
-```
-
-Or from source:
+From source:
 
 ```bash
 git clone https://github.com/tgrassi/jaff.git
@@ -45,6 +37,7 @@ print(f"Number of reactions: {len(net.reactions)}")
 ```
 
 **Output**:
+
 ```
 Network label: react_COthin
 Number of species: 35
@@ -60,6 +53,7 @@ for i, species in enumerate(net.species[:5]):
 ```
 
 **Output**:
+
 ```
 0: H (mass=1.01 amu, charge=0)
 1: H2 (mass=2.02 amu, charge=0)
@@ -77,6 +71,7 @@ for i, reaction in enumerate(net.reactions[:3]):
 ```
 
 **Output**:
+
 ```
 0: H + O -> OH
 1: H2 + O -> OH + H
@@ -101,7 +96,7 @@ const int NUM_REACTIONS = $nreact$;
 
 // Calculate reaction rates
 void compute_rates(double* rate, const double* n, const double* k, double T) {
-    // $JAFF REPEAT idx IN rates
+    // $JAFF REPEAT idx, rate IN rates
     rate[$idx$] = $rate$;
     // $JAFF END
 }
@@ -143,9 +138,9 @@ The generated `rates.cpp` will contain:
 const int NUM_REACTIONS = 127;
 
 void compute_rates(double* rate, const double* n, const double* k, double T) {
-    rate[0] = k[0] * n[0] * n[3];  // H + O -> OH
-    rate[1] = k[1] * n[1] * n[3];  // H2 + O -> OH + H
-    rate[2] = k[2] * n[2] * n[4];  // C + O2 -> CO + O
+    rate[0] = ...  // H + O -> OH
+    rate[1] = ...  // H2 + O -> OH + H
+    rate[2] = ...  // C + O2 -> CO + O
     // ... more rates
 }
 
@@ -157,17 +152,57 @@ const char* reaction_names[2] = "C + O2 -> CO + O";
 
 ## Using the Command Line
 
-You can also use the CLI for code generation:
+You can also use the CLI for quick code generation without writing Python scripts:
+
+### Basic Usage
+
+**Using the installed command:**
 
 ```bash
-# Generate code from template
-python -m jaff.generate \
-    --network networks/react_COthin \
-    --files rates_template.cpp \
-    --outdir output/
+jaffgen --network networks/react_COthin --files rates_template.cpp --outdir output/
 ```
 
 This creates `output/rates_template.cpp` with the generated code.
+
+### Using Predefined Templates
+
+JAFF supports predefined template collections:
+
+```bash
+# Use a predefined template collection
+jaffgen --network networks/react_COthin --template kokkos_ode --outdir output/
+```
+
+This processes all files in the `jaff/templates/generator/chemistry_solver/` directory.
+
+### Processing Multiple Files
+
+```bash
+# Process all templates in a directory
+jaffgen --network networks/react_COthin --indir templates/microphysic --outdir output/
+
+# Process multiple specific files
+jaffgen --network networks/react_COthin --files template1.cpp template2.f90 model.py --outdir output/
+
+# Process multiple specific files and folders
+jaffgen --network networks/react_COthin --indir templates/microphysics --files template1.cpp template2.f90 model.py --outdir output/
+```
+
+### Specifying Language
+
+For files with non-standard extensions, specify a default language:
+
+```bash
+# Generate Rust code from a text template
+jaffgen --network networks/react_COthin --files template.txt --lang rust --outdir output/
+
+# Generate Julia code
+jaffgen --network networks/react_COthin --files custom.template --lang julia --outdir output/
+```
+
+You will need to provide the language if you are using the `--indir` and the input directory contains unsupported files
+
+**Supported languages:** `c`, `cxx` , `fortran` , `python` , `rust` , `julia` and `r`
 
 ## Common Use Cases
 
@@ -197,7 +232,7 @@ co = net.species[co_index]
 print(f"CO: index={co_index}, mass={co.mass}, charge={co.charge}")
 ```
 
-### 3. Calculate Rate at Temperature
+### 3. View rate
 
 ```python
 from jaff import Network
@@ -207,14 +242,12 @@ net = Network("networks/react_COthin")
 # Get first reaction
 reaction = net.reactions[0]
 
-# Calculate rate coefficient at 100 K
-T = 100.0
-k = reaction.rate(T)
+k = reaction.rate
 
-print(f"Rate coefficient at {T}K: {k:.2e}")
+print(f"Rate coefficient: {k}")
 ```
 
-### 4. Check Element Conservation
+### 4. Check Element Properties
 
 ```python
 from jaff import Network
@@ -245,8 +278,8 @@ void compute_odes(double* dydt, const double* y, const double* rate) {
     for (int i = 0; i < NUM_SPECIES; i++) {
         dydt[i] = 0.0;
     }
-    
-    // $JAFF REPEAT idx IN odes
+
+    // $JAFF REPEAT idx, ode IN odes
     dydt[$idx$] += $ode$;
     // $JAFF END
 }
@@ -273,9 +306,8 @@ Now that you've completed the quick start:
 
 1. **Learn the Basics**: Read about [Basic Concepts](concepts.md) to understand chemical networks
 2. **User Guide**: Explore the detailed [User Guide](../user-guide/loading-networks.md)
-3. **Templates**: Master [Template Syntax](../user-guide/template-syntax.md) for custom code generation
-4. **Tutorials**: Work through [hands-on tutorials](../tutorials/basic-usage.md)
-5. **API Reference**: Browse the complete [API documentation](../api/index.md)
+3. **Templates**: Understand [Template Syntax](../user-guide/template-syntax.md) for custom code generation
+4. **API Reference**: Browse the complete [API documentation](../api/index.md)
 
 ## Getting Help
 
@@ -287,32 +319,30 @@ Now that you've completed the quick start:
 ## Tips & Tricks
 
 !!! tip "Pro Tip: Network Validation"
-    Always check your network for errors when loading:
-    ```python
+Always check your network for errors when loading:
+`python
     net = Network("networks/mynetwork.dat", errors=True)
-    ```
+    `
 
 !!! tip "Pro Tip: Species Lookup"
-    Use the species dictionary for fast lookups:
-    ```python
+Use the species dictionary for fast lookups:
+`python
     idx = net.species_dict["CO"]  # Much faster than searching
-    ```
+    `
 
 !!! tip "Pro Tip: Template Testing"
-    Test templates on small networks first before using large ones:
-    ```python
+Test templates on small networks first before using large ones:
+
+```python
     # Use a small test network
     net = Network("networks/test.dat")
     parser = Fileparser(net, Path("template.cpp"))
     print(parser.parse_file())  # Check output
-    ```
+```
 
 !!! warning "Watch Out: File Extensions"
-    The parser determines language from file extension:
-    - `.cpp`, `.cxx`, `.cc` → C++
-    - `.c` → C
-    - `.f90`, `.f95` → Fortran
-    
+The parser determines language from file extension: - `.cpp`, `.cxx`, `.cc` → C++ - `.c` → C - `.f90`, `.f95` → Fortran
+
     Make sure your template has the correct extension!
 
 ## Example Networks
@@ -338,5 +368,3 @@ for network_file in networks:
     net = Network(network_file)
     print(f"{network_file}: {len(net.species)} species, {len(net.reactions)} reactions")
 ```
-
-Happy coding with JAFF! 🚀

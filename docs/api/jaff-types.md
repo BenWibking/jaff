@@ -467,11 +467,11 @@ def process_indexed_list(items: IndexedList) -> None:
     """Process an IndexedList safely."""
     if not isinstance(items, IndexedList):
         raise TypeError("Expected IndexedList")
-    
+
     for item in items:
         if not isinstance(item, IndexedValue):
             raise TypeError("All items must be IndexedValue")
-        
+
         # Process item
         print(f"Index {item.indices}: {item.value}")
 
@@ -513,12 +513,12 @@ assert len(flat_from_nested) == 6  # 2*3 flattened elements
 
 Methods returning `IndexedReturn`:
 
-| Method                 | Returns CSE        | Returns Expressions |
-| ---------------------- | ------------------ | ------------------- |
-| `get_indexed_rates`    | IndexedList (1D)   | IndexedList (1D)    |
-| `get_indexed_odes`     | IndexedList (1D)   | IndexedList (1D)    |
-| `get_indexed_rhs`      | IndexedList (1D)   | IndexedList (1D)    |
-| `get_indexed_jacobian` | IndexedList (1D)   | IndexedList (2D)    |
+| Method                 | Returns CSE      | Returns Expressions |
+| ---------------------- | ---------------- | ------------------- |
+| `get_indexed_rates`    | IndexedList (1D) | IndexedList (1D)    |
+| `get_indexed_odes`     | IndexedList (1D) | IndexedList (1D)    |
+| `get_indexed_rhs`      | IndexedList (1D) | IndexedList (1D)    |
+| `get_indexed_jacobian` | IndexedList (1D) | IndexedList (2D)    |
 
 ```python
 from jaff.codegen import IndexedReturn
@@ -526,106 +526,12 @@ from jaff.codegen import IndexedReturn
 # Type annotation for method return
 def get_expressions(cg: Codegen) -> IndexedReturn:
     result: IndexedReturn = cg.get_indexed_rates(use_cse=True)
-    
+
     # Access typed components
     cse: IndexedList = result["extras"]["cse"]
     exprs: IndexedList = result["expressions"]
-    
+
     return result
-```
-
----
-
-## Best Practices
-
-### 1. Use Type Hints
-
-```python
-from jaff.jaff_types import IndexedValue, IndexedList
-from typing import List
-
-def format_expressions(items: IndexedList) -> List[str]:
-    """Format indexed expressions as strings."""
-    output: List[str] = []
-    for iv in items:
-        idx_str = f"[{']['.join(map(str, iv.indices))}]"
-        output.append(f"array{idx_str} = {iv.value}")
-    return output
-```
-
-### 2. Check List Type Before Conversion
-
-```python
-items = IndexedList([[1, 2], [3, 4]], flatten=True)
-
-# Check type before conversion
-if items.type() == "flattened":
-    nested = items.nested()
-elif items.type() == "normal":
-    # Already normal, no conversion needed
-    pass
-```
-
-### 3. Handle Multi-Dimensional Indices
-
-```python
-def process_indexed_value(iv: IndexedValue) -> str:
-    """Generate code for an indexed value."""
-    if len(iv.indices) == 1:
-        # 1D array
-        return f"array[{iv.indices[0]}] = {iv.value};"
-    elif len(iv.indices) == 2:
-        # 2D array
-        i, j = iv.indices
-        return f"matrix[{i}][{j}] = {iv.value};"
-    else:
-        # N-D array
-        indices = ']['.join(map(str, iv.indices))
-        return f"tensor[{indices}] = {iv.value};"
-```
-
-### 4. Preserve Immutability
-
-```python
-# DON'T modify IndexedValue in place (immutable)
-# iv.indices[0] = 5  # ERROR
-
-# DO create new IndexedValue for modifications
-old_iv = IndexedValue([0], "value")
-new_iv = IndexedValue([1], old_iv.value)  # New indices
-```
-
----
-
-## Error Handling
-
-### Type Errors
-
-```python
-from jaff.jaff_types import IndexedValue, IndexedList
-
-# Wrong indices type
-try:
-    iv = IndexedValue((0,), "value")  # Tuple instead of list
-except TypeError as e:
-    print(e)  # "indices must be of type list"
-
-# Mixed types in IndexedList
-try:
-    items = IndexedList()
-    items.append("not_an_indexed_value")
-except TypeError as e:
-    print(e)  # "must be of type IndexedValue"
-```
-
-### Value Errors
-
-```python
-# Conflicting flags
-try:
-    items = IndexedList([[1, 2]], nested=True, flatten=True)
-except ValueError as e:
-    print(e)  # "Cannot have both nested=True and flatten=True"
 ```
 
 ---

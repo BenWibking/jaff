@@ -20,13 +20,18 @@ class Reaction:
         )
         self.original_string = original_string
         # Add verbatim property for backward compatibility
-        self.verbatim = self.get_verbatim()
+        self.verbatim: str = self.get_verbatim()
 
         self.check(errors)
         self.serialized_exploded = self.serialize_exploded()
         self.serialized = self.serialize()
 
     def __repr__(self):
+        return (
+            f"Reaction({self.verbatim}, tmin={self.tmin}, tmax={self.tmax}, dE={self.dE})"
+        )
+
+    def __str__(self):
         return self.verbatim
 
     def guess_type(self):

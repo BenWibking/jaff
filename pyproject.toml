@@ -28,6 +28,7 @@ dependencies = [
     "sympy>=1.14.0",
     "tqdm>=4.67.1",
     "h5py>=3.9.0",
+    "matplotlib>=3.9.4",
 ]
 
 [project.optional-dependencies]
@@ -39,7 +40,6 @@ dev = [
     "mkdocs>=1.5.3",
     "mkdocs-material>=9.5.0",
     "mkdocstrings[python]>=0.24.0",
-    "mkdocstrings-python>=1.7.0",
     "mkdocs-git-revision-date-localized-plugin>=1.2.0",
     "mkdocs-git-authors-plugin>=0.7.0",
     "mkdocs-minify-plugin>=0.7.0",
@@ -47,6 +47,7 @@ dev = [
     "markdown>=3.5.0",
     "pillow>=10.0.0",
     "cairosvg>=2.7.0",
+    "watchdog>=2.0",
 ]
 
 [project.scripts]
