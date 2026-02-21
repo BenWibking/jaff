@@ -1733,10 +1733,3 @@ class Fileparser:
         }
 
         return svar_dict
-
-
-if __name__ == "__main__":
-    net = Network("networks/test.dat")
-    fp = Fileparser(network=net, file=Path("test.cpp"))
-    out = fp.parse_file()
-    print(out)

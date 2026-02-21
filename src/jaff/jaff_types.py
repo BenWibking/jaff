@@ -601,23 +601,3 @@ class IndexedList(list):
 
         # Should never reach here
         raise ValueError(f"Unknown list type: {list_type}")
-
-
-if __name__ == "__main__":
-    x = IndexedList([1, 2, ["sfsffsfsf", "sfsfsfsf"], 5], flatten=True)
-
-    print(x)
-    print(x.flatten())
-    print(x.nested())
-
-    x = x.flatten()
-
-    print(x)
-    print(x.normal())
-    print(x.nested())
-
-    x = x.nested()
-
-    print(x)
-    print(x.flatten())
-    print(x.normal())
