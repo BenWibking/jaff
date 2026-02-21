@@ -1,4 +1,11 @@
-# Species API
+---
+tags:
+    - Api
+    - Species
+icon: lucide/hexagon
+---
+
+# Species
 
 ## Overview
 

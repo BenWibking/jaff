@@ -1,3 +1,9 @@
+---
+tags:
+    - Development
+icon: lucide/chart-no-axes-gantt
+---
+
 # Code Style Guide
 
 ## Python Version

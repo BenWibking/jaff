@@ -1,3 +1,10 @@
+---
+tags:
+    - Development
+    - Testing
+icon: lucide/bug
+---
+
 # Testing Guide
 
 ## Overview

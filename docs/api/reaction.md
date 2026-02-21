@@ -1,4 +1,11 @@
-# Reaction API
+---
+tags:
+    - Api
+    - Reaction
+icon: lucide/zap
+---
+
+# Reaction
 
 ## Overview
 
@@ -390,12 +397,12 @@ Common variables in rate expressions:
 - [Network API](network.md) - Reaction network container
 - [Working with Reactions](../user-guide/reactions.md) - User guide
 
-> Notes
->
-> - Reactions are typically created by loading network files, not by direct instantiation
-> - Mass conservation checks allow for small numerical errors (electron mass tolerance)
-> - Charge conservation must be exact (integer charge values)
-> - Rate expressions are stored as sympy expressions for symbolic manipulation
-> - Cross-section data (`xsecs`) is only available for photochemical reactions
-> - Temperature ranges (`tmin`/`tmax`) are optional and used primarily for plotting
-> - The `serialized` forms are used internally for reaction comparison and duplicate detection
+Notes
+
+- Reactions are typically created by loading network files, not by direct instantiation
+- Mass conservation checks allow for small numerical errors (electron mass tolerance)
+- Charge conservation must be exact (integer charge values)
+- Rate expressions are stored as sympy expressions for symbolic manipulation
+- Cross-section data (`xsecs`) is only available for photochemical reactions
+- Temperature ranges (`tmin`/`tmax`) are optional and used primarily for plotting
+- The `serialized` forms are used internally for reaction comparison and duplicate detection

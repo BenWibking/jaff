@@ -1,3 +1,10 @@
+---
+tags:
+    - User-guide
+    - Network
+icon: lucide/arrow-up-from-line
+---
+
 # Loading Networks
 
 ## Overview

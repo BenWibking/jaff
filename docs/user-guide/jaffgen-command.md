@@ -1,4 +1,11 @@
-# jaffgen Command Reference
+---
+tags:
+    - User-guide
+    - Code-generation
+icon: lucide/terminal
+---
+
+# Jaffgen Command
 
 ## Overview
 

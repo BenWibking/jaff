@@ -1,3 +1,10 @@
+---
+tags:
+    - User-guide
+    - Reaction
+icon: lucide/zap
+---
+
 # Working with Reactions
 
 ## Overview

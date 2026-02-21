@@ -1,4 +1,11 @@
-# Network API Reference
+---
+tags:
+    - Api
+    - Network
+icon: lucide/git-compare-arrows
+---
+
+# Network
 
 The `Network` class is the core of JAFF, representing a chemical reaction network loaded from a file.
 
@@ -34,23 +41,25 @@ class Network:
     """
 ```
 
-        - get_number_of_species
-        - get_species_index
-        - get_species_object
-        - get_reaction_index
-        - get_reaction_by_verbatim
-        - get_sfluxes
-        - get_sodes
-        - compare_reactions
-        - compare_species
-        - check_sink_sources
-        - check_recombinations
-        - check_isomers
-        - check_unique_reactions
+The network class contains the following properties:
+
+`get_number_of_species`,
+`get_species_index`,
+`get_species_object`,
+`get_reaction_index`,
+`get_reaction_by_verbatim`,
+`get_sfluxes`,
+`get_sodes`,
+`compare_reactions`,
+`compare_species`,
+`check_sink_sources`,
+`check_recombinations`,
+`check_isomers`,
+`check_unique_reactions`,
 
 ## Constructor
 
-### `Network(fname, errors=False, label=None, funcfile=None, replace_nH=True)`
+### `Network()`
 
 Create a Network object by loading a chemical reaction network file.
 
@@ -138,7 +147,7 @@ nspec = net.get_number_of_species()
 print(f"Network has {nspec} species")
 ```
 
-#### `get_species_index(name)`
+#### get_species_index()
 
 Get the array index of a species by name.
 
@@ -161,7 +170,7 @@ idx = net.get_species_index("CO")
 print(f"CO is at index {idx}")
 ```
 
-#### `get_species_object(name)`
+#### get_species_object()
 
 Get the Species object by name.
 
@@ -186,7 +195,7 @@ print(f"Mass: {co.mass}, Charge: {co.charge}")
 
 ### Reaction Access Methods
 
-#### `get_reaction_index(name)`
+#### get_reaction_index()
 
 Get the array index of a reaction by its verbatim string.
 
@@ -209,7 +218,7 @@ idx = net.get_reaction_index("H + O -> OH")
 print(f"Reaction is at index {idx}")
 ```
 
-#### `get_reaction_by_verbatim(verbatim, rtype=None)`
+#### `get_reaction_by_verbatim()`
 
 Get a Reaction object by its verbatim string.
 
@@ -230,7 +239,7 @@ if reaction:
     print(f"Rate type: {reaction.rtype}")
 ```
 
-#### `get_reaction_verbatim(idx)`
+#### get_reaction_verbatim()
 
 Get the verbatim string representation of a reaction.
 
@@ -293,7 +302,7 @@ for i, ode in enumerate(odes[:3]):
 
 ### Validation Methods
 
-#### `check_sink_sources(errors)`
+#### check_sink_sources()
 
 Check for species that only appear as reactants (sinks) or products (sources).
 
@@ -311,7 +320,7 @@ Validates that species participate in both production and destruction reactions.
 net.check_sink_sources(errors=True)
 ```
 
-#### `check_recombinations(errors)`
+#### check_recombinations()
 
 Check for proper recombination reaction formatting.
 
@@ -323,7 +332,7 @@ Check for proper recombination reaction formatting.
 
 Validates recombination reactions follow proper conventions.
 
-#### `check_isomers(errors)`
+#### check_isomers()
 
 Check for isomer issues in the network.
 
@@ -335,7 +344,7 @@ Check for isomer issues in the network.
 
 Identifies species with identical composition but different names.
 
-#### `check_unique_reactions(errors)`
+#### check_unique_reactions()
 
 Check that all reactions are unique (no duplicates).
 
@@ -359,7 +368,7 @@ net.check_unique_reactions(errors=False)
 
 ### Comparison Methods
 
-#### `compare_reactions(other, verbosity=1)`
+#### `compare_reactions()`
 
 Compare reactions between two networks.
 
@@ -380,7 +389,7 @@ net2 = Network("networks/version2.dat")
 net1.compare_reactions(net2, verbosity=2)
 ```
 
-#### `compare_species(other, verbosity=1)`
+#### `compare_species()`
 
 Compare species lists between two networks.
 
@@ -397,7 +406,7 @@ net1.compare_species(net2, verbosity=1)
 
 ### Serialization Methods
 
-#### `to_jaff_file(filename)`
+#### to_jaff_file()
 
 Save the network to a JAFF format file.
 

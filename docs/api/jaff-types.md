@@ -1,4 +1,11 @@
-# JAFF Types API Reference
+---
+tags:
+    - Api
+    - Types
+icon: lucide/square-chart-gantt
+---
+
+# JAFF Types
 
 The `jaff_types` module provides specialized data structures for representing indexed mathematical expressions and collections used in code generation.
 
@@ -43,7 +50,7 @@ An immutable tuple subclass that pairs one or more array indices with a value or
 
 #### Constructor
 
-##### `IndexedValue(indices, value)`
+##### `IndexedValue()`
 
 Create a new IndexedValue.
 
@@ -187,7 +194,7 @@ A specialized list container ensuring all elements are `IndexedValue` instances.
 
 #### Constructor
 
-##### `IndexedList(items=None, nested=False, flatten=False)`
+##### `IndexedList()`
 
 Initialize an IndexedList from an iterable.
 
@@ -245,7 +252,7 @@ empty = IndexedList()
 
 #### Methods
 
-##### `append(item)`
+##### `append()`
 
 Append an IndexedValue to the list.
 
@@ -265,7 +272,7 @@ items.append(IndexedValue([0], "value"))
 # items.append("plain_value")  # Would raise TypeError
 ```
 
-##### `extend(items)`
+##### `extend()`
 
 Extend the list with multiple IndexedValue objects.
 

@@ -1,3 +1,9 @@
+---
+tags:
+    - Development
+icon: lucide/git-pull-request
+---
+
 # Contributing to JAFF
 
 Thank you for your interest in contributing to JAFF! This guide will help you get started.

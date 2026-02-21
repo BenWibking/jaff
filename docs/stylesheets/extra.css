@@ -1,155 +1,25 @@
-/* ============================================================================
-   JAFF Documentation - Custom Theme
-   Based on header color: #334155 (slate-700)
-   ============================================================================ */
-
-/* ============================================================================
-   LIGHT MODE - Color Variables
-   ============================================================================ */
 :root {
-    /* Primary palette - Based on #334155 (slate-700) */
-    --jaff-primary: #334155; /* slate-700 - Main brand color */
-    --jaff-primary-dark: #24282c; /* slate-800 - Darker variant */
-    --jaff-primary-darker: #15191c; /* slate-900 - Darkest variant */
-    --jaff-primary-light: #475569; /* slate-600 - Lighter variant */
-    --jaff-primary-lighter: #64748b; /* slate-500 - Even lighter */
-
-    /* Neutral palette */
-    --jaff-neutral-50: #f8fafc;
-    --jaff-neutral-100: #f1f5f9;
-    --jaff-neutral-200: #e2e8f0;
-    --jaff-neutral-300: #cbd5e1;
-    --jaff-neutral-400: #94a3b8;
-    --jaff-neutral-500: #64748b;
-    --jaff-neutral-600: #475569;
-    --jaff-neutral-700: #334155;
-    --jaff-neutral-800: #1e293b;
-    --jaff-neutral-900: #0f172a;
-
-    /* Separator colors with reduced opacity */
-    --jaff-separator-primary: rgba(51, 65, 85, 0.3); /* Primary color at 30% */
-    --jaff-separator-primary-dark: rgba(30, 41, 59, 0.3); /* Primary dark at 30% */
-    --jaff-separator-neutral-200: rgba(226, 232, 240, 0.3); /* Neutral 200 at 30% */
-    --jaff-separator-neutral-300: rgba(203, 213, 225, 0.3); /* Neutral 300 at 30% */
-
-    /* Scrollbar colors */
-    --jaff-scrollbar: var(--jaff-neutral-200); /* Light slate for scrollbar thumb */
-    --jaff-scrollbar-hover: var(--jaff-neutral-300); /* Slightly darker on hover */
-
-    /* Accent colors - Minimalist slate tones */
-    --jaff-accent: #475569; /* slate-600 - Subtle accent */
-    --jaff-accent-light: #64748b; /* slate-500 */
-    --jaff-accent-dark: #334155; /* slate-700 */
-
-    /* Semantic colors with proper contrast */
-    --jaff-success: #059669; /* emerald-600 */
-    --jaff-warning: #d97706; /* amber-600 */
-    --jaff-error: #dc2626; /* red-600 */
-    --jaff-info: #0284c7; /* sky-600 */
-
-    /* Link colors */
-    --jaff-link: #0369a1; /* sky-700 - Bright blue for visibility */
-    --jaff-link-hover: #0369a1; /* sky-700 - Darker blue on hover */
-
-    /* Material Design overrides - Light mode */
-    --md-primary-fg-color: var(--jaff-primary);
-    --md-primary-fg-color--light: var(--jaff-primary-light);
-    --md-primary-fg-color--dark: var(--jaff-primary-dark);
-
-    --md-accent-fg-color: var(--jaff-link-hover);
-    --md-accent-fg-color--transparent: rgba(124, 58, 237, 0.1);
-
-    /* Scrollbar color overrides for Material theme */
-    --md-scrollbar-fg-color: var(--jaff-scrollbar);
-    --md-scrollbar-fg-color--hover: var(--jaff-scrollbar-hover);
-
-    /* Text colors - High contrast for readability */
-    --md-default-fg-color: var(--jaff-primary-darker); /* 16.1:1 contrast */
-    --md-default-fg-color--light: var(--jaff-primary-light); /* 8.6:1 contrast */
-    --md-default-fg-color--lighter: var(--jaff-neutral-400);
-    --md-default-fg-color--lightest: var(--jaff-neutral-300);
-
-    /* Background colors */
-    --md-default-bg-color: #ffffff;
-    --md-code-bg-color: var(--jaff-neutral-100);
-
-    /* Component-specific colors */
-    --md-typeset-a-color: var(--jaff-link); /* Links */
-    --md-typeset-color: var(--jaff-primary-darker);
-
-    /* Header colors - White text on primary background */
-    --md-header-bg-color: #ffffff; /* 11.6:1 contrast on #334155 */
-    --md-header-fg-color: var(--jaff-primary);
-
-    /* Footer colors */
-    --md-footer-fg-color: var(--jaff-neutral-50); /* 14.8:1 contrast */
-    --md-footer-bg-color: var(--jaff-primary-dark);
-    --md-footer-bg-color--dark: var(--jaff-primary-darker);
+    --jaff-grid-primary: rgba(75, 85, 99, 0.04);
+    --jaff-grid-secondary: rgba(55, 65, 81, 0.05);
+    --jaff-grid: rgba(75, 85, 99, 0.1);
 }
 
-/* ============================================================================
-   DARK MODE - Color Variables
-   ============================================================================ */
 [data-md-color-scheme="slate"] {
-    /* Primary colors inverted for dark mode */
-    --md-primary-fg-color: var(--jaff-neutral-300); /* 10.8:1 contrast on dark */
-    --md-primary-fg-color--light: var(--jaff-neutral-200); /* 12.6:1 contrast */
-    --md-primary-fg-color--dark: var(--jaff-neutral-400);
-
-    /* Accent colors adjusted for dark backgrounds */
-    --md-accent-fg-color: var(--jaff-link-hover);
-    --md-accent-fg-color--transparent: rgba(100, 116, 139, 0.12);
-
-    /* Scrollbar color overrides for Material theme in dark mode */
-    --md-scrollbar-fg-color: var(--jaff-scrollbar);
-    --md-scrollbar-fg-color--hover: var(--jaff-scrollbar-hover);
-
-    /* Text colors for dark mode */
-    --md-default-fg-color: var(--jaff-neutral-400); /* 12.6:1 contrast */
-    --md-default-fg-color--light: var(--jaff-neutral-300); /* 10.8:1 contrast */
-    --md-default-fg-color--lighter: var(--jaff-neutral-400);
-    --md-default-fg-color--lightest: var(--jaff-neutral-500);
-
-    /* Background colors */
-    --md-default-bg-color: var(--jaff-primary-darker);
-    --md-code-bg-color: var(--jaff-primary-dark);
-
-    /* Links */
-    --md-typeset-a-color: var(--jaff-link);
-
-    /* Separator colors for dark mode with reduced opacity */
-    --jaff-separator-dark-200: rgba(226, 232, 240, 0.2); /* Neutral 200 at 20% */
-    --jaff-separator-dark-600: rgba(71, 85, 105, 0.2); /* Neutral 600 at 20% */
-    --jaff-separator-dark-700: rgba(51, 65, 85, 0.2); /* Neutral 700 at 20% */
-
-    /* Scrollbar colors for dark mode */
-    --jaff-scrollbar: var(--jaff-neutral-600); /* Light slate for scrollbar thumb in dark mode */
-    --jaff-scrollbar-hover: var(--jaff-neutral-500); /* Lighter on hover in dark mode */
-
-    /* Link colors for dark mode */
-    --jaff-link: #7dd3fc; /* sky-300 - Bright blue for dark mode */
-    --jaff-link-hover: #7dd3fc; /* sky-300 - Lighter blue on hover */
-
-    /* Header for dark mode */
-    --md-header-bg-color: var(--jaff-primary-dark);
-    --md-header-fg-color: var(--jaff-neutral-100);
-
-    /* Footer for dark mode */
-    --md-footer-bg-color: var(--jaff-primary-darker);
+    --jaff-grid-primary: rgba(255, 255, 255, 0.05);
+    --jaff-grid-secondary: rgba(255, 255, 255, 0.05);
+    --jaff-grid: rgba(255, 255, 255, 0.1);
 }
 
-/* Container for the masked background effect */
 body {
     position: relative;
     width: 100%;
-    min-height: 100vh; /* full page height */
+    min-height: 100svh;
 }
 
-/* Left Masked Circuit Board - Light Pattern */
 body::before {
     content: "";
     position: absolute;
-    inset: 0; /* top:0; right:0; bottom:0; left:0; */
+    inset: 0;
     z-index: 0;
     pointer-events: none;
 
@@ -158,26 +28,26 @@ body::before {
             0deg,
             transparent,
             transparent 19px,
-            rgba(75, 85, 99, 0.04) 19px,
-            rgba(75, 85, 99, 0.04) 20px,
+            var(--jaff-grid-primary) 19px,
+            var(--jaff-grid-primary) 20px,
             transparent 20px,
             transparent 39px,
-            rgba(75, 85, 99, 0.04) 39px,
-            rgba(75, 85, 99, 0.04) 40px
+            var(--jaff-grid-primary) 39px,
+            var(--jaff-grid-primary) 40px
         ),
         repeating-linear-gradient(
             90deg,
             transparent,
             transparent 19px,
-            rgba(75, 85, 99, 0.04) 19px,
-            rgba(75, 85, 99, 0.04) 20px,
+            var(--jaff-grid-primary) 19px,
+            var(--jaff-grid-primary) 20px,
             transparent 20px,
             transparent 39px,
-            rgba(75, 85, 99, 0.04) 39px,
-            rgba(75, 85, 99, 0.04) 40px
+            var(--jaff-grid-primary) 39px,
+            var(--jaff-grid-primary) 40px
         ),
-        radial-gradient(circle at 20px 20px, rgba(55, 65, 81, 0.06) 2px, transparent 2px),
-        radial-gradient(circle at 40px 40px, rgba(55, 65, 81, 0.06) 2px, transparent 2px);
+        radial-gradient(circle at 20px 20px, var(--jaff-grid-secondary) 2px, transparent 2px),
+        radial-gradient(circle at 40px 40px, var(--jaff-grid-secondary) 2px, transparent 2px);
 
     background-size:
         40px 40px,
@@ -186,975 +56,91 @@ body::before {
         40px 40px;
 }
 
-.jaff-logo {
-    border-radius: 15px;
-    border: 2px solid #005281;
+.md-main__inner {
+    border-left: 1px solid var(--jaff-grid);
+    border-right: 1px solid var(--jaff-grid);
+    position: relative;
+    max-width: 1436px;
+    background-color: var(--md-default-bg-color);
 }
 
-.md-grid {
-    max-width: 1750px;
+.md-main__inner::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    background-color: var(--jaff-grid);
+    height: 1px;
+    width: 200vw;
+    left: -50vw;
+    z-index: 100;
 }
 
 .md-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-
-.md-content__inner {
-    max-width: 960px;
+    position: relative;
     width: 100%;
-}
-
-.md-typeset {
-    font-size: 0.75rem;
-}
-/* ============================================================================
-   HEADER & NAVIGATION
-   ============================================================================ */
-.md-header {
-    background-color: var(--md-header-bg-color) !important;
-    color: var(--md-header-fg-color) !important;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
-}
-
-.md-header__button {
-    color: var(--md-header-fg-color) !important;
-    opacity: 0.9;
-    transition: opacity 0.2s ease;
-}
-
-.md-header__button:hover {
-    opacity: 1;
-}
-
-.md-header__title {
-    font-weight: 400 !important;
-    color: var(--md-header-fg-color) !important;
-}
-
-.md-header__topic {
-    font-weight: 400 !important;
-    color: var(--md-header-fg-color) !important;
-}
-
-/* Repository icon and link */
-.md-source {
-    color: var(--md-header-fg-color) !important;
-}
-
-.md-source__icon {
-    color: var(--md-header-fg-color) !important;
-}
-
-.md-source:hover {
-    opacity: 0.8;
-}
-
-/* ============================================================================
-   SEARCH
-   ============================================================================ */
-.md-search__form {
-    background-color: rgba(0, 0, 0, 0.1) !important;
-    color: var(--md-header-fg-color) !important;
-    border-radius: 9999px;
-    transition: background-color 0.2s ease;
-}
-
-.md-search__form:hover {
-    background-color: rgba(0, 0, 0, 0.15) !important;
-}
-
-.md-search__input {
-    color: var(--md-header-fg-color) !important;
-    background-color: transparent !important;
-}
-
-.md-search__input::placeholder {
-    color: rgba(var(--md-header-fg-color), 0.6) !important;
-}
-
-.md-search__icon {
-    color: var(--md-header-fg-color) !important;
-}
-
-/* Search results */
-.md-search__output {
-    color: var(--md-header-fg-color) !important;
-    border-radius: 0.5rem !important;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
-}
-
-[data-md-color-scheme="slate"] .md-search__output {
-    background-color: var(--jaff-primary-dark) !important;
-}
-
-.md-search-result__link {
-    color: var(--md-default-fg-color) !important;
-    border-bottom: 1px solid var(--jaff-separator-neutral-200);
-    transition: background-color 0.2s ease;
-}
-
-[data-md-color-scheme="slate"] .md-search-result__link {
-    border-bottom-color: var(--jaff-separator-dark-700);
-}
-
-.md-search-result__link:hover {
-    background-color: var(--jaff-neutral-50) !important;
-}
-
-[data-md-color-scheme="slate"] .md-search-result__link:hover {
-    background-color: rgba(255, 255, 255, 0.05) !important;
-}
-
-.md-search-result__meta {
-    color: var(--md-default-fg-color--light) !important;
-}
-
-.md-search-result mark {
-    background-color: rgba(71, 85, 105, 0.15) !important;
-    color: var(--jaff-accent-dark) !important;
-    font-weight: 600;
-}
-
-[data-md-color-scheme="slate"] .md-search-result mark {
-    background-color: rgba(100, 116, 139, 0.2) !important;
-    color: var(--jaff-accent-light) !important;
-}
-
-/* ============================================================================
-   NAVIGATION TABS
-   ============================================================================ */
-.md-tabs {
-    background-color: var(--md-header-bg-color);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.md-tabs__link {
-    color: rgba(255, 255, 255, 0.7);
-    font-weight: 500;
-    transition: color 0.2s ease;
-}
-
-.md-tabs__link--active,
-.md-tabs__link:hover {
-    color: #ffffff;
-}
-
-.md-tabs__link--active {
-    border-bottom: 2px solid #ffffff;
-}
-
-/* ============================================================================
-   SIDEBAR NAVIGATION
-   ============================================================================ */
-.md-nav__link {
-    color: var(--md-default-fg-color--light);
-    transition: all 0.2s ease;
-    border-radius: 0.25rem;
-    margin: 0.125rem 0;
-}
-
-.md-nav__link:hover {
-    color: var(--jaff-primary) !important;
-    background-color: var(--jaff-neutral-50);
-    padding: 0.25rem 0.75rem;
-}
-
-[data-md-color-scheme="slate"] .md-nav__link:hover {
-    color: var(--jaff-neutral-200) !important;
-    background-color: rgba(255, 255, 255, 0.08);
-}
-
-.md-nav__link--active {
-    color: var(--jaff-primary) !important;
-    font-weight: 600;
-    background-color: var(--jaff-neutral-100);
-    padding: 0.25rem 0.75rem;
-}
-
-[data-md-color-scheme="slate"] .md-nav__link--active {
-    color: var(--jaff-neutral-100) !important;
-    background-color: rgba(255, 255, 255, 0.12);
-}
-
-.md-nav__link--passed {
-    color: var(--jaff-primary) !important;
-}
-
-[data-md-color-scheme="slate"] .md-nav__link--passed {
-    color: var(--jaff-neutral-200) !important;
-}
-
-/* Table of contents (right sidebar) */
-.md-nav--secondary .md-nav__link--active {
-    color: var(--jaff-accent) !important;
-    border-left: 2px solid var(--jaff-accent);
-    padding-left: calc(1rem - 2px);
-}
-
-[data-md-color-scheme="slate"] .md-nav--secondary .md-nav__link--active {
-    color: var(--jaff-neutral-100) !important;
-    border-left-color: var(--jaff-neutral-300);
-}
-
-[data-md-color-scheme="slate"] .md-nav--secondary .md-nav__link:hover {
-    color: var(--jaff-neutral-200) !important;
-}
-
-/* Scrollbar - Global */
-::-webkit-scrollbar {
-    width: 0.5rem;
-    height: 0.5rem;
-}
-
-::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-    background-color: var(--jaff-scrollbar);
-    border-radius: 0.25rem;
-    transition: background-color 0.2s ease;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background-color: var(--jaff-scrollbar-hover);
-}
-/* ============================================================================
-   REPLACE LINES 349-366 WITH THIS BLOCK
-   ============================================================================ */
-
-/* Scrollbar - Sidebar specific (override Material theme) */
-.md-sidebar__scrollwrap {
-    /* Firefox and modern browsers standard */
-    scrollbar-width: thin;
-    scrollbar-color: var(--jaff-scrollbar) transparent !important;
-}
-
-/* Chrome, Edge, Safari */
-.md-sidebar__scrollwrap::-webkit-scrollbar {
-    width: 8px !important;
-    height: 8px !important;
-}
-
-.md-sidebar__scrollwrap::-webkit-scrollbar-track {
-    background-color: transparent !important;
-}
-
-.md-sidebar__scrollwrap::-webkit-scrollbar-thumb {
-    /* Use !important to override Material defaults */
-    background-color: var(--jaff-scrollbar) !important;
-    border-radius: 4px !important;
-
-    /* These two lines create a 'floating' look and prevent blocky rendering */
-    border: 2px solid transparent !important;
-    background-clip: content-box !important;
-}
-
-.md-sidebar__scrollwrap::-webkit-scrollbar-thumb:hover {
-    background-color: var(--jaff-scrollbar-hover) !important;
-}
-
-/* Force override for when the mouse is anywhere inside the sidebar */
-.md-sidebar__scrollwrap:hover::-webkit-scrollbar-thumb,
-.md-sidebar__scrollwrap:focus-within::-webkit-scrollbar-thumb {
-    background-color: var(--jaff-scrollbar) !important;
-}
-
-.md-sidebar__scrollwrap:hover::-webkit-scrollbar-thumb:hover {
-    background-color: var(--jaff-scrollbar-hover) !important;
-}
-/* Override Material's hover and focus-within states */
-.md-sidebar__scrollwrap:hover::-webkit-scrollbar-thumb,
-.md-sidebar__scrollwrap:focus-within::-webkit-scrollbar-thumb {
-    background-color: var(--jaff-scrollbar) !important;
-}
-
-.md-sidebar__scrollwrap:hover::-webkit-scrollbar-thumb:hover,
-.md-sidebar__scrollwrap:focus-within::-webkit-scrollbar-thumb:hover {
-    background-color: var(--jaff-scrollbar-hover) !important;
-}
-
-/* ============================================================================
-   TYPOGRAPHY
-   ============================================================================ */
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-    font-weight: 600;
-    margin-top: 1.75em;
-    margin-bottom: 0.75em;
-    letter-spacing: -0.01em;
-}
-
-h1 {
-    color: var(--jaff-primary);
-    padding-bottom: 0.5em;
-    font-size: 2em;
-}
-
-h2 {
-    color: var(--jaff-primary);
-    border-bottom: 2px solid var(--jaff-separator-neutral-300);
-    padding-bottom: 0.375em;
-    font-size: 1.5em;
-}
-
-h3 {
-    color: var(--jaff-primary-light);
-    font-size: 1.25em;
-}
-
-h4 {
-    color: var(--jaff-primary-light);
-    font-size: 1.1em;
-}
-
-/* Dark mode heading colors */
-[data-md-color-scheme="slate"] h1 {
-    color: var(--jaff-neutral-200);
-}
-
-[data-md-color-scheme="slate"] h2 {
-    color: var(--jaff-neutral-200);
-    border-bottom-color: var(--jaff-separator-dark-600);
-}
-
-[data-md-color-scheme="slate"] h3,
-[data-md-color-scheme="slate"] h4 {
-    color: var(--jaff-neutral-300);
-}
-
-/* ============================================================================
-   LINKS
-   ============================================================================ */
-.md-content a {
-    color: var(--jaff-link) !important;
-    text-decoration: none;
-    transition: color 0.2s ease;
-}
-
-.md-content a:hover {
-    color: var(--jaff-link-hover) !important;
-    text-decoration: underline;
-}
-
-[data-md-color-scheme="slate"] .md-content a {
-    color: var(--jaff-link) !important;
-}
-
-[data-md-color-scheme="slate"] .md-content a:hover {
-    color: var(--jaff-link-hover) !important;
-}
-
-/* ============================================================================
-   CODE BLOCKS
-   ============================================================================ */
-code {
-    font-family: "Roboto Mono", "Courier New", monospace;
-    font-size: 0.85em;
-}
-
-/* Inline code */
-p code,
-li code,
-td code,
-.admonition code {
-    background-color: var(--md-code-bg-color);
-    color: var(--jaff-primary-dark);
-    padding: 0.2em 0.5em;
-    border-radius: 0.375rem;
-    font-weight: 500;
-    border: 1px solid var(--jaff-neutral-200);
-}
-
-[data-md-color-scheme="slate"] p code,
-[data-md-color-scheme="slate"] li code,
-[data-md-color-scheme="slate"] td code,
-[data-md-color-scheme="slate"] .admonition code {
-    color: var(--jaff-neutral-200);
-    border-color: var(--jaff-neutral-700);
-}
-
-/* Code blocks */
-.highlight {
-    border-radius: 0.5rem;
-    margin: 1.5em 0;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
-    border: 1px solid var(--jaff-neutral-200);
-    background-color: var(--md-code-bg-color);
-    overflow: hidden;
-}
-
-[data-md-color-scheme="slate"] .highlight {
-    border-color: var(--jaff-neutral-700);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    background-color: var(--md-code-bg-color);
-}
-
-.highlight > code {
-    display: block;
-    padding: 1.25em;
-    line-height: 1.6;
-    background-color: transparent;
-}
-
-.highlight pre {
-    margin: 0;
-    background-color: transparent;
-}
-
-/* Copy button */
-.md-clipboard {
-    color: var(--jaff-neutral-500);
-}
-
-.md-clipboard:hover {
-    color: var(--jaff-primary);
-}
-
+    min-height: 100svh;
+    border-right: 1px solid var(--jaff-grid);
+    border-left: 1px solid var(--jaff-grid);
+}
+
+/* Left Masked Circuit Board - Light Pattern */
+.md-content::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+
+    background-image:
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 19px,
+            var(--jaff-grid-primary) 19px,
+            var(--jaff-grid-primary) 20px,
+            transparent 20px,
+            transparent 39px,
+            var(--jaff-grid-primary) 39px,
+            var(--jaff-grid-primary) 40px
+        ),
+        repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 19px,
+            var(--jaff-grid-primary) 19px,
+            var(--jaff-grid-primary) 20px,
+            transparent 20px,
+            transparent 39px,
+            var(--jaff-grid-primary) 39px,
+            var(--jaff-grid-primary) 40px
+        ),
+        radial-gradient(circle at 20px 20px, var(--jaff-grid-secondary) 2px, transparent 2px),
+        radial-gradient(circle at 40px 40px, var(--jaff-grid-secondary) 2px, transparent 2px);
+
+    background-size:
+        40px 40px,
+        40px 40px,
+        40px 40px,
+        40px 40px;
+}
+
+.md-tabs,
+.md-footer,
+.md-nav__link--active,
+.md-nav__link:hover,
+.grid.cards > ul > li,
 .admonition,
-.md-typeset table {
-    backdrop-filter: blur(20px);
-}
-
-/* ============================================================================
-   TABLES
-   ============================================================================ */
-
-.md-typeset table:not([class]) {
-    border-radius: 0.5rem;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
-    border: 1px solid var(--jaff-neutral-200);
-    border-collapse: separate;
-    border-spacing: 0;
-}
-
+.tip,
 table {
-    border-radius: 0.5rem;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
-    border: 1px solid var(--jaff-neutral-200);
-    border-collapse: separate;
-    border-spacing: 0;
-}
-
-[data-md-color-scheme="slate"] table {
-    border-color: var(--jaff-neutral-800);
-}
-
-[data-md-color-scheme="slate"] .md-typeset table:not([class]) {
-    border-color: var(--jaff-neutral-800);
-}
-
-thead {
-    background-color: var(--jaff-primary);
-    color: #ffffff;
-}
-
-thead th {
-    padding: 1rem !important;
-    font-weight: 600;
-    text-align: left;
-    border-bottom: 2px solid var(--jaff-separator-primary-dark);
-}
-
-thead th:first-child {
-    border-top-left-radius: 0.5rem;
-}
-
-thead th:last-child {
-    border-top-right-radius: 0.5rem;
-}
-
-tbody tr {
-    border-bottom: 1px solid var(--jaff-separator-neutral-200);
-    transition: background-color 0.2s ease;
-}
-
-[data-md-color-scheme="slate"] tbody tr {
-    border-bottom-color: var(--jaff-separator-dark-700);
-}
-
-tbody tr:hover {
-    background-color: var(--jaff-neutral-50);
-}
-
-[data-md-color-scheme="slate"] tbody tr:hover {
-    background-color: rgba(255, 255, 255, 0.03);
-}
-
-tbody tr:nth-child(even) {
-    background-color: var(--jaff-neutral-50);
-}
-
-[data-md-color-scheme="slate"] tbody tr:nth-child(even) {
-    background-color: rgba(255, 255, 255, 0.02);
-}
-
-tbody td {
-    padding: 0.875rem 1rem !important;
-}
-
-tbody tr:last-child td:first-child {
-    border-bottom-left-radius: 0.5rem;
-}
-
-tbody tr:last-child td:last-child {
-    border-bottom-right-radius: 0.5rem;
-}
-
-/* ============================================================================
-   ADMONITIONS
-   ============================================================================ */
-.admonition {
-    border-radius: 0.5rem;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
-    border-left: 4px solid var(--jaff-primary);
-    margin: 1.5em 0;
-}
-
-.admonition-title {
-    font-weight: 600;
-    padding: 1rem 1.25rem;
-    background-color: rgba(51, 65, 85, 0.05);
-}
-
-[data-md-color-scheme="slate"] .admonition-title {
-    background-color: rgba(255, 255, 255, 0.05);
-}
-
-/* Semantic admonition colors */
-.admonition.note {
-    border-left-color: var(--jaff-info);
-}
-
-.admonition.tip,
-.admonition.success {
-    border-left-color: var(--jaff-success);
-}
-
-.admonition.warning {
-    border-left-color: var(--jaff-warning);
-}
-
-.admonition.danger,
-.admonition.error {
-    border-left-color: var(--jaff-error);
-}
-
-/* ============================================================================
-   BUTTONS
-   ============================================================================ */
-.md-button {
-    border-radius: 0.5rem;
-    padding: 0.75em 1.5em;
-    font-weight: 600;
-    transition: all 0.2s ease;
-    border: 2px solid var(--jaff-primary);
-    color: var(--jaff-primary);
-}
-
-.md-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(51, 65, 85, 0.2);
-    background-color: var(--jaff-neutral-50);
-}
-
-.md-button--primary {
-    background-color: var(--jaff-primary) !important;
-    border-color: var(--jaff-primary) !important;
-    color: #ffffff !important;
-}
-
-.md-button--primary:hover {
-    background-color: var(--jaff-primary-dark) !important;
-    border-color: var(--jaff-primary-dark) !important;
-    box-shadow: 0 4px 16px rgba(51, 65, 85, 0.3);
-}
-
-/* ============================================================================
-   FOOTER
-   ============================================================================ */
-.md-footer {
-    background-color: transparent;
-    color: var(--md-fg-color);
-}
-
-.md-footer-meta {
-    background-color: var(--jaff-neutral-800);
-}
-
-.md-footer__link {
-    color: var(--md-fg-color);
-    opacity: 0.9;
-    transition: opacity 0.2s ease;
-}
-
-.md-footer__link:hover {
-    opacity: 1;
-}
-
-.md-footer__title {
-    font-weight: 600;
-}
-
-/* ============================================================================
-   SELECTION
-   ============================================================================ */
-::selection {
-    background-color: var(--jaff-primary);
-    color: #ffffff;
-}
-
-[data-md-color-scheme="slate"] ::selection {
-    background-color: var(--jaff-neutral-300);
-    color: var(--jaff-primary-darker);
-}
-
-/* ============================================================================
-   MISC UI ELEMENTS
-   ============================================================================ */
-
-/* Keyboard shortcuts */
-kbd {
-    display: inline-block;
-    padding: 0.25em 0.6em;
-    font-size: 0.85em;
-    font-family: "Roboto Mono", monospace;
-    border: 1px solid var(--jaff-neutral-300);
-    border-radius: 0.375rem;
-    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08);
-    background-color: var(--jaff-neutral-100);
-}
-
-[data-md-color-scheme="slate"] kbd {
-    border-color: var(--jaff-neutral-600);
-    background-color: var(--jaff-primary-dark);
-}
-
-/* Badges */
-.badge {
-    display: inline-block;
-    padding: 0.3em 0.75em;
-    font-size: 0.75em;
-    font-weight: 600;
-    line-height: 1;
-    text-align: center;
-    white-space: nowrap;
-    vertical-align: baseline;
-    border-radius: 0.375rem;
-    background-color: var(--jaff-accent);
-    color: #ffffff;
-    margin: 0 0.25em;
-}
-
-/* Horizontal rules */
-hr {
-    border: none;
-    border-top: 2px solid var(--jaff-separator-neutral-200);
-    margin: 2em 0;
-}
-
-[data-md-color-scheme="slate"] hr {
-    border-top-color: var(--jaff-separator-dark-700);
-}
-
-/* Lists */
-ul,
-ol {
-    margin: 1em 0;
-    padding-left: 1.75em;
-}
-
-li {
-    margin: 0.5em 0;
-}
-
-li::marker {
-    color: var(--jaff-primary);
-}
-
-[data-md-color-scheme="slate"] li::marker {
-    color: var(--jaff-neutral-400);
-}
-
-/* Blockquotes */
-blockquote {
-    border-left: 4px solid var(--jaff-primary);
-    padding-left: 1.25em;
-    margin: 1.5em 0;
-    color: var(--md-default-fg-color--light);
-    font-style: italic;
-}
-
-/* ============================================================================
-   TABS
-   ============================================================================ */
-.tabbed-set {
-    margin: 1.5em 0;
-    border-radius: 0.5rem !important;
-    overflow: hidden;
-    border: 1px solid var(--jaff-neutral-200);
     backdrop-filter: blur(20px);
 }
 
-[data-md-color-scheme="slate"] .tabbed-set {
-    border-color: var(--jaff-neutral-700);
-}
-
-.tabbed-labels {
-    background-color: var(--jaff-neutral-100);
-    border-bottom: 2px solid var(--jaff-separator-neutral-200);
-}
-
-[data-md-color-scheme="slate"] .tabbed-labels {
-    background-color: rgba(255, 255, 255, 0.03);
-    border-bottom-color: var(--jaff-separator-dark-700);
-}
-
-.tabbed-labels > label {
-    font-weight: 500;
-    padding: 1em 1.5em;
-    color: var(--md-default-fg-color--light);
-    transition: all 0.2s ease;
-}
-
-.tabbed-labels > label:hover {
-    color: var(--jaff-primary);
-    background-color: rgba(51, 65, 85, 0.05);
-}
-
-[data-md-color-scheme="slate"] .tabbed-labels > label:hover {
-    background-color: rgba(255, 255, 255, 0.05);
-}
-
-.tabbed-labels > label[aria-selected="true"] {
-    color: var(--jaff-primary);
-    border-bottom: 3px solid var(--jaff-primary);
-    font-weight: 600;
-}
-
-[data-md-color-scheme="slate"] .tabbed-labels > label[aria-selected="true"] {
-    color: var(--jaff-neutral-200);
-    border-bottom-color: var(--jaff-primary);
-}
-
-/* ============================================================================
-   CARDS & GRIDS
-   ============================================================================ */
-.grid.cards {
-    margin: 2em 0;
-    backdrop-filter: blur(20px);
-}
-
-.grid.cards > * {
-    transition:
-        transform 0.2s ease,
-        box-shadow 0.2s ease;
-    border-radius: 0.5rem;
-    border: 1px solid var(--jaff-neutral-200);
-}
-
+table,
 .grid.cards > ul > li {
     border-radius: 0.5rem !important;
-    background-color: var(--md-code-bg-color);
-    border: 0.05rem solid var(--md-accent-fg-color--transparent) !important;
 }
 
-[data-md-color-scheme="slate"] .grid.cards > * {
-    border-color: var(--jaff-neutral-700);
-}
-
-.grid.cards > *:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(51, 65, 85, 0.15);
-    border-color: var(--jaff-primary);
-}
-
-[data-md-color-scheme="slate"] .grid.cards > *:hover {
-    box-shadow:
-        0 8px 24px rgba(255, 255, 255, 0.15),
-        0 4px 12px rgba(255, 255, 255, 0.1);
-    border-color: var(--jaff-neutral-500);
-}
-
-/* Additional card styling for Material grid cards */
-.md-typeset .grid > * {
-    transition:
-        transform 0.2s ease,
-        box-shadow 0.2s ease;
-}
-
-.md-typeset .grid > *:hover {
-    transform: translateY(-4px);
-}
-
-[data-md-color-scheme="slate"] .md-typeset .grid > *:hover {
-    box-shadow:
-        0 8px 24px rgba(255, 255, 255, 0.15),
-        0 4px 12px rgba(255, 255, 255, 0.1) !important;
-}
-
-/* ============================================================================
-   RESPONSIVE DESIGN
-   ============================================================================ */
-@media screen and (max-width: 76.1875em) {
-    .md-typeset table:not([class]) {
-        display: block;
-        overflow-x: auto;
-    }
-}
-
-/* ============================================================================
-   PRINT STYLES
-   ============================================================================ */
-@media print {
-    .md-header,
-    .md-tabs,
-    .md-sidebar,
-    .md-footer {
-        display: none;
-    }
-
-    .md-content {
-        margin: 0;
-    }
-
-    a {
-        text-decoration: underline;
-    }
-}
-
-/* ============================================================================
-   SYNTAX HIGHLIGHTING
-   ============================================================================ */
-/* Light mode syntax highlighting */
-.highlight .hll {
-    background-color: #fef3c7;
-}
-.highlight .c {
-    color: #64748b;
-    font-style: italic;
-}
-.highlight .k {
-    color: #334155;
-    font-weight: bold;
-}
-.highlight .o {
-    color: #334155;
-}
-.highlight .cm {
-    color: #64748b;
-    font-style: italic;
-}
-.highlight .cp {
-    color: #d97706;
-}
-.highlight .c1 {
-    color: #64748b;
-    font-style: italic;
-}
-.highlight .cs {
-    color: #64748b;
-    font-style: italic;
-}
-.highlight .s {
-    color: #059669;
-}
-.highlight .na {
-    color: #0284c7;
-}
-.highlight .nb {
-    color: #7c3aed;
-}
-.highlight .nc {
-    color: #334155;
-    font-weight: bold;
-}
-.highlight .nd {
-    color: #475569;
-}
-.highlight .nf {
-    color: #0284c7;
-}
-.highlight .nn {
-    color: #334155;
-    font-weight: bold;
-}
-.highlight .nt {
-    color: #475569;
-}
-.highlight .nv {
-    color: #dc2626;
-}
-.highlight .mi {
-    color: #d97706;
-}
-.highlight .mf {
-    color: #d97706;
-}
-
-/* Dark mode syntax highlighting */
-[data-md-color-scheme="slate"] .highlight .c {
-    color: #94a3b8;
-}
-[data-md-color-scheme="slate"] .highlight .k {
-    color: #cbd5e1;
-}
-[data-md-color-scheme="slate"] .highlight .o {
-    color: #cbd5e1;
-}
-[data-md-color-scheme="slate"] .highlight .cm {
-    color: #94a3b8;
-    font-style: italic;
-}
-[data-md-color-scheme="slate"] .highlight .cp {
-    color: #fbbf24;
-}
-[data-md-color-scheme="slate"] .highlight .c1 {
-    color: #94a3b8;
-    font-style: italic;
-}
-[data-md-color-scheme="slate"] .highlight .cs {
-    color: #94a3b8;
-    font-style: italic;
-}
-[data-md-color-scheme="slate"] .highlight .s {
-    color: #6ee7b7;
-}
-[data-md-color-scheme="slate"] .highlight .na {
-    color: #7dd3fc;
-}
-[data-md-color-scheme="slate"] .highlight .nb {
-    color: #cbd5e1;
-}
-[data-md-color-scheme="slate"] .highlight .nc {
-    color: #cbd5e1;
-}
-[data-md-color-scheme="slate"] .highlight .nd {
-    color: #94a3b8;
-}
-[data-md-color-scheme="slate"] .highlight .nf {
-    color: #7dd3fc;
-}
-[data-md-color-scheme="slate"] .highlight .nn {
-    color: #cbd5e1;
-}
-[data-md-color-scheme="slate"] .highlight .nt {
-    color: #94a3b8;
-}
-[data-md-color-scheme="slate"] .highlight .nv {
-    color: #fca5a5;
-}
-[data-md-color-scheme="slate"] .highlight .mi {
-    color: #fbbf24;
-}
-[data-md-color-scheme="slate"] .highlight .mf {
-    color: #fbbf24;
+grid.cards > ul > li {
+    box-shadow: 2px 2px 2px black;
+    background-color: rgba(0, 0, 0, 0.1) !important;
 }

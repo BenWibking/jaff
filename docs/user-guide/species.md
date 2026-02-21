@@ -1,3 +1,10 @@
+---
+tags:
+    - User-guide
+    - Species
+icon: lucide/hexagon
+---
+
 # Working with Species
 
 ## Overview

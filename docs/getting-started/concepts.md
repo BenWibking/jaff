@@ -1,3 +1,9 @@
+---
+tags:
+    - Introduction
+icon: lucide/layers
+---
+
 # Basic Concepts
 
 ## What is JAFF?
@@ -120,10 +126,10 @@ $$k(T) = \alpha \left(\frac{T}{300}\right)^\beta e^{-\gamma/T}$$
 
 Where:
 
-- α: Pre-exponential factor
-- β: Temperature exponent
-- γ: Activation energy parameter
-- T: Temperature in Kelvin
+- $\alpha$: Pre-exponential factor
+- $\beta$: Temperature exponent
+- $\gamma$: Activation energy parameter
+- $T$: Temperature in Kelvin
 
 ### 5. Code Generation
 
@@ -137,7 +143,7 @@ JAFF uses **templates** to generate code in multiple languages.
 
 **Example Template:**
 
-```cpp
+```cpp hl_lines="2 4"
 // Template: rates.cpp
 // $JAFF SUB nreact
 const int NREACT = $nreact$;
@@ -461,10 +467,10 @@ full_code = f"""
 
 Now that you understand the basic concepts:
 
-2. **[Loading Networks](../user-guide/loading-networks.md)**: Learn about network file formats
-3. **[Code Generation](../user-guide/code-generation.md)**: Master code generation
-4. **[Template Syntax](../user-guide/template-syntax.md)**: Create custom templates
-5. **[API Reference](../api/index.md)**: Explore the complete API
+2. [Loading Networks](../user-guide/loading-networks.md): Learn about network file formats
+3. [Code Generation](../user-guide/code-generation.md): Master code generation
+4. [Template Syntax](../user-guide/template-syntax.md): Create custom templates
+5. [API Reference](../api/index.md): Explore the complete API
 
 ## Common Terms
 

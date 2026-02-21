@@ -1,3 +1,10 @@
+---
+tags:
+    - User-guide
+    - Code-generation
+icon: lucide/file-code-corner
+---
+
 # Advanced Code Generation
 
 ## Overview

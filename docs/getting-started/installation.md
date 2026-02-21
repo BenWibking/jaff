@@ -1,3 +1,10 @@
+---
+tags:
+    - Introduction
+    - Installation
+icon: lucide/monitor-down
+---
+
 # Installation
 
 ## Requirements

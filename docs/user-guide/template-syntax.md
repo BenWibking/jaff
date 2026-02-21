@@ -1,3 +1,11 @@
+---
+tags:
+    - User-guide
+    - Code-generation
+    - Template
+icon: lucide/form
+---
+
 # Template Syntax
 
 ## Introduction

@@ -1,8 +1,14 @@
+---
+tags:
+    - Introduction
+icon: lucide/rocket
+---
+
 # Quick Start Guide
 
 ## Prerequisites
 
-Make sure you have Python 3.9 or higher installed:
+Make sure you have :fontawesome-brands-python: Python `>=3.9` installed:
 
 ```bash
 python --version

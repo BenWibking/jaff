@@ -1,3 +1,10 @@
+---
+tags:
+    - User-guide
+    - Code-generation
+icon: lucide/blocks
+---
+
 # Using the Builder
 
 ## Overview

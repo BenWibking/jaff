@@ -1,3 +1,9 @@
+---
+tags:
+    - License
+icon: lucide/copyright
+---
+
 # License
 
 JAFF is released under the **MIT License**.

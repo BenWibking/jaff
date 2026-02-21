@@ -1,3 +1,10 @@
+---
+tags:
+    - Development
+    - Installation
+icon: lucide/monitor-down
+---
+
 # Developer Installation Guide
 
 ## Prerequisites

@@ -1,4 +1,10 @@
-# JAFF Documentation
+---
+tags:
+    - Introduction
+icon: lucide/house
+---
+
+# JAFF
 
 <div align="left" markdown>
 <div style="display: flex; align-items: center;">
@@ -108,7 +114,7 @@ Generate efficient ODE solvers for modeling chemical evolution in:
 
 <div class="grid cards" markdown>
 
-- :material-rocket-launch:{ .lg .middle } **Getting Started**
+- :lucide-rocket:{ .lg .middle } **Getting Started**
 
     ***
 
@@ -122,9 +128,9 @@ Generate efficient ODE solvers for modeling chemical evolution in:
 
     Learn how to work with networks, species, and reactions
 
-    [:octicons-arrow-right-24: User Guide](user-guide/loading-networks.md)
+    [:lucide-book-open: User Guide](user-guide/loading-networks.md)
 
-- :material-code-braces:{ .lg .middle } **Code Generation**
+- :lucide-braces:{ .lg .middle } **Code Generation**
 
     ***
 
@@ -132,7 +138,7 @@ Generate efficient ODE solvers for modeling chemical evolution in:
 
     [:octicons-arrow-right-24: Code Generation Guide](user-guide/code-generation.md)
 
-- :material-api:{ .lg .middle } **API Reference**
+- :lucide-folder-kanban:{ .lg .middle } **API Reference**
 
     ***
 

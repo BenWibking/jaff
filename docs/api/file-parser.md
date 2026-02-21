@@ -1,4 +1,12 @@
-# FileParser API
+---
+tags:
+    - Api
+    - Code-generation
+    - Template
+icon: lucide/file-braces-corner
+---
+
+# FileParser
 
 ## Overview
 

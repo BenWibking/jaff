@@ -1,4 +1,11 @@
-# Codegen API Reference
+---
+tags:
+    - Api
+    - Code-generation
+icon: lucide/braces
+---
+
+# Codegen
 
 The `Codegen` class generates optimized code for chemical reaction networks in multiple programming languages.
 
@@ -163,7 +170,7 @@ class Codegen:
 
 ## Constructor
 
-### `Codegen(network, lang="c++", brac_format="", matrix_format="")`
+### `Codegen()`
 
 Create a code generator for a specific language and network.
 
@@ -239,7 +246,7 @@ The `Codegen` class provides two types of methods:
 
 ### Common Constants
 
-#### `get_commons(idx_offset=-1, idx_prefix="", definition_prefix="", assignment_op="", line_end="")`
+#### `get_commons()`
 
 Generate code for common constants (species indices, counts).
 
@@ -278,7 +285,7 @@ const int nreactions = 127;
 
 ### Rate Calculations
 
-#### `get_indexed_rates(use_cse=True, cse_var="x")`
+#### `get_indexed_rates()`
 
 Generate indexed rate expressions with optional CSE optimization.
 
@@ -311,7 +318,7 @@ for iv in result["expressions"]:
 
 ---
 
-#### `get_rates_str(idx_offset=-1, rate_variable="k", brac_format="", use_cse=True, cse_var="x", var_prefix="", assignment_op="", line_end="")`
+#### `get_rates_str()`
 
 Generate code for reaction rate coefficient calculations.
 
@@ -395,7 +402,7 @@ for iv in fluxes:
 
 ---
 
-#### `get_flux_expressions_str(rate_var="k", species_var="y", idx_prefix="", idx_offset=-1, brac_format="", flux_var="flux", assignment_op="", line_end="")`
+#### `get_flux_expressions_str()`
 
 Generate code for reaction flux calculations (rate × reactant concentrations).
 
@@ -474,7 +481,7 @@ for iv in ode_exprs:
 
 ---
 
-#### `get_indexed_odes(use_cse=True, cse_var="cse")`
+#### `get_indexed_odes()`
 
 Generate indexed ODE expressions with optional CSE optimization.
 
@@ -505,7 +512,7 @@ for iv in result["expressions"]:
 
 ---
 
-#### `get_ode_expressions_str(idx_offset=-1, flux_var="flux", species_var="y", idx_prefix="", derivative_prefix="d", derivative_var=None, brac_format="", assignment_op="", line_end="")`
+#### `get_ode_expressions_str()`
 
 Generate code for ODE right-hand side (dy/dt) from fluxes.
 
@@ -546,7 +553,7 @@ dy[idx_oh] = 0.0 + flux[0] + flux[1];
 
 ### Optimized ODE System
 
-#### `get_indexed_rhs(use_cse=True, cse_var="cse")`
+#### `get_indexed_rhs()`
 
 Generate indexed right-hand side expressions (ODE + energy equation).
 
@@ -588,7 +595,7 @@ print(f"Energy equation at index {dedt_expr.indices[0]}: {dedt_expr.value}")
 
 ---
 
-#### `get_rhs_str(idx_offset=0, use_cse=True, cse_var="cse", ode_var="f", brac_format="", def_prefix="", assignment_op="", line_end="")`
+#### `get_rhs_str()`
 
 Generate formatted code string for complete RHS (ODE + energy equation).
 
@@ -637,7 +644,7 @@ f[2] = (some energy equation expression);
 
 ---
 
-#### `get_ode_str(idx_offset=0, use_cse=True, cse_var="cse", ode_var="f", brac_format="", def_prefix="", assignment_op="", line_end="")`
+#### `get_ode_str()`
 
 Generate optimized ODE system with CSE applied to the entire system (without energy equation).
 
@@ -682,7 +689,7 @@ dydt[2] = cse2 - cse0;
 
 ### Jacobian Matrix
 
-#### `get_indexed_jacobian(use_dedt=False, use_cse=True, cse_var="cse")`
+#### `get_indexed_jacobian()`
 
 Generate indexed Jacobian matrix elements with optional CSE optimization.
 
@@ -723,7 +730,7 @@ for iv in nested_jac:
 
 ---
 
-#### `get_jacobian_str(use_dedt=False, idx_offset=0, use_cse=True, cse_var="cse", jac_var="J", matrix_format="", var_prefix="", assignment_op="", line_end="")`
+#### `get_jacobian_str()`
 
 Generate analytical Jacobian matrix ($\partial f_i/\partial y_j$).
 

@@ -1,3 +1,10 @@
+---
+tags:
+    - User-guide
+    - Network
+icon: lucide/share-2
+---
+
 # Network File Formats
 
 ## Overview
@@ -95,7 +102,7 @@ Format from the Kinetic Database for Astrochemistry.
 Reactants -> Products : α : β : γ
 ```
 
-**Rate formula:** $k(T) = \alpha \times (T/300)^\beta \times \exp(-\gamma/T)$
+**Rate formula:** $k(T) = \alpha \times (T/300)^\beta \times e^{(-\gamma/T)}$
 
 ### Example
 
@@ -151,9 +158,9 @@ C:O2:::CO:O:::5.6e-12:0.0:0.0:10:1e4
 
 - 1-3: Reactants (empty if fewer than 3)
 - 4-7: Products (empty if fewer than 4)
-- 8: α (pre-exponential factor)
-- 9: β (temperature exponent)
-- 10: γ (activation energy)
+- 8: $\alpha$ (pre-exponential factor)
+- 9: $\beta$ (temperature exponent)
+- 10: $\gamma$ (activation energy)
 - 11: Tmin (minimum temperature)
 - 12: Tmax (maximum temperature)
 

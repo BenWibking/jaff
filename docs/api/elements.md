@@ -1,4 +1,11 @@
-# Elements API Reference
+---
+tags:
+    - Api
+    - Elements
+icon: lucide/atom
+---
+
+# Elements
 
 The `elements` module provides utilities for extracting chemical elements from species and generating element-related matrices for conservation laws and stoichiometric analysis.
 
@@ -29,7 +36,7 @@ The main class for extracting and managing chemical elements from a reaction net
 
 #### Constructor
 
-##### `__init__(network: Network) -> None`
+##### `__init__()`
 
 Initialize the Elements analyzer for a given reaction network.
 
@@ -56,7 +63,7 @@ Found 3 elements: ['C', 'H', 'O']
 
 #### Methods
 
-##### `get_element_truth_matrix() -> list[list[int]]`
+##### `get_element_truth_matrix()`
 
 Generate a binary matrix indicating element presence in each species.
 
@@ -103,7 +110,7 @@ For elements `['C', 'H', 'O']` and species `['CO', 'H2', 'H2O', 'CH4']`:
 ]
 ```
 
-##### `get_element_density_matrix() -> list[list[int]]`
+##### `get_element_density_matrix()`
 
 Generate a matrix showing element counts in each species.
 
