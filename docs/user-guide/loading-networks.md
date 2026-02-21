@@ -89,7 +89,7 @@ H2 + O -> OH + H : 3.4e-11 : 0.0 : 500.0
 
 **Format:** `Reactants -> Products : α : β : γ`
 
-Where rate = $\alpha \times \left(\frac{T}{300}\right)^\beta \times \exp\left(-\frac{\gamma}{T}\right)$
+Where rate = $\alpha \left(\frac{T}{300}\right)^\beta e^{\left(-\frac{\gamma}{T}\right)}$
 
 ### UDFA Format
 

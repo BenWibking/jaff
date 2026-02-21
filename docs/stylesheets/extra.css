@@ -9,8 +9,8 @@
 :root {
     /* Primary palette - Based on #334155 (slate-700) */
     --jaff-primary: #334155; /* slate-700 - Main brand color */
-    --jaff-primary-dark: #1e293b; /* slate-800 - Darker variant */
-    --jaff-primary-darker: #0f172a; /* slate-900 - Darkest variant */
+    --jaff-primary-dark: #24282c; /* slate-800 - Darker variant */
+    --jaff-primary-darker: #15191c; /* slate-900 - Darkest variant */
     --jaff-primary-light: #475569; /* slate-600 - Lighter variant */
     --jaff-primary-lighter: #64748b; /* slate-500 - Even lighter */
 
@@ -105,7 +105,7 @@
     --md-scrollbar-fg-color--hover: var(--jaff-scrollbar-hover);
 
     /* Text colors for dark mode */
-    --md-default-fg-color: var(--jaff-neutral-200); /* 12.6:1 contrast */
+    --md-default-fg-color: var(--jaff-neutral-400); /* 12.6:1 contrast */
     --md-default-fg-color--light: var(--jaff-neutral-300); /* 10.8:1 contrast */
     --md-default-fg-color--lighter: var(--jaff-neutral-400);
     --md-default-fg-color--lightest: var(--jaff-neutral-500);
@@ -783,8 +783,7 @@ tbody tr:last-child td:last-child {
    ============================================================================ */
 .md-footer {
     background-color: transparent;
-    /*color: var(--md-fg-color);*/
-    color: black;
+    color: var(--md-fg-color);
 }
 
 .md-footer-meta {
@@ -965,6 +964,7 @@ blockquote {
 .grid.cards > ul > li {
     border-radius: 0.5rem !important;
     background-color: var(--md-code-bg-color);
+    border: 0.05rem solid var(--md-accent-fg-color--transparent) !important;
 }
 
 [data-md-color-scheme="slate"] .grid.cards > * {
