@@ -1,6 +1,9 @@
 # JAFF
 
-(Just Another Fancy Format)
+<div>
+    <img src="assets/logo_alt.svg" alt="Logo" width="100" />
+    (Just Another Fancy Format)
+</div>
 
 An astrochemical network parser that supports multiple reaction network formats including KIDA, UDFA, PRIZMO, KROME, and UCLCHEM.
 

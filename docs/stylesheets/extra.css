@@ -144,3 +144,8 @@ grid.cards > ul > li {
     box-shadow: 2px 2px 2px black;
     background-color: rgba(0, 0, 0, 0.1) !important;
 }
+
+.jaff-logo {
+    border: 1px solid #e88502;
+    border-radius: 0.5rem;
+}
