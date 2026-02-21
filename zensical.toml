@@ -12,15 +12,41 @@ repo_url = "https://github.com/tgrassi/jaff"
 repo_name = "tgrassi/jaff"
 repo = "fontawesome/brands/git-alt"
 extra_javascript = [
-    "javascripts/mathjax.js",
-    "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"
+  "javascripts/mathjax.js",
+  "https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"
 ]
 nav = [
   { "Home" = ["index.md"] },
-  { "Getting Started" = ["getting-started/installation.md", "getting-started/quickstart.md", "getting-started/concepts.md"] },
-  { "User Guide" = ["user-guide/loading-networks.md", "user-guide/network-formats.md", "user-guide/species.md", "user-guide/reactions.md", "user-guide/builder.md", "user-guide/template-syntax.md", "user-guide/jaffgen-command.md", "user-guide/code-generation.md"] },
-  { "API Reference" = ["api/index.md", "api/network.md", "api/species.md", "api/reaction.md", "api/codegen.md", "api/jaff-types.md", "api/file-parser.md", "api/elements.md"] },
-  { "Development" = ["development/installation.md", "development/code-style.md", "development/testing.md"] },
+  { "Getting Started" = [
+    "getting-started/installation.md",
+    "getting-started/quickstart.md",
+    "getting-started/concepts.md"
+  ] },
+  { "User Guide" = [
+    "user-guide/loading-networks.md",
+    "user-guide/network-formats.md",
+    "user-guide/species.md",
+    "user-guide/reactions.md",
+    "user-guide/builder.md",
+    "user-guide/template-syntax.md",
+    "user-guide/jaffgen-command.md",
+    "user-guide/code-generation.md"
+  ] },
+  { "API Reference" = [
+    "api/index.md",
+    "api/network.md",
+    "api/species.md",
+    "api/reaction.md",
+    "api/codegen.md",
+    "api/jaff-types.md",
+    "api/file-parser.md",
+    "api/elements.md"
+  ] },
+  { "Development" = [
+    "development/installation.md",
+    "development/code-style.md",
+    "development/testing.md"
+  ] },
   { "About" = ["about/license.md"] }
 ]
 
@@ -33,7 +59,7 @@ edit_uri = "edit/main/docs/"
 # THEME CONFIGURATION
 # -----------------------------------------------------------------------------
 [project.theme]
-variant = "modern"   # This enables the floating cards + dot matrix background
+variant = "modern"  # This enables the floating cards + dot matrix background
 logo = "assets/logo_alt.svg"
 icon.repo = "fontawesome/brands/github"
 favicon = "assets/favicon.ico"
@@ -42,16 +68,16 @@ font.conde = "JetBrains Mono"
 
 [project.theme.features]
 "navigation.tabs" = true
-"navigation.instant"= true
-"navigation.instant.prefetch"= true
-"navigation.instant.progress"= true
-"navigation.instant.preview"= true
-"navigation.tracking"= true
+"navigation.instant" = true
+"navigation.instant.prefetch" = true
+"navigation.instant.progress" = true
+"navigation.instant.preview" = true
+"navigation.tracking" = true
 "navigation.path" = true
-"navigation.top"= true
-"navigation.footer"= true
-"content.action.edit"= true
-"content.action.view"= true
+"navigation.top" = true
+"navigation.footer" = true
+"content.action.edit" = true
+"content.action.view" = true
 "toc.follow" = true
 "search.suggest" = true
 "search.highlight" = true
@@ -61,7 +87,6 @@ font.conde = "JetBrains Mono"
 "content.code.select" = true
 "content.tabs.link" = true
 "content.tooltips" = true
-
 
 [[project.theme.palette]]
 media = "(prefers-color-scheme)"
@@ -84,6 +109,22 @@ accent = "orange"
 toggle.icon = "lucide/moon"
 toggle.name = "Switch to light mode"
 
+[project.theme.icon.tag]
+"intro" = "material/hand-wave"
+"guide" = "material/book-open-variant"
+"template" = "material/layers-outline"
+"codegen" = "material/xml"
+"api" = "material/api"
+"network" = "material/lan"
+"reaction" = "material/flask"
+"species" = "material/dna"
+"elements" = "material/periodic-table"
+"dev" = "material/hammer-wrench"
+"license" = "material/scale-balance"
+"types" = "material/format-list-bulleted-type"
+"install" = "material/download-box-outline"
+"test" = "material/flask-outline"
+
 [project.extra.tags]
 Introduction = "intro"
 User-guide = "guide"
@@ -98,23 +139,7 @@ Development = "dev"
 License = "license"
 Types = "types"
 Installation = "install"
-Testing= "test"
-
-[project.theme.icon.tag]
-"intro"    = "material/hand-wave"
-"guide"    = "material/book-open-variant"
-"template" = "material/layers-outline"
-"codegen"  = "material/xml"
-"api"      = "material/api"
-"network"  = "material/lan"
-"reaction" = "material/flask"
-"species"  = "material/dna"
-"elements" = "material/periodic-table"
-"dev"      = "material/hammer-wrench"
-"license"  = "material/scale-balance"
-"types"    = "material/format-list-bulleted-type"
-"install"  = "material/download-box-outline"
-"test"     = "material/flask-outline"
+Testing = "test"
 
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
@@ -129,20 +154,30 @@ handlers.python.options.show_source = true
 handlers.python.options.show_signature_annotations = true
 
 [project.markdown_extensions.abbr]
+
 [project.markdown_extensions.admonition]
+
 [project.markdown_extensions.attr_list]
+
 [project.markdown_extensions.def_list]
+
 [project.markdown_extensions.footnotes]
+
 [project.markdown_extensions.md_in_html]
+
 [project.markdown_extensions.tables]
 
 [project.markdown_extensions.pymdownx.arithmatex]
 generic = true
 
 [project.markdown_extensions.pymdownx.blocks.caption]
+
 [project.markdown_extensions.pymdownx.caret]
+
 [project.markdown_extensions.pymdownx.mark]
+
 [project.markdown_extensions.pymdownx.tilde]
+
 [project.markdown_extensions.pymdownx.details]
 
 [project.markdown_extensions.pymdownx.emoji]
@@ -155,13 +190,16 @@ line_spans = "__span"
 pygments_lang_class = true
 
 [project.markdown_extensions.pymdownx.inlinehilite]
+
 [project.markdown_extensions.pymdownx.snippets]
 
 [project.markdown_extensions.pymdownx.superfences]
 custom_fences = [
   { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" }
 ]
+
 [project.markdown_extensions.pymdownx.tasklist]
 custom_checkbox = true
+
 [project.markdown_extensions.pymdownx.tabbed]
 alternate_style = true
