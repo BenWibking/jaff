@@ -5,49 +5,49 @@ window.MathJax = {
     displayMath: [["\\[", "\\]"]],
     processEscapes: true,
     processEnvironments: true,
-    tags: 'ams',
-    packages: {'[+]': ['ams', 'newcommand', 'configmacros']},
+    tags: "ams",
+    packages: { "[+]": ["ams", "newcommand", "configmacros"] },
     macros: {
       // Custom macros for chemical notation
-      ce: ['{\\mathrm{#1}}', 1],
+      ce: ["{\\mathrm{#1}}", 1],
       // Common mathematical operators
-      diff: '{\\mathrm{d}}',
+      diff: "{\\mathrm{d}}",
       // Rate constant
-      krate: '{k}',
+      krate: "{k}",
       // Temperature
-      Tgas: '{T_{\\mathrm{gas}}}',
+      Tgas: "{T_{\\mathrm{gas}}}",
       // Number density
-      ndens: '{n}',
+      ndens: "{n}",
       // Partial derivatives
-      pd: ['\\frac{\\partial #1}{\\partial #2}', 2],
+      pd: ["\\frac{\\partial #1}{\\partial #2}", 2],
       // Total derivatives
-      td: ['\\frac{\\mathrm{d} #1}{\\mathrm{d} #2}', 2],
+      td: ["\\frac{\\mathrm{d} #1}{\\mathrm{d} #2}", 2],
       // Reaction arrow
-      react: '{\\rightarrow}',
+      react: "{\\rightarrow}",
       // Boltzmann constant
-      kB: '{k_{\\mathrm{B}}}',
+      kB: "{k_{\\mathrm{B}}}",
       // Avogadro constant
-      NA: '{N_{\\mathrm{A}}}',
-    }
+      NA: "{N_{\\mathrm{A}}}",
+    },
   },
   options: {
     ignoreHtmlClass: ".*|",
-    processHtmlClass: "arithmatex"
+    processHtmlClass: "arithmatex",
   },
   loader: {
-    load: ['[tex]/ams', '[tex]/newcommand', '[tex]/configmacros']
+    load: ["[tex]/ams", "[tex]/newcommand", "[tex]/configmacros"],
   },
   svg: {
-    fontCache: 'global'
+    fontCache: "global",
   },
   startup: {
     ready: () => {
-      console.log('MathJax is loaded and ready');
+      console.log("MathJax is loaded and ready");
       MathJax.startup.defaultReady();
-    }
-  }
+    },
+  },
 };
 
 document$.subscribe(() => {
-  MathJax.typesetPromise()
+  MathJax.typesetPromise();
 });

@@ -46,8 +46,16 @@ body::before {
             var(--jaff-grid-primary) 39px,
             var(--jaff-grid-primary) 40px
         ),
-        radial-gradient(circle at 20px 20px, var(--jaff-grid-secondary) 2px, transparent 2px),
-        radial-gradient(circle at 40px 40px, var(--jaff-grid-secondary) 2px, transparent 2px);
+        radial-gradient(
+            circle at 20px 20px,
+            var(--jaff-grid-secondary) 2px,
+            transparent 2px
+        ),
+        radial-gradient(
+            circle at 40px 40px,
+            var(--jaff-grid-secondary) 2px,
+            transparent 2px
+        );
 
     background-size:
         40px 40px,
@@ -114,8 +122,16 @@ body::before {
             var(--jaff-grid-primary) 39px,
             var(--jaff-grid-primary) 40px
         ),
-        radial-gradient(circle at 20px 20px, var(--jaff-grid-secondary) 2px, transparent 2px),
-        radial-gradient(circle at 40px 40px, var(--jaff-grid-secondary) 2px, transparent 2px);
+        radial-gradient(
+            circle at 20px 20px,
+            var(--jaff-grid-secondary) 2px,
+            transparent 2px
+        ),
+        radial-gradient(
+            circle at 40px 40px,
+            var(--jaff-grid-secondary) 2px,
+            transparent 2px
+        );
 
     background-size:
         40px 40px,
@@ -138,11 +154,6 @@ table {
 table,
 .grid.cards > ul > li {
     border-radius: 0.5rem !important;
-}
-
-.grid.cards > ul > li {
-    box-shadow: 2px 2px 2px black;
-    background-color: rgba(0, 0, 0, 0.1) !important;
 }
 
 .jaff-logo {
