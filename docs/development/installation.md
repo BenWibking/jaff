@@ -5,7 +5,7 @@ tags:
 icon: lucide/monitor-down
 ---
 
-# Developer Installation Guide
+# Installation
 
 ## Prerequisites
 

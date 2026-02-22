@@ -4,7 +4,7 @@ tags:
 icon: lucide/chart-no-axes-gantt
 ---
 
-# Code Style Guide
+# Code Style
 
 ## Python Version
 

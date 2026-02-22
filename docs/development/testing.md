@@ -5,7 +5,7 @@ tags:
 icon: lucide/bug
 ---
 
-# Testing Guide
+# Testing
 
 ## Overview
 

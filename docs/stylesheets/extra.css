@@ -140,7 +140,7 @@ table,
     border-radius: 0.5rem !important;
 }
 
-grid.cards > ul > li {
+.grid.cards > ul > li {
     box-shadow: 2px 2px 2px black;
     background-color: rgba(0, 0, 0, 0.1) !important;
 }

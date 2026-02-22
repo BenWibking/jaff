@@ -63,15 +63,6 @@ flowchart TD
     CalcVal --> Regex[Apply Regex Replacements]
     GenBlock --> Regex
     Regex --> Append
-
-    %% Styling
-    classDef plain fill:#fff,stroke:#333,stroke-width:1px;
-    classDef decision fill:#f9f9f9,stroke:#333,stroke-width:1px,stroke-dasharray: 5 5;
-    classDef process fill:#e1f5fe,stroke:#0277bd,stroke-width:2px;
-
-    class Start,Done,ReadLine,Append plain;
-    class IsEOF,IsJaff,CmdType decision;
-    class CalcVal,ReadBlock,LoopNet,CSE,GenBlock,Regex process;
 ```
 
 ## Class Definition
