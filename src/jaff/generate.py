@@ -133,7 +133,8 @@ For more information, visit: https://github.com/tgrassi/jaff
     # Locate JAFF package directory and built-in template directory
     # Templates are stored in jaff/templates/generator/
     jaff_dir: Path = Path(__file__).parent
-    template_dir: Path = jaff_dir / "templates" / "generator"
+    generator_template_dir: Path = jaff_dir / "templates" / "generator"
+    preprocessor_template_dir: Path = jaff_dir / "templates" / "preprocessor"
 
     # Validate network file is provided
     if network_file is None:
@@ -168,19 +169,33 @@ For more information, visit: https://github.com/tgrassi/jaff
     if template is not None:
         # Get list of available template directory names
         # Each subdirectory in templates/generator/ is a template collection
-        templates: list[str] = [
-            file.name for file in template_dir.iterdir() if file.is_dir()
+        generator_templates: list[str] = [
+            file.name for file in generator_template_dir.iterdir() if file.is_dir()
         ]
 
         # Validate that the requested template exists
-        if template not in templates:
+        if template not in generator_templates:
             raise ValueError(
-                f"Invalid template name. Supported templates are {templates}"
+                f"Invalid template name. Supported templates are {generator_templates}"
             )
 
         # Recursively collect all files from the template directory
-        template_path: Path = template_dir / template
-        files.extend([file for file in template_path.rglob("*") if not file.is_dir()])
+        generator_template_path: Path = generator_template_dir / template
+        preprocessor_template_path: Path = preprocessor_template_dir / template
+        generator_files = [
+            file for file in generator_template_path.rglob("*") if not file.is_dir()
+        ]
+        preprocesor_files = [
+            file for file in preprocessor_template_path.rglob("*") if not file.is_dir()
+        ]
+
+        # Keep preproc files that don't have a corresponding generator file, otherwise use the generator file
+        generator_file_names = [file.name for file in generator_files]
+        for file in preprocesor_files:
+            if file.name in generator_file_names:
+                files.append(generator_files[generator_file_names.index(file.name)])
+                continue
+            files.append(file)
 
     # Collect files from input directory if specified
     if input_dir is not None:
@@ -208,11 +223,11 @@ For more information, visit: https://github.com/tgrassi/jaff
     if default_lang and default_lang not in cg.get_language_tokens():
         raise ValueError(f"Unsupported language specified: {default_lang}")
 
+    # Create a new network instance for each file
+    net: Network = Network(str(netfile))
+
     # Process each template file
     for file in files:
-        # Create a new network instance for each file
-        net: Network = Network(str(netfile))
-
         # Initialize file parser for this template
         fparser: Fileparser = Fileparser(net, file, default_lang)
 
