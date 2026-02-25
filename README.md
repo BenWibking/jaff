@@ -8,7 +8,7 @@
 
 An astrochemical network parser that supports multiple reaction network formats including KIDA, UDFA, PRIZMO, KROME, and UCLCHEM.
 
-For detailed instructons, please refer to the [Documentation](https://tgrassi.github.io/jaff)
+For detailed instructons, please refer to the [Documentation]([https://tgrassi.github.io/jaff](https://jaff-chemistry.github.io/jaff/))
 
 ## Installation
 
