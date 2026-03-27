@@ -26,6 +26,7 @@ from pathlib import Path
 
 from jaff import Codegen as cg
 from jaff import Network
+from jaff.drivers.toml import Toml
 from jaff.file_parser import Fileparser
 
 
@@ -188,14 +189,13 @@ For more information, visit: https://github.com/tgrassi/jaff
         preprocesor_files = [
             file for file in preprocessor_template_path.rglob("*") if not file.is_dir()
         ]
+        files.extend(generator_files)
 
         # Keep preproc files that don't have a corresponding generator file, otherwise use the generator file
         generator_file_names = [file.name for file in generator_files]
         for file in preprocesor_files:
-            if file.name in generator_file_names:
-                files.append(generator_files[generator_file_names.index(file.name)])
-                continue
-            files.append(file)
+            if file.name not in generator_file_names:
+                files.append(file)
 
     # Collect files from input directory if specified
     if input_dir is not None:
@@ -223,8 +223,31 @@ For more information, visit: https://github.com/tgrassi/jaff
     if default_lang and default_lang not in cg.get_language_tokens():
         raise ValueError(f"Unsupported language specified: {default_lang}")
 
-    # Create a new network instance for each file
-    net: Network = Network(str(netfile))
+    # Get index of jaff.toml config file
+    net_kwargs = {"fname": str(netfile)}
+    jaff_config_index: int | None = next(
+        (i for i, f in enumerate(files) if f.name == "jaff.toml"), None
+    )
+
+    # Set radiation related props in radiation in present
+    if jaff_config_index is not None:
+        jaff_config_file = files[jaff_config_index]
+        rad_props = Toml(jaff_config_file).get_key("radiation")
+
+        if rad_props:
+            bands: list = rad_props.get("bands", [])
+            power: int | float = rad_props.get("power_law_index", 0)
+            energy_density: bool = rad_props.get("energy_density", False)
+
+            net_kwargs = {
+                **net_kwargs,
+                "rad_bands": bands,
+                "rad_powerlaw_index": power,
+                "rad_energy_density": energy_density,
+            }
+
+    # Create a new network instance
+    net: Network = Network(**net_kwargs)
 
     # Process each template file
     for file in files:

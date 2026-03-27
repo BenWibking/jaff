@@ -1,6 +1,7 @@
 import gzip
 import json
 import os
+import re
 import sys
 
 import h5py
@@ -20,6 +21,7 @@ from sympy import (
 from sympy.core.function import UndefinedFunction
 from tqdm import tqdm
 
+from .drivers.sqlite import JaffDb
 from .fastlog import fast_log2, inverse_fast_log2
 from .function_parser import parse_funcfile
 from .parsers import (
@@ -37,7 +39,17 @@ from .species import Species
 
 class Network:
     # ****************
-    def __init__(self, fname, errors=False, label=None, funcfile=None, replace_nH=True):
+    def __init__(
+        self,
+        fname,
+        errors=False,
+        label=None,
+        funcfile=None,
+        replace_nH=True,
+        rad_bands=[],
+        rad_powerlaw_index: int | float = 0,
+        rad_energy_density: bool = False,
+    ):
         self.motd()
 
         # Get the path to the data file relative to this module
@@ -58,7 +70,9 @@ class Network:
 
         self.photochemistry = Photochemistry()
 
-        self.load_network(fname, funcfile, replace_nH)
+        self.load_network(
+            fname, funcfile, replace_nH, rad_bands, rad_powerlaw_index, rad_energy_density
+        )
 
         self.check_sink_sources(errors)
         self.check_recombinations(errors)
@@ -101,7 +115,15 @@ class Network:
         return mass_dict
 
     # ****************
-    def load_network(self, fname, funcfile, replace_nH):
+    def load_network(
+        self,
+        fname,
+        funcfile,
+        replace_nH,
+        rad_bands,
+        rad_powerlaw_index,
+        rad_energy_density,
+    ):
         default_species = []  # ["dummy", "CR", "CRP", "Photon"]
         self.species = [
             Species(s, self.mass_dict, i) for i, s in enumerate(default_species)
@@ -241,13 +263,13 @@ class Network:
 
             # use lowercase for rate
             rate = rate.lower().strip()
+            is_photoreaction = False
 
             # parse rate with sympy
             # photo-chemistry
             if "photo" in rate.lower():
+                is_photoreaction = True
                 # Extract arguments from photo(arg1, arg2) format
-                import re
-
                 match = re.match(r"(?i)photo\((.*)\)", rate)
                 if match:
                     args_str = match.group(1)
@@ -397,6 +419,15 @@ class Network:
                     # End if no replacements done
                     if not did_replace:
                         break
+
+            if is_photoreaction and rad_bands:
+                # Get photo rates
+                rate = (
+                    self.get_prate_from_db(
+                        rr, rad_bands, rad_powerlaw_index, rad_energy_density
+                    )
+                    or rate
+                )
 
             # create a Reaction object
             rea = Reaction(rr, pp, rate, tmin, tmax, deltaE, srow)
@@ -1471,6 +1502,81 @@ class Network:
                 sodes[idx] += fluxes[i]
 
         return sodes
+
+    @staticmethod
+    def get_prate_from_db(
+        reactants: list[Species],
+        rad_bands: list[int | float | str | sympy.Basic],
+        rad_powerlaw_index: int | float,
+        rad_energy_density: bool,
+    ) -> sympy.Basic | None:
+        if rad_energy_density:
+            pl_index: float = float(rad_powerlaw_index) - 1.0
+            if pl_index == -1.0:
+                if isinstance(rad_bands[0], (float, int)) and float(rad_bands[0]) == 0.0:
+                    raise RuntimeError(
+                        f"The integral for average energy will diverge since the radiation band starts from rad_bands[0]: {rad_bands[0]}\n"
+                        "Please try a non-zero value"
+                    )
+                if rad_bands[-1] == sympy.oo:
+                    raise RuntimeError(
+                        f'The integral for average energy will diverge since the radiation band ends at rad_bands[{len(rad_bands) - 1}]: "inf"\n'
+                        "Please try a non-infinite value or change the power_law_index"
+                    )
+            elif pl_index + 1.0 > 0.0:
+                if rad_bands[-1] == sympy.oo:
+                    raise RuntimeError(
+                        f'The integral for average energy will diverge since the radiation band ends at rad_bands[{len(rad_bands) - 1}]: "inf"\n'
+                        "Please try a non-infinite value or change the power_law_index"
+                    )
+            elif pl_index + 1.0 < 0.0:
+                if isinstance(rad_bands[0], (float, int)) and float(rad_bands[0]) == 0.0:
+                    raise RuntimeError(
+                        f"The integral for average energy will diverge since the radiation band starts from rad_bands[0]: {rad_bands[0]}\n"
+                        "Please try a non-zero value"
+                    )
+
+        with JaffDb() as jdb:
+            table = jdb.table("verner_cross_sections")
+            xsec_present = False
+            rows = []
+            for reactant in reactants:
+                rows = table.rows(conditions=f"Ion = '{str(reactant)}'")
+                if rows:
+                    xsec_present = True
+                    break
+
+            if not xsec_present:
+                return None
+
+        if "inf" in rad_bands:
+            inf_index = rad_bands.index("inf")
+            rad_bands[inf_index] = sympy.oo
+
+        E = sympy.Symbol("E")
+        n_profile = E ** (rad_powerlaw_index - 2)
+        rate = sympy.Float(0.0)
+        xsec = sympy.sympify(rows[0]["xsecs"])
+        c = 2.99792458e10  # Speed of light in cgs unit
+
+        den = MatrixSymbol(
+            "radeden" if rad_energy_density else "photden", len(rad_bands) - 1, 1
+        )
+
+        for i, lower in enumerate(rad_bands[:-1]):
+            upper = rad_bands[i + 1]
+            n_tot = sympy.Integral(n_profile, (E, lower, upper)).evalf()
+            xsec_avg = sympy.Integral(xsec * n_profile, (E, lower, upper)).evalf() / n_tot
+
+            if rad_energy_density:
+                e_avg = sympy.Integral(E * n_profile, (E, lower, upper)).evalf() / n_tot
+                rate += den[Idx(i)] * xsec_avg / e_avg
+
+                continue
+
+            rate += den[Idx(i)] * xsec_avg
+
+        return c * rate
 
     # *****************
     def write_table(
