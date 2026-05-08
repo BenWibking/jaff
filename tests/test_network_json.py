@@ -1,5 +1,5 @@
 # ABOUTME: Unit tests for Network JSON serialization
-# ABOUTME: Ensures Network.to_jaff_file/from_jaff_file round-trip preserves reactions
+# ABOUTME: Ensures Network.to_jaff/from_jaff round-trip preserves reactions
 
 import gzip
 import json
@@ -24,14 +24,11 @@ def test_network_json_roundtrip_sample_kida_valid():
     with patch("builtins.print"):
         net = Network(path)
 
-    with pytest.raises(ValueError):
-        net.to_jaff_file("not_a_network.json")
-
     with tempfile.NamedTemporaryFile(mode="w", suffix=".jaff", delete=False) as f:
         json_path = f.name
 
     try:
-        net.to_jaff_file(json_path)
+        net.to_jaff(json_path)
 
         # `.jaff` files are gzip-compressed by default.
         with open(json_path, "rb") as fb:
@@ -87,7 +84,7 @@ def test_network_json_roundtrip_sample_kida_valid():
             if rate_node is not None:
                 _assert_no_symbol_assumptions(rate_node)
 
-        net2 = Network.from_jaff_file(json_path)
+        net2 = Network(json_path)
 
         assert net2.label == net.label
         assert len(net2.species) == len(net.species)
@@ -129,7 +126,7 @@ def test_network_json_roundtrip_sample_kida_valid():
             f.write(payload)
 
         try:
-            net3 = Network.from_jaff_file(legacy_path)
+            net3 = Network(legacy_path)
             assert len(net3.species) == len(net.species)
             assert len(net3.reactions) == len(net.reactions)
         finally:

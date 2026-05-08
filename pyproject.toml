@@ -21,6 +21,7 @@ classifiers = [
 dependencies = [
   "colorlog>=6.10.1",
   "h5py>=3.9.0",
+  "ipykernel>=7.2.0",
   "matplotlib>=3.9.4",
   "numpy>=2.0.0",
   "pandas>=2.3.3",
@@ -112,8 +113,4 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-jaff = [
-    "data/*.dat",
-    "templates/**/*",
-    "db/jaff.db"
-]
+jaff = ["data/*.dat", "templates/**/*", "db/jaff.db"]

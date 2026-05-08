@@ -1,16 +1,10 @@
-import gzip
-import json
-import logging
-import os
 import re
 import sys
 from pathlib import Path
 from textwrap import dedent
-from typing import NotRequired, TypedDict
+from typing import TYPE_CHECKING, NotRequired, TypedDict
 
-import h5py
 import numpy as np
-import sympy
 from sympy import (
     Basic,
     Expr,
@@ -20,28 +14,28 @@ from sympy import (
     MatrixSymbol,
     Max,
     Min,
-    Piecewise,
-    Symbol,
-    lambdify,
     parse_expr,
-    srepr,
     symbols,
 )
 from sympy.core.function import AppliedUndef, UndefinedFunction
 from tqdm import tqdm
 
 from .auxilary_file_parser import AuxilaryFunctionParser, FunctionsDict
-from .common import resolve_symbolic_dependencies
-from .common.helper import resolve_dependencies
+from .common import is_jaff_file
+from .common.helper import load_mass_dict, resolve_dependencies
+from .core.io import JaffProps, from_jaff_file, to_jaff_file, write_data_table
 from .core.logger import JaffLogger
-from .drivers.sqlite import JaffDb
-from .errors.parser import ParserError
-from .fastlog import fast_log2, inverse_fast_log2
+from .errors import ParserError
 from .network_parser import NetworkParser
 from .photochemistry import Photochemistry
-from .radiation import Radiation
+from .physics import constants
+from .physics.equations import get_sfluxes, get_sodes, get_sradodes
+from .physics.radiation import Radiation
 from .reaction import Reaction
 from .species import Species
+
+if TYPE_CHECKING:
+    import logging
 
 NetworkProps = TypedDict(
     "NetworkProps",
@@ -68,48 +62,65 @@ ElementProps = TypedDict(
 
 
 class Network:
-    # ****************
     def __init__(
         self,
-        fname,
-        errors=False,
-        label=None,
-        funcfile=None,
-        replace_nH=True,
-        rad_bands=[],
+        fname: str | Path,
+        errors: bool = False,
+        label: str | None = None,
+        funcfile: str | Path | None = None,
+        replace_nH: bool = True,
+        rad_bands: list[str | int | float | Basic] = [],
         rad_powerlaw_index: int | float = 0,
         rad_energy_density: bool = False,
-        c: float = 2.99792458e10,  # Speed of light in cgs unit
+        c: float = constants.cgs.c,  # Speed of light in cgs unit
     ):
+        if isinstance(fname, str):
+            fname = Path(fname)
+
+        fname = fname.resolve()
+        if not fname.exists():
+            raise FileNotFoundError(
+                f"Invalid network file supplied: {fname}\n"
+                "File not found in local file system"
+            )
+
+        jaff_props: JaffProps = {}
+        loaded_from_jaff_file = is_jaff_file(fname)
+        if loaded_from_jaff_file:
+            jaff_props = from_jaff_file(fname, errors)
+
+        self.file_name: Path = jaff_props.get("file_name", fname)
+        self.label = jaff_props.get("label", label or self.file_name.stem)
         self.logger: logging.Logger = JaffLogger().get_logger()
         self.motd()
 
-        # Get the path to the data file relative to this module
         self.mass_dict: dict[str, ElementProps] = {}
-        self.species = []
-        self.species_dict = {}
-        self.reactions_dict = {}
+        self.species: list[Species] = []
+        self.species_dict: dict[str, int] = {}
         self.reactions: list[Reaction] = []
-        self.rlist = self.plist = None
-        self.dEdt_chem = Float(0.0)
-        self.dEdt_other = Float(0.0)
-        self.file_name = fname
-        self.label = label if label else os.path.basename(fname).split(".")[0]
+        self.reactions_dict: dict[str, int] = {}
+        self.rlist: np.ndarray | None = None
+        self.plist: np.ndarray | None = None
+        self.dEdt_chem: Basic = Float(0.0)
+        self.dEdt_other: Basic = Float(0.0)
+        self.dRad_dt_extra: Basic = Float(0.0)
         self.radiation: Radiation | None = (
             Radiation(rad_bands, rad_powerlaw_index, rad_energy_density, c)
-            if rad_bands
+            if len(rad_bands) > 0
             else None
         )
-        self.dRad_dt_extra = Float(0.0)
 
         self.logger.info(f"Loading network from {fname}")
         self.logger.info(f"Network label: {self.label}")
 
-        self.load_mass_dict()
+        self.mass_dict = load_mass_dict()
         self.photochemistry = Photochemistry()
 
-        self.load_network(fname, funcfile, replace_nH)
-        self.__calculate_network_extras(replace_nH)
+        if not loaded_from_jaff_file:
+            self.__load_network(fname, funcfile, replace_nH)
+        else:
+            self.__load_network_from_jaff_file(jaff_props)
+        self.__normalize_nework_extras(replace_nH)
 
         self.check_sink_sources(errors)
         self.check_recombinations(errors)
@@ -143,15 +154,7 @@ class Network:
         print(welcome_text)
         print(f"Just Another {fword.title()} Format!\n")
 
-    def load_mass_dict(self) -> None:
-        with JaffDb() as jdb:
-            rows = jdb.table("atomic_masses").all_rows()
-
-        self.mass_dict = {}
-        for row in rows:
-            self.mass_dict[row["element"]] = {"mass": row["mass"], "name": row["name"]}
-
-    def load_network(
+    def __load_network(
         self,
         fname,
         funcfile,
@@ -206,7 +209,6 @@ class Network:
 
             local_subs_dict = {**subs_dict}
 
-            # Handle rate
             local_subs_dict[tgas] = (
                 Max(Min(tgas, tmax), tmin)
                 if tmin and tmax
@@ -220,6 +222,7 @@ class Network:
                 if sym != tgas and expr.has(tgas):
                     local_subs_dict[sym] = expr.xreplace({tgas: local_subs_dict[tgas]})
 
+            # Handle rate
             rate_expr, is_photoreaction, n_photo = self.__parse_rate(
                 aux_chem_rate, rate, aux_funcs, global_vars, n_photo
             )
@@ -255,7 +258,8 @@ class Network:
             if is_photoreaction and self.radiation is not None:
                 if aux_chem_rate not in aux_funcs:
                     self.radiation.set_reaction_rate_coefficient(rea)
-                elif aux_chem_rate in aux_funcs and aux_delta_rad in aux_funcs:
+                elif aux_chem_rate in aux_funcs and aux_delta_rad:
+                    rea.custom_rad_rate = True
                     self.radiation.set_custom_rate(rea)
                 else:
                     raise ParserError(
@@ -289,7 +293,32 @@ class Network:
         if undef_funcs:
             self.logger.warning(f"Found undefined functions {', '.join(undef_funcs)}")
 
-    def __calculate_network_extras(self, replace_nH):
+    def __load_network_from_jaff_file(self, jaff_props: JaffProps):
+        self.species = jaff_props["species"]
+        self.species_dict = jaff_props["species_dict"]
+        for reaction in jaff_props["reactions"]:
+            rea = Reaction(
+                reactants=reaction["reactants"],
+                products=reaction["products"],
+                rate=reaction["rate"],
+                dE=reaction["dE"],
+                dRad_dt=reaction["dRad_dt"],
+                tmin=reaction["tmin"],
+                tmax=reaction["tmax"],
+                original_string=reaction["original_string"],
+            )
+            rea.xsecs_dict = reaction["xsecs_dict"]
+            rea.custom_rad_rate = reaction["custom_rad_rate"]
+            self.reactions.append(rea)
+
+            if rea.guess_type() == "photo" and self.radiation is not None:
+                if rea.custom_rad_rate:
+                    self.radiation.set_custom_rate(rea)
+                    continue
+
+                self.radiation.set_custom_rate(rea)
+
+    def __normalize_nework_extras(self, replace_nH):
         # Apply replacement rules to replace standard symbols
         # appearing in rates with terms involving known species
         nden = MatrixSymbol("nden", len(self.species), 1)
@@ -346,7 +375,7 @@ class Network:
 
     @staticmethod
     def __detect_undefined_functions(
-        expr: sympy.Expr, undef_funcs: set, interp_funcs: set
+        expr: Expr | Basic, undef_funcs: set, interp_funcs: set
     ) -> None:
         for f in expr.atoms(AppliedUndef):
             if "interp" in f.func.__name__:
@@ -413,294 +442,8 @@ class Network:
 
         return func_dict
 
-    # ****************
-    def to_jaff_file(self, filename):
-        """
-        Serialize this Network to a .jaff file (gzip-compressed JSON payload).
-
-        Notes:
-            - Uses a versioned, whitelisted SymPy JSON AST for expressions.
-            - Excludes photochemistry-specific runtime state; reactions may still
-              include xsecs if present.
-            - Files are written with gzip compression even when the filename ends
-              with `.jaff` (no `.gz` suffix).
-        """
-        filename = os.fspath(filename)
-        if not (str(filename).endswith(".jaff") or str(filename).endswith(".jaff.gz")):
-            raise ValueError(
-                "Network.to_jaff_file requires a filename ending with '.jaff' or '.jaff.gz'"
-            )
-
-        from . import __version__ as jaff_version
-        from .sympy_json import SCHEMA_VERSION as SYMPY_SCHEMA
-        from .sympy_json import to_jsonable as sympy_to_jsonable
-
-        def has_undefined_functions(expr):
-            if not isinstance(expr, sympy.Basic):
-                return False
-            for f in expr.atoms(Function):
-                if type(f.func) is UndefinedFunction:
-                    return True
-            return False
-
-        def encode_maybe_sympy(value):
-            if isinstance(value, str):
-                return {"kind": "string", "value": value}
-            if isinstance(value, sympy.Basic):
-                if has_undefined_functions(value):
-                    raise ValueError(
-                        "Cannot serialize: expression contains undefined SymPy function(s)"
-                    )
-                return sympy_to_jsonable(value, include_assumptions=False)
-            if value is None:
-                return None
-            raise TypeError(f"Unsupported value type for serialization: {type(value)!r}")
-
-        def jsonable(obj):
-            if obj is None or isinstance(obj, (str, int, float, bool)):
-                return obj
-            if isinstance(obj, np.ndarray):
-                return obj.tolist()
-            if isinstance(obj, (np.floating, np.integer)):
-                return obj.item()
-            if isinstance(obj, dict):
-                return {str(k): jsonable(v) for k, v in obj.items()}
-            if isinstance(obj, (list, tuple)):
-                return [jsonable(v) for v in obj]
-            return obj
-
-        payload = {
-            "format": "jaff.network_json",
-            "schema_version": 1,
-            "jaff_version": jaff_version,
-            "sympy_schema_version": SYMPY_SCHEMA,
-            "sympy_version": sympy.__version__,
-            "label": self.label,
-            "file_name": self.file_name,
-            "species": [
-                {
-                    "name": sp.name,
-                    "index": int(sp.index),
-                    "mass": float(sp.mass) if sp.mass is not None else None,
-                    "charge": int(sp.charge) if sp.charge is not None else None,
-                }
-                for sp in self.species
-            ],
-            "rate_symbols": [
-                {
-                    "name": sym.name,
-                    "assumptions": {
-                        k: v
-                        for k, v in (sym.assumptions0 or {}).items()
-                        if isinstance(k, str) and isinstance(v, bool)
-                    },
-                }
-                for sym in sorted(
-                    {
-                        s
-                        for r in self.reactions
-                        if isinstance(r.rate, sympy.Basic)
-                        for s in r.rate.free_symbols
-                    },
-                    key=lambda s: s.name,
-                )
-            ],
-            "reactions": [
-                {
-                    "reactants": [int(s.index) for s in r.reactants],
-                    "products": [int(s.index) for s in r.products],
-                    "rate": encode_maybe_sympy(r.rate),
-                    "tmin": r.tmin,
-                    "tmax": r.tmax,
-                    "dE": encode_maybe_sympy(r.dE),
-                    "original_string": r.original_string,
-                    "xsecs": jsonable(r.xsecs_dict),
-                }
-                for r in self.reactions
-            ],
-        }
-
-        with gzip.open(filename, "wt", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2, sort_keys=True)
-
-    # ****************
-    @classmethod
-    def from_jaff_file(cls, filename, *, errors=False):
-        """
-        Deserialize a Network previously written by Network.to_jaff_file.
-
-        Parameters:
-            filename : str
-                `.jaff` file to read (gzip-compressed JSON by default; legacy
-                uncompressed JSON is also supported).
-            errors : bool
-                If True, run Network validation checks and exit on errors.
-        """
-        from .sympy_json import from_jsonable as sympy_from_jsonable
-
-        filename = os.fspath(filename)
-
-        # Prefer gzip if the filename indicates it; otherwise, sniff the magic header
-        # so we can transparently read both compressed and legacy uncompressed files.
-        use_gzip = str(filename).endswith(".gz")
-        if not use_gzip:
-            with open(filename, "rb") as fb:
-                use_gzip = fb.read(2) == b"\x1f\x8b"
-
-        opener = gzip.open if use_gzip else open
-        with opener(filename, "rt", encoding="utf-8") as f:
-            payload = json.load(f)
-
-        if not isinstance(payload, dict) or payload.get("format") != "jaff.network_json":
-            raise ValueError("Not a jaff.network_json file")
-        if payload.get("schema_version") != 1:
-            raise ValueError(
-                f"Unsupported Network schema_version={payload.get('schema_version')!r}"
-            )
-
-        # Build an instance without going through __init__ (which parses files).
-        net = cls.__new__(cls)
-
-        # Minimal initialization of attributes expected by other methods.
-        net.file_name = payload.get("file_name")
-        net.label = payload.get("label")
-        net.reactions = []
-        net.reactions_dict = {}
-        net.species = []
-        net.species_dict = {}
-        net.rlist = net.plist = None
-        net.photochemistry = Photochemistry()
-
-        # Load default mass dict (same source as __init__).
-        net.load_mass_dict()
-
-        species_payload = payload.get("species") or []
-        if not isinstance(species_payload, list):
-            raise ValueError("Invalid species list in JSON")
-
-        # Create species list in index order.
-        by_index = {}
-        for spj in species_payload:
-            if not isinstance(spj, dict):
-                raise ValueError("Invalid species entry in JSON")
-            name = spj.get("name")
-            idx = spj.get("index")
-            if not isinstance(name, str) or not isinstance(idx, int):
-                raise ValueError("Invalid species name/index in JSON")
-            if idx in by_index:
-                raise ValueError(f"Duplicate species index {idx}")
-            by_index[idx] = name
-
-        species_by_index = {}
-        for idx in sorted(by_index.keys()):
-            name = by_index[idx]
-            sp_obj = Species(name, net.mass_dict, idx)
-            net.species.append(sp_obj)
-            net.species_dict[name] = idx
-            species_by_index[idx] = sp_obj
-
-        rate_symbols_payload = payload.get("rate_symbols") or []
-        rate_symbol_assumptions = {}
-        if isinstance(rate_symbols_payload, list):
-            for item in rate_symbols_payload:
-                if not isinstance(item, dict):
-                    continue
-                name = item.get("name")
-                assumptions = item.get("assumptions") or {}
-                if not isinstance(name, str) or not isinstance(assumptions, dict):
-                    continue
-                rate_symbol_assumptions[name] = {
-                    k: v
-                    for k, v in assumptions.items()
-                    if isinstance(k, str) and isinstance(v, bool)
-                }
-
-        def apply_symbol_assumptions(expr):
-            if not rate_symbol_assumptions:
-                return expr
-            symbols = [s for s in expr.free_symbols if s.name in rate_symbol_assumptions]
-            if not symbols:
-                return expr
-            replacements = {}
-            for sym in symbols:
-                assumptions = rate_symbol_assumptions.get(sym.name, {})
-                replacements[sym] = sympy.Symbol(sym.name, **assumptions)
-            return expr.xreplace(replacements)
-
-        def decode_maybe_sympy(node):
-            if node is None:
-                return None
-            if isinstance(node, dict):
-                kind = node.get("kind")
-                if kind == "string":
-                    value = node.get("value")
-                    if not isinstance(value, str):
-                        raise ValueError("Invalid string value encoding")
-                    return value
-                if kind is not None:
-                    raise ValueError(f"Unknown encoded value kind={kind!r}")
-            if isinstance(node, (dict, list, int, float)):
-                return apply_symbol_assumptions(sympy_from_jsonable(node))
-            raise ValueError("Invalid encoded value")
-
-        reactions_payload = payload.get("reactions") or []
-        if not isinstance(reactions_payload, list):
-            raise ValueError("Invalid reactions list in JSON")
-
-        for rj in reactions_payload:
-            if not isinstance(rj, dict):
-                raise ValueError("Invalid reaction entry in JSON")
-            reactants_idx = rj.get("reactants") or []
-            products_idx = rj.get("products") or []
-            if not isinstance(reactants_idx, list) or not isinstance(products_idx, list):
-                raise ValueError("Invalid reactants/products list in JSON")
-            try:
-                reactants = [species_by_index[int(i)] for i in reactants_idx]
-                products = [species_by_index[int(i)] for i in products_idx]
-            except Exception as e:
-                raise ValueError(f"Invalid species indices in reaction: {e}") from e
-
-            rate = decode_maybe_sympy(rj.get("rate"))
-            dE = decode_maybe_sympy(rj.get("dE"))
-            tmin = rj.get("tmin")
-            tmax = rj.get("tmax")
-            original_string = rj.get("original_string") or ""
-            xsecs = rj.get("xsecs")
-
-            rea = Reaction(
-                reactants=reactants,
-                products=products,
-                rate=rate,
-                tmin=tmin,
-                tmax=tmax,
-                dRad_dt=parse_expr("0.0"),  # Support for drad_dt will be added soon
-                dE=dE or parse_expr("0"),
-                original_string=original_string,
-                errors=False,
-            )
-            rea.xsecs_dict = xsecs
-            net.reactions.append(rea)
-
-        # Recompute derived structures.
-        net.generate_reactions_dict()
-        net.generate_reaction_matrices()
-
-        # Recompute dEdt_chem, matching load_network behavior.
-        net.dEdt_chem = parse_expr("0")
-        nden = MatrixSymbol("nden", len(net.species), 1)
-        for r in net.reactions:
-            dE_dt = r.dE * r.rate
-            for s in r.reactants:
-                dE_dt *= nden[Idx(net.species_dict[s.name])]
-            net.dEdt_chem += dE_dt
-
-        if errors:
-            net.check_sink_sources(errors=True)
-            net.check_recombinations(errors=True)
-            net.check_isomers(errors=True)
-            net.check_unique_reactions(errors=True)
-
-        return net
+    def to_jaff(self, filename: str | Path):
+        to_jaff_file(filename, self)
 
     @staticmethod
     def free_symbols(expr: Basic) -> set[Basic]:
@@ -1060,9 +803,19 @@ class Network:
         self.logger.error(f"Reaction with verbatim '{verbatim}' not found")
         sys.exit(1)
 
-    # *****************
-    def get_table(
+    def sfluxes(self) -> list[Expr]:
+        return get_sfluxes(self.reactions, self.species_dict)
+
+    def sodes(self) -> list[Basic]:
+        return get_sodes(self.reactions, self.species_dict)
+
+    def sradodes(self, order: int = 0) -> list[Expr]:
+        return get_sradodes(self.radiation, self.species_dict, order)
+
+    def to_hdf5(
         self,
+        fname: str | Path,
+        label: str | None = None,
         T_min=None,
         T_max=None,
         nT=64,
@@ -1070,311 +823,73 @@ class Network:
         rate_min=1e-30,
         rate_max=1e100,
         fast_log=False,
+        include_all=False,
         verbose=False,
     ):
-        """
-        Return a tabulation of rate coefficients as a function of
-        temperature for all reactions.
+        if isinstance(fname, str):
+            fname = Path(fname)
 
-        Parameters
-        ----------
-            T_min : float or None
-                minimum temperature for the tabulation; if left as None,
-                will be set to the minimum temperature over reactions in
-                the network
-            T_max : float or None
-                maximum temperature for the tabulation; if left as None,
-                will be set to the maximum temperature over reactions in
-                the network
-            nT : int
-                initial guess for number of sampling temperatures
-            err_tol : float or None
-                relative error tolerance for interpolation; if set to
-                None, adaptive resampling is disabled and the table size
-                will be exactly nT
-            rate_min : float
-                adaptive error tolerance is not applied to rates below
-                rate_min
-            rate_max : float
-                rataes above rate_max are clipped to rate_max to prevent
-                overflow
-            fast_log : bool
-                if True, sample points are equally spaced in fast_log2(T)
-                rather than log(T)
-            verbose : bool
-                if True, produce verbose output while adaptively refining
+        if fname.suffix not in [".hdf5", ".hdf"]:
+            fname.with_suffix(".hdf5")
 
-        Returns
-        -------
-            temp : array, shape (nTemp)
-                gas temperatures at which rates are sampled
-            coeff : array, shape (nreact, nTemp)
-                tabulated reaction rate coefficients at temperatures temp
-
-        Notes
-        -----
-            1) By default temperature is sampled logarithmically in the
-            output, i.e., temp =
-            np.logspace(np.log10(T_min), np.log10(T_max), nTemp)
-            where nTemp is the number of temperatures in the output
-            table. If fast_log is set to True, then the outputs are
-            instead uniformly spaced in fast_log2 rather than the
-            true logarithm.
-            2) For reaction rates that depend on something other than
-            tgas, the results are computed at av = 0 and crate = 1;
-            rates that depend on any other quantities are not tabulated,
-            and the table entries for such reactions will be set to NaN.
-            3) Adaptive sampling is performed by comparing the results
-            of a logarithmic interpolation between each rate
-            coefficient at each pair of sampled temperature with
-            a calculation of the exact rate coefficient at a temperature
-            halfway between the two sample points; the errors is taken
-            to be abs((interp_value - exact_value) / (exact_value + rate_min)),
-            and nTemp is increased until the error for all coefficients
-            is below tolerance.
-        """
-
-        # Get min and max temperature if not provided
-        if T_min is None:
-            T_min = np.nanmin(
-                [r.tmin if r.tmin is not None else np.nan for r in self.reactions]
-            )
-        if T_max is None:
-            T_max = np.nanmax(
-                [r.tmax if r.tmax is not None else np.nan for r in self.reactions]
-            )
-        if T_min is None or T_max is None:
-            raise ValueError(
-                "could not determine T_min or T_max from "
-                "reaction list; set T_min and T_max manually"
-            )
-
-        # First step: for each reaction, create a sympy object we can
-        # use to substitute to get an expression in terms of the
-        # primitive variables
-        react_sympy = [r.get_sympy() for r in self.reactions]
-
-        # Second step: set av = 0 and crate = 1
-        react_subst = []
-        for r in react_sympy:
-            r = r.subs(symbols("av"), 0.0)
-            r = r.subs(symbols("crate"), 1.0)
-            react_subst.append(r)
-
-        # Third step: create numpy fucntions for each reaction
-        react_func = []
-        for i, r in enumerate(react_subst):
-            if len(r.free_symbols) == 0:
-                # Reaction rates that are just constants; in this
-                # case just copy that constant to the list of functions
-                react_func.append(np.log(float(r)))
-            elif (
-                (len(r.free_symbols) > 1)
-                or (symbols("tgas") not in r.free_symbols)
-                or ("Function" in srepr(r))
-            ):
-                # For reaction rates that do not depend on temperature,
-                # that depend on variables other than temperature,
-                # or that contain arbitrary functions, we cannot
-                # tabulate, so just store None
-                react_func.append(None)
-            else:
-                # Case of reactions that depend only on temperature; to
-                # avoid overflows we will take the log of the rate function
-                # and expand it before converting to numpy, and then we will
-                # exponentiate at the very end
-                logr = sympy.expand_log(sympy.log(r))
-                react_func.append(lambdify(symbols("tgas"), logr, "numpy"))
-
-        # Fourth step: generate rate coefficient table for initial guess
-        # table size
-        nTemp = nT
-        if not fast_log:
-            temp = np.logspace(np.log10(T_min), np.log10(T_max), nTemp)
-        else:
-            # Generate sample points that are uniformly sampled in fast_log2
-            log_temp_min = fast_log2(T_min)
-            log_temp_max = fast_log2(T_max)
-            log_temp = np.linspace(log_temp_min, log_temp_max, nTemp)
-            temp = inverse_fast_log2(log_temp)
-        log_rates = np.zeros((len(react_func), nTemp))
-        for i, f in enumerate(react_func):
-            if isinstance(f, float):
-                log_rates[i, :] = f
-            elif f is None:
-                log_rates[i, :] = np.nan
-            else:
-                # Note: it would be much faster to do this via an array operation
-                # rather than a list comprehension, but sympy (as of v1.13) does
-                # not consistently generate numpy expressions that work properly
-                # with vector inputs, so restricting the input to scalars is safer.
-                f_eval = np.array([f(t) for t in temp])
-                log_rates[i, :] = np.clip(f_eval, a_min=None, a_max=np.log(rate_max))
-
-        # Fifth step: do adaptive growth of table
-        if err_tol is not None:
-            while True:
-                # Compute estimates at half-way points
-                nTemp = 2 * nTemp - 1
-                temp_grow = np.zeros(nTemp)
-                temp_grow[::2] = temp
-                if not fast_log:
-                    temp_grow[1::2] = np.sqrt(temp[1:] * temp[:-1])
-                else:
-                    log_temp_lo = fast_log2(temp[:-1])
-                    log_temp_hi = fast_log2(temp[1:])
-                    temp_grow[1::2] = inverse_fast_log2(0.5 * (log_temp_lo + log_temp_hi))
-                log_rates_grow = np.zeros((len(react_func), nTemp))
-                log_rates_grow[:, ::2] = log_rates
-                log_rates_approx = np.zeros((len(react_func), (nTemp - 1) // 2))
-                for i, f in enumerate(react_func):
-                    if isinstance(f, float):
-                        log_rates_grow[i, 1::2] = f
-                        log_rates_approx[i, :] = f
-                    elif f is None:
-                        log_rates_grow[i, 1::2] = np.nan
-                        log_rates_approx[i, :] = np.nan
-                    else:
-                        # See comment above about why we're using a list comprehension
-                        # here instead of a straight array operation
-                        f_eval = np.array([f(t) for t in temp_grow[1::2]])
-                        log_rates_grow[i, 1::2] = np.clip(
-                            f_eval, a_min=None, a_max=np.log(rate_max)
-                        )
-                        log_rates_approx[i, :] = 0.5 * (
-                            log_rates_grow[i, :-1:2] + log_rates_grow[i, 2::2]
-                        )
-
-                # Copy new estimates to current ones
-                temp = temp_grow
-                log_rates = log_rates_grow
-
-                # Make error estimate
-                rel_err = np.abs(
-                    (np.exp(log_rates_approx) - np.exp(log_rates[:, 1::2]))
-                    / (np.exp(log_rates[:, 1::2]) + rate_min)
-                )
-                max_err = np.nanmax(rel_err)
-
-                # Print output if verbose
-                if verbose:
-                    idx_max = np.unravel_index(np.nanargmax(rel_err), rel_err.shape)
-                    self.logger.info(
-                        f"nTemp = {nTemp}, max_err = {max_err} in reaction "
-                        f"{self.reactions[idx_max[0]].get_verbatim()} at T = {temp[idx_max[1]]}"
-                    )
-
-                # Check for convergence
-                if max_err < err_tol:
-                    break
-
-        # Return final table
-        return temp, np.exp(log_rates)
-
-    def get_sfluxes(self) -> list[sympy.Expr]:
-        nspec = len(self.species)
-        nreact = len(self.reactions)
-        fluxes: list[sympy.Expr] = [sympy.Integer(0) for _ in range(nreact)]
-        nden_matrix = MatrixSymbol("nden", nspec, 1)
-
-        for i, reaction in enumerate(self.reactions):
-            flux = reaction.rate
-            for reactant in reaction.reactants:
-                flux *= nden_matrix[self.species_dict[str(reactant)]]
-
-            fluxes[i] = flux
-
-        return fluxes
-
-    def get_sodes(self) -> list[sympy.Basic]:
-        nspec = len(self.species)
-        fluxes = self.get_sfluxes()
-        sodes: list[sympy.Basic] = [sympy.Integer(0) for _ in range(nspec)]
-
-        for i, reaction in enumerate(self.reactions):
-            for rr in reaction.reactants:
-                idx = (
-                    rr.index
-                    if isinstance(rr.fidx, str) and rr.fidx.startswith("idx_")
-                    else int(rr.fidx)
-                )
-                sodes[idx] -= fluxes[i]
-
-            # Add flux to products
-            for pp in reaction.products:
-                idx = (
-                    pp.index
-                    if isinstance(pp.fidx, str) and pp.fidx.startswith("idx_")
-                    else int(pp.fidx)
-                )
-                sodes[idx] += fluxes[i]
-
-        return sodes
-
-    def get_sradodes(self, order: int = 0) -> list[sympy.Expr]:
-        # Check if radiation is enabled
-        if self.radiation is None:
-            raise RuntimeError(
-                "No radiation bands found. Radiation odes cannot be generated"
-            )
-
-        # Raise if order is not supported
-        if order not in [0, 1, 2, 3]:
-            raise ValueError("Invalid order: Supported orders are 0, 1, 2, 3")
-
-        rad_groups = self.radiation.groups
-        nden = sympy.MatrixSymbol("nden", len(self.species), 1)
-
-        den = sympy.MatrixSymbol(
-            "radeden" if self.radiation.energy_density else "photden",
-            self.radiation.nbands,
-            1,
-        )
-        rflux = sympy.MatrixSymbol("rflux", self.radiation.nbands, 1)
-        flux_map = {
-            den[sympy.Idx(i)]: rflux[sympy.Idx(i)] for i in range(self.radiation.nbands)
-        }
-        grate, gflux = (
-            [sympy.Float(0.0)] * self.radiation.nbands,
-            [sympy.Float(0.0)] * self.radiation.nbands,
+        write_data_table(
+            reactions=self.reactions,
+            logger=self.logger,
+            fname=fname,
+            label=label or self.label,
+            T_min=T_min,
+            T_max=T_max,
+            nT=nT,
+            err_tol=err_tol,
+            rate_min=rate_min,
+            rate_max=rate_max,
+            fast_log=fast_log,
+            format="hdf5",
+            include_all=include_all,
+            verbose=verbose,
         )
 
-        for group in rad_groups:
-            group_rate: sympy.Basic = sympy.Float(0.0)
-            group_dRad_dt_extra = sympy.Float(0.0)
-            for reaction, props in group.props.items():
-                rrate = props["k"]
-                group_dRad_dt_extra += props["delta_rad"]
-                for reactant in reaction.reactants:
-                    rrate *= nden[sympy.Idx(self.species_dict[str(reactant)])]
+    def to_txt(
+        self,
+        fname: str | Path,
+        label: str | None = None,
+        T_min=None,
+        T_max=None,
+        nT=64,
+        err_tol=0.01,
+        rate_min=1e-30,
+        rate_max=1e100,
+        fast_log=False,
+        include_all=False,
+        verbose=False,
+    ):
+        if isinstance(fname, str):
+            fname = Path(fname)
 
-                group_rate -= rrate
+        if fname.suffix != ".txt":
+            fname.with_suffix(".txt")
 
-            # Flux
-            flux = group_rate.xreplace(flux_map)
-            # dRad_dt_extra assumed to be in units of energy density rate
-            group_rate += group_dRad_dt_extra / (
-                1 if self.radiation.energy_density else (group.eavg or 1)
-            )
+        write_data_table(
+            reactions=self.reactions,
+            logger=self.logger,
+            fname=fname,
+            label=label or self.label,
+            T_min=T_min,
+            T_max=T_max,
+            nT=nT,
+            err_tol=err_tol,
+            rate_min=rate_min,
+            rate_max=rate_max,
+            fast_log=fast_log,
+            format="txt",
+            include_all=include_all,
+            verbose=verbose,
+        )
 
-            grate[group.index] = group_rate
-            gflux[group.index] = flux
-
-        radodes: list[sympy.Expr] = [
-            sympy.Float(0.0) for _ in range(2 * self.radiation.nbands)
-        ]
-
-        for i, (rate, flux) in enumerate(zip(grate, gflux)):
-            ei, fi = self.radiation.ordered_index(i, order)
-            radodes[ei] = rate
-            radodes[fi] = flux
-
-        return radodes
-
-    # *****************
     def write_table(
         self,
-        fname,
+        fname: str | Path,
+        label: str | None = None,
         T_min=None,
         T_max=None,
         nT=64,
@@ -1386,92 +901,12 @@ class Network:
         include_all=False,
         verbose=False,
     ):
-        """
-        Write a tabulation of rate coefficients as a function of
-        temperature for all reactions.
 
-        Parameters
-        ----------
-            fname : string
-                name of output file
-            T_min : float or None
-                minimum temperature for the tabulation; if left as None,
-                will be set to the minimum temperature over reactions in
-                the network
-            T_max : float or None
-                maximum temperature for the tabulation; if left as None,
-                will be set to the maximum temperature over reactions in
-                the network
-            nT : int
-                initial guess for number of sampling temperatures
-            err_tol : float or None
-                relative error tolerance for interpolation; if set to
-                None, adaptive resampling is disabled and the table size
-                will be exactly nT
-            rate_min : float
-                adaptive error tolerance is not applied to rates below
-                rate_min
-            rate_max : float
-                rataes above rate_max are clipped to rate_max to prevent
-                overflow
-            fast_log : bool
-                if True, sample points are equally spaced in fast_log2(T)
-                rather than log(T)
-            format : 'auto' | 'txt' | 'hdf5'
-                output format; if set to 'auto', format will be guessed from
-                extension of fname, otherwise output will be set to either
-                text for hdf5 format
-            include_all : bool
-                if True, the output table will contain all reactions, with
-                entries for rate coefficients that cannot be tabulated
-                just as a function of temperature set to NaN; if False,
-                the output table only includes coefficients that can be
-                tabulated and are non-constant
-            verbose : bool
-                if True, produce verbose output while adaptively refining
-
-        Returns
-        -------
-            Nothing
-
-        Raises
-        ------
-            ValueError
-                if format is set to 'auto' and the extension is of fname
-                is not 'txt', 'hdf', or 'hdf5'
-            IOError
-                if the output fille cannot be opened
-
-        Notes
-        -----
-            See notes to get_table for details on how temperature sampling
-            and error tolerance is handled.
-        """
-
-        # Deduce output format
-        if format == "txt":
-            out_type = "txt"
-        elif format == "hdf5":
-            out_type = "hdf5"
-        elif format == "auto":
-            if os.path.splitext(fname)[1] == ".txt":
-                out_type = "txt"
-            elif (
-                os.path.splitext(fname)[1] == ".hdf5"
-                or os.path.splitext(fname)[1] == ".hdf"
-            ):
-                out_type = "hdf5"
-            else:
-                raise ValueError(
-                    "cannot deduce output type from extension {:s}".format(
-                        os.path.splitext(fname)
-                    )
-                )
-        else:
-            raise ValueError("unknown output format {:s}".format(str(format)))
-
-        # Get rate coefficients
-        temp, coef = self.get_table(
+        write_data_table(
+            reactions=self.reactions,
+            logger=self.logger,
+            fname=fname,
+            label=label or self.label,
             T_min=T_min,
             T_max=T_max,
             nT=nT,
@@ -1479,117 +914,7 @@ class Network:
             rate_min=rate_min,
             rate_max=rate_max,
             fast_log=fast_log,
+            format=format,
+            include_all=include_all,
             verbose=verbose,
         )
-
-        # Remove from table reaction rates that are either constant
-        # or NaN
-        if include_all:
-            react_list = list(range(len(coef)))
-        else:
-            react_list = []
-            for i, c in enumerate(coef):
-                if np.sum(np.isnan(c)) > 0 or np.amax(c) - np.amin(c) == 0.0:
-                    continue
-                react_list.append(i)
-        coef = coef[react_list]
-
-        # For the reactions that we are including, grab the reaction
-        # type and lists of reactants and products
-        rtype = []
-        reactants = []
-        products = []
-        for i in react_list:
-            if self.reactions[i].guess_type() == "unknown":
-                rtype.append("2_body")
-            else:
-                rtype.append(self.reactions[i].guess_type())
-            reactants_ = {}
-            for r in self.reactions[i].reactants:
-                if r.name in reactants_.keys():
-                    reactants_[r.name] += 1
-                else:
-                    reactants_[r.name] = 1
-            reactants.append(reactants_)
-            products_ = {}
-            for p in self.reactions[i].products:
-                if p.name in products_.keys():
-                    products_[p.name] += 1
-                else:
-                    products_[p.name] = 1
-            products.append(products_)
-
-        # Write output in appropriate format
-        if out_type == "txt":
-            # Text output
-            fp = open(fname, "w")
-
-            # Write header
-            fp.write("# JAFF auto-generated rate coefficient table\n")
-            fp.write("# Network name: {:s}\n".format(self.label))
-            fp.write("# Reactions included\n")
-            fp.write("#   (reactants) (products) (reaction type)\n")
-            for rt, r, p in zip(rtype, reactants, products):
-                fp.write("#   {:s} {:s} {:s}\n".format(repr(r), repr(p), rt))
-
-            # Write data in quokka table format
-            fp.write("1\n")  # Table is 1d
-            fp.write("{:d}\n".format(len(coef)))  # N outputs per table entry
-            if fast_log:
-                fp.write("3\n")  # Table is uniform in fast_log
-            else:
-                fp.write("2\n")  # Table is uniform in log
-            fp.write("{:d}\n".format(len(temp)))  # Number of temperature entries
-            fp.write("{:e} {:e}\n".format(temp[0], temp[-1]))  # Min/max temperature
-
-            # Now write the data
-            for c in coef:
-                for c_ in c:
-                    fp.write("{:e} ".format(c_))
-                fp.write("\n")
-
-            # Close
-            fp.close()
-
-        elif out_type == "hdf5":
-            # HDF5 output
-            fp = h5py.File(fname, mode="w")
-
-            # Create a group to contain the data
-            grp = fp.create_group("reaction_coeff")
-
-            # Store metadata in the attributes
-            grp.attrs["input_names"] = ["temperature"]
-            grp.attrs["input_units"] = ["K"]
-            grp.attrs["xlo"] = np.array([temp[0]])
-            grp.attrs["xhi"] = np.array([temp[-1]])
-            if fast_log:  # Spacing type
-                grp.attrs["spacing"] = ["fast_log"]
-            else:
-                grp.attrs["spacing"] = ["log"]
-
-            # Store information on which reactions / rate coefficients
-            # are included; note that we store these as data sets
-            # instead of attributes to avoid problems in the case where
-            # the number of reactions is very large, and thus resulting
-            # size of the output reaction list exceeds the HDF5 limit
-            # on the sizes of attributes
-            output_names = []
-            output_units = []
-            for i, rt, r, p in zip(range(len(rtype)), rtype, reactants, products):
-                output_names.append(
-                    "{:s} rate coefficient: {:s} --> {:s}".format(str(rt), str(r), str(p))
-                )
-                output_units.append("cm^3 s^-1")
-            grp.create_dataset(
-                "output_names", data=output_names, dtype=h5py.string_dtype()
-            )
-            grp.create_dataset(
-                "output_units", data=output_units, dtype=h5py.string_dtype()
-            )
-
-            # Create data set holding the coefficient table
-            grp.create_dataset("data", data=coef)
-
-            # Close file
-            fp.close()

@@ -755,6 +755,8 @@ class Codegen:
                     [nden_matrix[i, 0] for i, _ in enumerate(self.net.species)],
                     0,
                 )
+        assert isinstance(self.net.dEdt_chem, sp.Expr)
+        assert isinstance(self.net.dEdt_other, sp.Expr)
 
         return (self.net.dEdt_chem + self.net.dEdt_other) / den_tot
 
@@ -827,7 +829,7 @@ class Codegen:
             sp.symbols(f"k[{i}]"): rea.rate for i, rea in enumerate(self.net.reactions)
         }
 
-        ode_symbols = self.net.get_sodes()
+        ode_symbols = self.net.sodes()
         ode_symbols = [sode.xreplace(subs_k) for sode in ode_symbols]
 
         if use_cse:
@@ -960,12 +962,12 @@ class Codegen:
             sp.symbols(f"k[{i}]"): rea.rate for i, rea in enumerate(self.net.reactions)
         }
 
-        rhs_symbols = self.net.get_sodes()
+        rhs_symbols = self.net.sodes()
         rhs_symbols = [sode.xreplace(subs_k) for sode in rhs_symbols]
         rhs_symbols.extend(
             [
                 self.__gen_sdedt(specific_eint, norm),
-                *(self.net.get_sradodes(rad_order) if radiation else []),
+                *(self.net.sradodes(rad_order) if radiation else []),
             ]
         )
 
@@ -1065,7 +1067,7 @@ class Codegen:
             "extras": {"cse": IndexedList()},
             "expressions": IndexedList(),
         }
-        radode_symbols = self.net.get_sradodes(order)
+        radode_symbols = self.net.sradodes(order)
 
         if use_cse:
             cse_var = sp.numbered_symbols(prefix=cse_var)
@@ -1253,13 +1255,13 @@ class Codegen:
         subs_k = {
             sp.symbols(f"k[{i}]"): k_exprs[i] for i in range(len(self.net.reactions))
         }
-        ode_symbols = self.net.get_sodes()
+        ode_symbols = self.net.sodes()
 
         if use_dedt:
             ode_symbols.append(self.__gen_sdedt(specific_eint=specific_eint, norm=norm))
 
         if radiation:
-            ode_symbols.extend(self.net.get_sradodes(order=rad_order))
+            ode_symbols.extend(self.net.sradodes(order=rad_order))
 
         ode_symbols = [
             sode.xreplace({**nden_to_y, **radden_to_y, **radflux_to_y, **subs_k})
@@ -1305,6 +1307,7 @@ class Codegen:
             # Generate Jacobian code with only the needed CSE assignments
             pattern = re.compile(r"(\d+)")
             for var, expr in replacements:
+                expr = self.__convert_unknown_derivatives(expr)
                 match = pattern.search(str(var))
                 idx: int = int(match.group(0)) if match is not None else 0
                 expr_str = self.code_gen(expr, strict=False, allow_unknown_functions=True)
@@ -1330,6 +1333,7 @@ class Codegen:
             if expr == 0:
                 continue
 
+            expr = self.__convert_unknown_derivatives(expr)
             expr_str = self.code_gen(expr, strict=False, allow_unknown_functions=True)
             expr_str = dpattern.sub(lambda m: replace_y(m, "nden"), expr_str)
 
@@ -1426,6 +1430,33 @@ class Codegen:
             jac_code += f"{jac_var}{mlb}{ioff + i}{matrix_sep}{ioff + j}{mrb} {assign_op} {expr}{lend}\n"
 
         return jac_code
+
+    @staticmethod
+    def __convert_unknown_derivatives(expr: sp.Expr):
+        replacement_dict = {}
+
+        for ex in expr.atoms(sp.Subs):
+            deriv = ex.args[0]
+            sub_var = cast(tuple[sp.Basic, ...], ex.args[1])
+            sub_val = cast(tuple[sp.Basic, ...], ex.args[2])
+
+            if isinstance(deriv, sp.Derivative):
+                sub_dict = dict(zip(sub_var, sub_val))
+                dexpr = deriv.expr
+                deriv_name = dexpr.func.__name__
+                vars = [var.xreplace(sub_dict) for var in deriv.variables]
+                args = [arg.xreplace(sub_dict) for arg in dexpr.args]
+
+                func_sig_suffix = "_".join(
+                    [str(i) for i in [args.index(var) for var in vars]]
+                )
+                new_func_sig = f"{deriv_name}_partial_{func_sig_suffix}"
+
+                new_func = sp.Function(new_func_sig)(*args)  # type: ignore
+                replacement_dict[ex] = new_func
+        expr = expr.xreplace(replacement_dict)
+
+        return expr
 
     @staticmethod
     def __prune_cse(
