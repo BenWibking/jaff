@@ -1,8 +1,10 @@
+from __future__ import annotations
+
+import logging
 import re
 import sys
 from pathlib import Path
-from textwrap import dedent
-from typing import TYPE_CHECKING, NotRequired, TypedDict
+from typing import NotRequired, TypedDict
 
 import numpy as np
 from sympy import (
@@ -18,29 +20,27 @@ from sympy import (
     symbols,
 )
 from sympy.core.function import AppliedUndef, UndefinedFunction
-from tqdm import tqdm
 
 from .auxilary_file_parser import AuxilaryFunctionParser, FunctionsDict
 from .common import is_jaff_file
-from .common.helper import load_mass_dict, resolve_dependencies
+from .common.helper import ElementProps, load_mass_dict, resolve_dependencies
+from .common.welcome import motd
 from .core.io import JaffProps, from_jaff_file, to_jaff_file, write_data_table
-from .core.logger import JaffLogger
+from .core.logger import JaffLogger, jaff_progress
+from .elements import Elements
 from .errors import ParserError
 from .network_parser import NetworkParser
 from .photochemistry import Photochemistry
 from .physics import constants
 from .physics.equations import get_sfluxes, get_sodes, get_sradodes
 from .physics.radiation import Radiation
-from .reaction import Reaction
-from .species import Species
-
-if TYPE_CHECKING:
-    import logging
+from .reaction import Reaction, Reactions
+from .species import Specie, Species
 
 NetworkProps = TypedDict(
     "NetworkProps",
     {
-        "fname": str,
+        "fname": str | Path,
         "errors": NotRequired[bool],
         "label": NotRequired[str],
         "funcfile": NotRequired[str],
@@ -49,14 +49,7 @@ NetworkProps = TypedDict(
         "rad_powerlaw_index": NotRequired[int | float],
         "rad_energy_density": NotRequired[bool],
         "c": NotRequired[float],
-    },
-)
-
-ElementProps = TypedDict(
-    "ElementProps",
-    {
-        "name": str,
-        "mass": float,
+        "_from_cli": NotRequired[bool],
     },
 )
 
@@ -73,34 +66,32 @@ class Network:
         rad_powerlaw_index: int | float = 0,
         rad_energy_density: bool = False,
         c: float = constants.cgs.c,  # Speed of light in cgs unit
+        _from_cli: bool = False,
     ):
+        self.logger: logging.Logger = JaffLogger().get_logger()
+
         if isinstance(fname, str):
             fname = Path(fname)
 
         fname = fname.resolve()
         if not fname.exists():
-            raise FileNotFoundError(
-                f"Invalid network file supplied: {fname}\n"
-                "File not found in local file system"
-            )
+            raise FileNotFoundError(fname)
 
-        jaff_props: JaffProps = {}
+        jaff_props: JaffProps = {}  # type: ignore
         loaded_from_jaff_file = is_jaff_file(fname)
         if loaded_from_jaff_file:
             jaff_props = from_jaff_file(fname, errors)
 
         self.file_name: Path = jaff_props.get("file_name", fname)
         self.label = jaff_props.get("label", label or self.file_name.stem)
-        self.logger: logging.Logger = JaffLogger().get_logger()
-        self.motd()
+        if not _from_cli:
+            print(motd())
 
         self.mass_dict: dict[str, ElementProps] = {}
-        self.species: list[Species] = []
-        self.species_dict: dict[str, int] = {}
-        self.reactions: list[Reaction] = []
-        self.reactions_dict: dict[str, int] = {}
-        self.rlist: np.ndarray | None = None
-        self.plist: np.ndarray | None = None
+        self.species: Species = Species()
+        self.reactions: Reactions = Reactions()
+        self.reactant_matrix: np.ndarray | None = None
+        self.product_matrix: np.ndarray | None = None
         self.dEdt_chem: Basic = Float(0.0)
         self.dEdt_other: Basic = Float(0.0)
         self.dRad_dt_extra: Basic = Float(0.0)
@@ -111,9 +102,10 @@ class Network:
         )
 
         self.logger.info(f"Loading network from {fname}")
-        self.logger.info(f"Network label: {self.label}")
+        self.logger.info(f"Network label: [yellow]{self.label}[/]")
 
-        self.mass_dict = load_mass_dict()
+        self.mass_dict: dict[str, ElementProps] = load_mass_dict()
+        Species.configure(self.mass_dict)
         self.photochemistry = Photochemistry()
 
         if not loaded_from_jaff_file:
@@ -127,32 +119,11 @@ class Network:
         self.check_isomers(errors)
         self.check_unique_reactions(errors)
 
-        self.generate_reactions_dict()
-        self.generate_reaction_matrices()
+        self.__generate_reaction_matrices()
 
-        print("\nAll done!\n")
+        self.elements: Elements = Elements(self.species._list)
 
-    # ****************
-    @staticmethod
-    def motd():
-        try:
-            with open("assets/words.dat", "r") as f:
-                words = f.readlines()
-            words = [
-                x.strip()
-                for x in words
-                if x.lower().startswith("f") and x.strip().isalpha()
-            ]
-            fword = np.random.choice(words)
-        except (FileNotFoundError, PermissionError, OSError, ValueError):
-            fword = "Fancy"
-        welcome_text = dedent("""
-        Welcome to\n
-        ░░█ ▄▀█ █▀▀ █▀▀
-        █▄█ █▀█ █▀░ █▀░
-        """)
-        print(welcome_text)
-        print(f"Just Another {fword.title()} Format!\n")
+        self.logger.info("[green]Network loaded successfully![/]")
 
     def __load_network(
         self,
@@ -175,7 +146,7 @@ class Network:
 
         # Read the auxiliary function file to get the list of functions
         # to substitute
-        aux_funcs = self.read_aux_funcs(funcfile)
+        aux_funcs = self.__read_aux_funcs(funcfile)
 
         global_vars = {
             var: resolve_dependencies(expr, {}, aux_funcs)
@@ -186,7 +157,10 @@ class Network:
         }
 
         for i, reaction in enumerate(
-            tqdm(reactions_list, desc=f"Creating {self.label} network", unit=" reactions")
+            jaff_progress.track(
+                reactions_list,
+                description=f"Creating {self.label} network",
+            )
         ):
             reactants: list[str] = reaction["r"]
             products: list[str] = reaction["p"]
@@ -201,11 +175,10 @@ class Network:
             for s in reactants + products:
                 if s not in specie_names:
                     specie_names.add(s)
-                    self.species.append(Species(s, self.mass_dict, len(specie_names) - 1))
-                    self.species_dict[s] = self.species[-1].index
+                    self.species.add(Specie(s, len(specie_names) - 1))
 
-            rr = [self.species[self.species_dict[r]] for r in reactants]
-            pp = [self.species[self.species_dict[p]] for p in products]
+            rr = [self.species[r] for r in reactants]
+            pp = [self.species[p] for p in products]
 
             local_subs_dict = {**subs_dict}
 
@@ -250,10 +223,10 @@ class Network:
 
             # Handle reaction
             rea = Reaction(
-                rr, pp, rate_expr, tmin, tmax, deltaE, deltaRad, reaction["string"]
+                rr, pp, rate_expr, tmin, tmax, deltaE, deltaRad, reaction["string"], i
             )
             # Save to reaction list
-            self.reactions.append(rea)
+            self.reactions.add(rea)
 
             if is_photoreaction and self.radiation is not None:
                 if aux_chem_rate not in aux_funcs:
@@ -269,34 +242,35 @@ class Network:
                         f"Please add a custom deltaRad function for reaction {i}"
                     )
 
-            if rea.guess_type() == "photo":
+            if rea.rtype() == "photo":
                 rea.xsecs_dict = self.photochemistry.get_xsec(rea)
 
         # Add chemical and non-chemical heating and cooling rates
         if "heatingcoolingrate" in aux_funcs:
             self.dEdt_other = aux_funcs["heatingcoolingrate"]["def"]
-            self.dEdt_other = self.standardize_symbols(self.dEdt_other, replace_nH)
+            self.dEdt_other = self.__standardize_symbols(self.dEdt_other, replace_nH)
             free_symbols |= self.free_symbols(self.dEdt_other)
             self.__detect_undefined_functions(self.dEdt_other, undef_funcs, interp_funcs)
 
         self.logger.info(
-            f"Variables found: {', '.join(sorted(str(s) for s in free_symbols))}"
+            f"Variables found: {', '.join(sorted(f'[cyan]{s}[/]' for s in free_symbols))}"
         )
-        self.logger.info(f"Loaded {len(self.reactions)} reactions")
+        self.logger.info(f"Loaded {self.reactions.count} reactions")
         self.logger.info(f"Loaded {n_photo} photo-chemistry reactions")
 
         # Issue warning message if undefined functions remain
         if interp_funcs:
             self.logger.info(
-                f"Found the following interpolation functions: {', '.join(interp_funcs)}"
+                f"Found the following interpolation functions: {', '.join([f'[cyan]{func}[/]' for func in interp_funcs])}"
             )
         if undef_funcs:
-            self.logger.warning(f"Found undefined functions {', '.join(undef_funcs)}")
+            self.logger.warning(
+                f"Found undefined functions {', '.join([f'[red]{func}[/]' for func in undef_funcs])}"
+            )
 
     def __load_network_from_jaff_file(self, jaff_props: JaffProps):
         self.species = jaff_props["species"]
-        self.species_dict = jaff_props["species_dict"]
-        for reaction in jaff_props["reactions"]:
+        for i, reaction in enumerate(jaff_props["reactions"]):
             rea = Reaction(
                 reactants=reaction["reactants"],
                 products=reaction["products"],
@@ -306,12 +280,13 @@ class Network:
                 tmin=reaction["tmin"],
                 tmax=reaction["tmax"],
                 original_string=reaction["original_string"],
+                index=i,
             )
             rea.xsecs_dict = reaction["xsecs_dict"]
             rea.custom_rad_rate = reaction["custom_rad_rate"]
-            self.reactions.append(rea)
+            self.reactions.add(rea)
 
-            if rea.guess_type() == "photo" and self.radiation is not None:
+            if rea.rtype() == "photo" and self.radiation is not None:
                 if rea.custom_rad_rate:
                     self.radiation.set_custom_rate(rea)
                     continue
@@ -321,16 +296,17 @@ class Network:
     def __normalize_nework_extras(self, replace_nH):
         # Apply replacement rules to replace standard symbols
         # appearing in rates with terms involving known species
-        nden = MatrixSymbol("nden", len(self.species), 1)
+        nden = MatrixSymbol("nden", self.species.count, 1)
         for r in self.reactions:
-            r.rate = self.standardize_symbols(r.rate, replace_nH)
-            dE_dt = r.dE * r.rate
+            r.rate = self.__standardize_symbols(r.rate, replace_nH)
+
+            dE_dt = r.dE * r.rate  # type: ignore
             for s in r.reactants:
-                dE_dt *= nden[self.species_dict[s.name]]
+                dE_dt *= nden[self.species[s.name].index]
             self.dEdt_chem += dE_dt
-            self.dRad_dt_extra += r.dRad_dt
-        self.dEdt_chem = self.standardize_symbols(self.dEdt_chem, replace_nH)
-        self.dRad_dt_extra = self.standardize_symbols(self.dRad_dt_extra, replace_nH)
+            self.dRad_dt_extra += r.dRad_dt  # type: ignore
+        self.dEdt_chem = self.__standardize_symbols(self.dEdt_chem, replace_nH)
+        self.dRad_dt_extra = self.__standardize_symbols(self.dRad_dt_extra, replace_nH)
 
     @staticmethod
     def __parse_rate(
@@ -383,8 +359,7 @@ class Network:
                 continue
             undef_funcs |= {f.func.__name__}
 
-    # ****************
-    def read_aux_funcs(self, funcfile: str | Path | None) -> dict:
+    def __read_aux_funcs(self, funcfile: str | Path | None) -> dict:
         """
         Read the auxiliary function file
 
@@ -435,7 +410,7 @@ class Network:
             funcfile = Path(funcfile)
 
         if not funcfile.exists():
-            raise FileNotFoundError(f"Auxilary functions file not found: {funcfile}")
+            raise FileNotFoundError(funcfile)
 
         with AuxilaryFunctionParser(funcfile) as afp:
             func_dict: FunctionsDict = afp.get_dict()
@@ -449,172 +424,156 @@ class Network:
     def free_symbols(expr: Basic) -> set[Basic]:
         return {fs for fs in expr.free_symbols if "nden" not in str(fs)}
 
-    # ****************
-    def compare_reactions(self, other, verbosity=1):
-        print(f'Comparing networks "{self.label}" and "{other.label}"...')
+    def compare_reactions(self, other: Network, verbosity: int = 1):
+        self.logger.info(f'Comparing networks "{self.label}" and "{other.label}"...')
 
-        net1 = [x.serialized for x in self.reactions]
-        net2 = [x.serialized for x in other.reactions]
+        self_reacts = {rea.serialized for rea in self.reactions}
+        other_reacts = {rea.serialized for rea in other.reactions}
 
-        nsame = 0
-        nmissing1 = 0
-        nmissing2 = 0
-        for ref in np.unique(net1 + net2):
-            if ref in net1 and ref not in net2:
-                rea = self.get_reaction_by_serialized(ref)
-                nmissing2 += 1
-                if verbosity > 0:
-                    print(
-                        f'Found in "{self.label}" but not in "{other.label}": {rea.get_verbatim()}'
-                    )
+        common = self_reacts & other_reacts
+        not_in_self = other_reacts - common
+        not_in_other = self_reacts - common
 
-            elif ref in net2 and ref not in net1:
-                rea = other.get_reaction_by_serialized(ref)
-                nmissing1 += 1
-                if verbosity > 0:
-                    print(
-                        f'Found in "{other.label}" but not in "{self.label}": {rea.get_verbatim()}'
-                    )
-            else:
-                if verbosity > 1:
-                    print(f"Found in both networks: {ref}")
-                nsame += 1
+        if verbosity == 1:
+            self.logger.info(f"Reactions not present in {self.label}:")
+            print(
+                "\n".join([str(other.reactions[rea]) for rea in not_in_self]),
+                "\n",
+            )
 
-        print(f"Found {nsame} reactions in common")
-        print(f'{nmissing1} reactions missing in "{self.label}"')
-        print(f'{nmissing2} reactions missing in "{other.label}"')
+            self.logger.info(f"Reactions not present in {other.label}:")
+            print(
+                "\n".join([str(self.reactions[rea]) for rea in not_in_other]),
+                "\n",
+            )
 
-    # ****************
-    def compare_species(self, other, verbosity=1):
-        print(f'Comparing species in networks "{self.label}" and "{other.label}"...')
+            self.logger.info(f"Reactions present in both {self.label} and {other.label}:")
+            print(
+                "\n".join([str(self.reactions[rea]) for rea in common]),
+                "\n",
+            )
 
-        net1 = [x.serialized for x in self.species]
-        net2 = [x.serialized for x in other.species]
+        self.logger.info(f"{len(common)} reactions are common in both networks")
+        self.logger.info(f'{len(not_in_self)} reactions are missing in "{self.label}"')
+        self.logger.info(f'{len(not_in_other)} reactions are missing in "{other.label}"')
 
-        same_species = []
-        only_in_self = []
-        only_in_other = []
-        nmissing1 = 0
-        nmissing2 = 0
-        for ref in np.unique(np.array(net1 + net2)):
-            if ref in net1 and ref not in net2:
-                sp = self.get_species_by_serialized(ref)
-                nmissing2 += 1
-                if verbosity > 1:
-                    print(
-                        f'Found in "{self.label}" but not in "{other.label}": {sp.name}'
-                    )
-                only_in_self.append(sp)
-
-            elif ref in net2 and ref not in net1:
-                sp = other.get_species_object(ref)
-                nmissing1 += 1
-                if verbosity > 1:
-                    print(
-                        f'Found in "{other.label}" but not in "{self.label}": {sp.name}'
-                    )
-                only_in_other.append(sp)
-            else:
-                sp = self.get_species_by_serialized(ref)
-                if verbosity > 1:
-                    print(f"Found in both networks: {ref}")
-                same_species.append(sp)
-
-        print(
-            f"Found {len(same_species)} species in common: {sorted([x.name for x in same_species])}"
-        )
-        print(
-            f'Found {len(only_in_self)} species in "{self.label}" but not in "{other.label}": {sorted([x.name for x in only_in_self])}'
-        )
-        print(
-            f'Found {len(only_in_other)} species in "{other.label}" but not in "{self.label}": {sorted([x.name for x in only_in_other])}'
+    def compare_species(self, other: Network, verbosity: int = 1) -> None:
+        self.logger.info(
+            f'Comparing species in networks "{self.label}" and "{other.label}"...'
         )
 
-    # ****************
-    def check_sink_sources(self, errors):
-        pps = []
-        rrs = []
-        for rea in self.reactions:
-            for p in rea.products:
-                pps.append(p.name)
-            for r in rea.reactants:
-                rrs.append(r.name)
+        self_species = {sp.serialized for sp in self.species}
+        other_species = {sp.serialized for sp in other.species}
 
-        has_sink = has_source = False
-        for s in self.species:
-            if s.name == "dummy":
-                continue
-            if s.name not in pps:
-                self.logger.info(f"Sink: {s.name}")
-                has_sink = True
-            if s.name not in rrs:
-                self.logger.info(f"Source: {s.name}")
-                has_source = True
+        common = self_species & other_species
+        not_in_self = other_species - common
+        not_in_other = self_species - common
 
-        if has_sink:
+        if verbosity == 1:
+            self.logger.info(f"Species not present in {self.label}:")
+            print(
+                ", ".join([str(other.species[sp]) for sp in not_in_self]),
+                "\n",
+            )
+
+            self.logger.info(f"Species not present in {other.label}:")
+            print(
+                ", ".join([str(self.species[sp]) for sp in not_in_other]),
+                "\n",
+            )
+
+            self.logger.info(f"Species present in both {self.label} and {other.label}:")
+            print(
+                ", ".join([str(self.species[sp]) for sp in common]),
+                "\n",
+            )
+
+        self.logger.info(f"{len(common)} species are common in both networks")
+        self.logger.info(f'{len(not_in_self)} species are missing in "{self.label}"')
+        self.logger.info(f'{len(not_in_other)} species are missing in "{other.label}"')
+
+    def check_sink_sources(self, errors: bool) -> None:
+        produced = {p.name for rea in self.reactions for p in rea.products}
+        consumed = {r.name for rea in self.reactions for r in rea.reactants}
+        species_names = {s.name for s in self.species if s.name != "dummy"}
+
+        sinks = species_names - produced
+        sources = species_names - consumed
+
+        for name in sinks:
+            self.logger.info(f"Sink: [cyan]{name}[/]")
+
+        for name in sources:
+            self.logger.info(f"Source: [cyan]{name}[/]")
+
+        if sinks:
             self.logger.warning("Sink detected")
-        if has_source:
+
+        if sources:
             self.logger.warning("Source detected")
 
-        if (has_sink or has_source) and errors:
+        if (sinks or sources) and errors:
+            self.logger.error("Exiting since errors are enabled")
             sys.exit()
 
-    # ****************
-    def check_recombinations(self, errors):
+    def check_recombinations(self, errors: bool) -> None:
+        electron_recomb_species = set()
+
+        for rea in self.reactions:
+            reactant_names = {r.name for r in rea.reactants}
+
+            if "e-" in reactant_names:
+                for r in rea.reactants:
+                    if r.name != "e-":
+                        electron_recomb_species.add(r.name)
+
         has_errors = False
+
         for sp in self.species:
-            if sp.charge == 0:
+            if sp.charge <= 0:
                 continue
 
-            if sp.charge > 0:
-                electron_recombination_found = False
-                # grain_recombination_found = False
-                for rea in self.reactions:
-                    if sp in rea.reactants and "e-" in [x.name for x in rea.reactants]:
-                        electron_recombination_found = True
-                    # if sp in rea.reactants and "GRAIN-" in [x.name for x in rea.reactants]:
-                    #     grain_recombination_found = True
-
-                    if electron_recombination_found:  # and grain_recombination_found:
-                        break
-
-                if not electron_recombination_found:
-                    has_errors = True
-                    self.logger.warning(f"Electron recombination not found for {sp.name}")
-                # if not grain_recombination_found:
-                #     print("WARNING: grain recombination not found for %s" % sp.name)
+            if sp.name not in electron_recomb_species:
+                has_errors = True
+                self.logger.warning(
+                    f"Electron recombination not found for [cyan]{sp.name}[/]"
+                )
 
         if has_errors and errors:
             self.logger.error("Recombination errors found")
             sys.exit(1)
 
-    # ****************
-    def check_isomers(self, errors):
+    def check_isomers(self, errors: bool) -> None:
+        groups = {}
+
+        for sp in self.species:
+            key = tuple(sp.exploded)
+            groups.setdefault(key, []).append(f"[cyan]{sp.name}[/]")
+
         has_errors = False
-        for i, sp1 in enumerate(self.species):
-            for sp2 in self.species[i + 1 :]:
-                if sp1.exploded == sp2.exploded:
-                    self.logger.warning(f"Isomer detected: {sp1.name} {sp2.name}")
-                    has_errors = True
+
+        for exploded, names in groups.items():
+            if len(names) > 1:
+                has_errors = True
+                self.logger.warning(f"Isomers detected: {', '.join(names)}")
 
         if has_errors and errors:
-            self.logger.error("ERROR: isomer errors found")
+            self.logger.error("Isomer errors found")
             sys.exit(1)
 
-    # ****************
     def check_unique_reactions(self, errors):
         has_duplicates = False
         for i, rea1 in enumerate(self.reactions):
             for rea2 in self.reactions[i + 1 :]:
-                if rea1.is_same(rea2):
+                if rea1 == rea2:
                     if rea1.tmin != rea2.tmin or rea1.tmax != rea2.tmax:
                         continue
                     if rea1.is_isomer_version(rea2):
                         continue
-                    if rea1.guess_type() != rea2.guess_type():
+                    if rea1.rtype() != rea2.rtype():
                         continue
                     self.logger.warning(
-                        f"Duplicate reaction found: {rea1.get_verbatim()}"
+                        f"Duplicate reaction found: [cyan]{rea1.get_verbatim()}[/]"
                     )
                     has_duplicates = True
 
@@ -622,39 +581,28 @@ class Network:
             self.logger.error("Duplicate reactions found")
             sys.exit(1)
 
-    # ****************
-    def generate_reactions_dict(self):
-        self.reactions_dict = {
-            rea.get_verbatim(): i for i, rea in enumerate(self.reactions)
-        }
-
-    # ****************
-    def generate_reaction_matrices(self):
-        """Generate reaction matrices (rlist and plist) for tracking reactants and products."""
-        n_reactions = len(self.reactions)
-        n_species = len(self.species)
+    def __generate_reaction_matrices(self) -> None:
+        """Generate reaction matrices (reactant_matrix and product_matrix) for tracking reactants and products."""
 
         # Initialize matrices
-        self.rlist = np.zeros((n_reactions, n_species), dtype=int)
-        self.plist = np.zeros((n_reactions, n_species), dtype=int)
+        self.reactant_matrix = np.zeros(
+            (self.reactions.count, self.species.count), dtype=int
+        )
+        self.product_matrix = np.zeros(
+            (self.reactions.count, self.species.count), dtype=int
+        )
 
         # Fill matrices based on reactions
         for i, reaction in enumerate(self.reactions):
             # Count reactants
             for reactant in reaction.reactants:
-                species_idx = reactant.index
-                self.rlist[i, species_idx] += 1
+                self.reactant_matrix[i, reactant.index] += 1
 
             # Count products
             for product in reaction.products:
-                species_idx = product.index
-                self.plist[i, species_idx] += 1
+                self.product_matrix[i, product.index] += 1
 
-    # ****************
-    def get_reaction_verbatim(self, idx):
-        return self.reactions[idx].get_verbatim()
-
-    def standardize_symbols(self, expr: Basic, replace_nH: bool):
+    def __standardize_symbols(self, expr: Basic, replace_nH: bool) -> Basic:
         """
         This routine applies a set of standard substitution rules to
         standardize symbols.
@@ -675,7 +623,7 @@ class Network:
         if expr == Float(0.0):
             return expr
 
-        nden = MatrixSymbol("nden", len(self.species), 1)
+        nden = MatrixSymbol("nden", self.species.count, 1)
         reps = {}
 
         def get_element_sum(element):
@@ -711,7 +659,7 @@ class Network:
 
             # Handle special "ntot" (sum of all particles)
             if low_name == "ntot":
-                repl = sum(nden[Idx(i)] for i in range(len(self.species)))
+                repl = sum(nden[Idx(i)] for i in range(self.species.count))
 
             # Handle "nh" specifically
             elif low_name == "nh":
@@ -720,7 +668,7 @@ class Network:
             # Handle simple aliases (nh0, ne, etc)
             elif low_name in simple_map:
                 spec_name = simple_map[low_name]
-                repl = nden[Idx(self.species_dict[spec_name])]
+                repl = nden[Idx(self.species[spec_name].index)]
 
             # Handle "n_" prefixed symbols
             elif low_name.startswith("n_"):
@@ -741,8 +689,8 @@ class Network:
                     elif core[-1] in n_suffixes:
                         core = core[:-1] + n_suffixes[core[-1]]
 
-                    if core in self.species_dict:
-                        repl = nden[Idx(self.species_dict[core])]
+                    if core in self.species:
+                        repl = nden[Idx(self.species[core].index)]
 
             # Add valid replacemnts ro the dictionary
             if repl is not None:
@@ -750,67 +698,14 @@ class Network:
 
         return expr.xreplace(reps)
 
-    # *****************
-    def get_number_of_species(self):
-        return len(self.species)
-
-    # *****************
-    def get_species_index(self, name):
-        return self.species_dict[name]
-
-    # *****************
-    def get_species_object(self, name):
-        return self.species[self.species_dict[name]]
-
-    # *****************
-    def get_reaction_index(self, name):
-        return self.reactions_dict[name]
-
-    # *****************
-    def get_latex(self, name, dollars=True):
-        for sp in self.species:
-            if sp.name == name:
-                if dollars:
-                    return f"${sp.latex}$"
-                else:
-                    return sp.latex
-
-        self.logger.error(f"Species {name} latex not found")
-        sys.exit(1)
-
-    # *****************
-    def get_species_by_serialized(self, serialized):
-        for sp in self.species:
-            if sp.serialized == serialized:
-                return sp
-        self.logger.error(f"Species with serialized {serialized} not found")
-        sys.exit(1)
-
-    # *****************
-    def get_reaction_by_serialized(self, serialized):
-        for sp in self.reactions:
-            if sp.serialized == serialized:
-                return sp
-        self.logger.error(f"Reaction with serialized {serialized} not found")
-        sys.exit(1)
-
-    # *****************
-    def get_reaction_by_verbatim(self, verbatim, rtype=None):
-        for rea in self.reactions:
-            if rea.get_verbatim() == verbatim:
-                if rtype is None or rea.guess_type() == rtype:
-                    return rea
-        self.logger.error(f"Reaction with verbatim '{verbatim}' not found")
-        sys.exit(1)
-
     def sfluxes(self) -> list[Expr]:
-        return get_sfluxes(self.reactions, self.species_dict)
+        return get_sfluxes(self.reactions, self.species)
 
     def sodes(self) -> list[Basic]:
-        return get_sodes(self.reactions, self.species_dict)
+        return get_sodes(self.reactions, self.species)
 
     def sradodes(self, order: int = 0) -> list[Expr]:
-        return get_sradodes(self.radiation, self.species_dict, order)
+        return get_sradodes(self.radiation, self.species, order)
 
     def to_hdf5(
         self,
@@ -825,7 +720,7 @@ class Network:
         fast_log=False,
         include_all=False,
         verbose=False,
-    ):
+    ) -> None:
         if isinstance(fname, str):
             fname = Path(fname)
 
@@ -862,7 +757,7 @@ class Network:
         fast_log=False,
         include_all=False,
         verbose=False,
-    ):
+    ) -> None:
         if isinstance(fname, str):
             fname = Path(fname)
 
@@ -900,7 +795,7 @@ class Network:
         format="auto",
         include_all=False,
         verbose=False,
-    ):
+    ) -> None:
 
         write_data_table(
             reactions=self.reactions,

@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from jaff.network import Network
 from jaff.reaction import Reaction
-from jaff.species import Species
+from jaff.species import Specie
 
 
 class TestNetworkValidation:
@@ -192,7 +192,8 @@ class TestNetworkValidation:
             recomb_warnings = [
                 call
                 for call in mock_logger.warning.call_args_list
-                if "Electron recombination not found for C+" in str(call)
+                if "Electron recombination not found for [cyan]C+[/]" in str(call)
+                or "Electron recombination not found for C+" in str(call)
             ]
             assert len(recomb_warnings) > 0
         finally:

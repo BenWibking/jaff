@@ -8,6 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from jaff import Reactions, Species
+
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -36,10 +38,8 @@ class TestNetworkInitialization:
         # Check basic attributes are initialized
         assert network.file_name == Path(sample_kida_file).resolve()
         assert network.label == "sample_kida"
-        assert isinstance(network.species, list)
-        assert isinstance(network.reactions, list)
-        assert isinstance(network.species_dict, dict)
-        assert isinstance(network.reactions_dict, dict)
+        assert isinstance(network.species, Species)
+        assert isinstance(network.reactions, Reactions)
         assert isinstance(network.mass_dict, dict)
 
         # Check that some reactions were loaded
@@ -85,14 +85,11 @@ class TestNetworkInitialization:
                                     Network, "check_unique_reactions", MagicMock()
                                 ):
                                     with patch.object(
-                                        Network, "generate_reactions_dict", MagicMock()
+                                        Network,
+                                        "_Network__generate_reaction_matrices",
+                                        MagicMock(),
                                     ):
-                                        with patch.object(
-                                            Network,
-                                            "generate_reaction_matrices",
-                                            MagicMock(),
-                                        ):
-                                            network = Network(test_path)
+                                        network = Network(test_path)
 
         assert network.label == "network_file"
 
@@ -139,12 +136,9 @@ class TestNetworkInitialization:
                                 Network, "check_unique_reactions"
                             ) as mock_unique:
                                 with patch.object(
-                                    Network, "generate_reactions_dict"
-                                ) as mock_dict:
-                                    with patch.object(
-                                        Network, "generate_reaction_matrices"
-                                    ) as mock_matrices:
-                                        network = Network(sample_kida_file, errors=True)
+                                    Network, "_Network__generate_reaction_matrices"
+                                ) as mock_matrices:
+                                    network = Network(sample_kida_file, errors=True)
 
         # Verify all methods were called
         mock_load.assert_called_once_with(Path(sample_kida_file).resolve(), None, True)
@@ -152,7 +146,6 @@ class TestNetworkInitialization:
         mock_recomb.assert_called_once_with(True)
         mock_isomers.assert_called_once_with(True)
         mock_unique.assert_called_once_with(True)
-        mock_dict.assert_called_once()
         mock_matrices.assert_called_once()
 
     def test_empty_network_file(self, fixtures_dir):
@@ -165,7 +158,7 @@ class TestNetworkInitialization:
         # Should initialize but with no reactions
         assert len(network.reactions) == 0
         # May have default species or none
-        assert isinstance(network.species, list)
+        assert isinstance(network.species, Species)
 
     def test_initial_data_structures(self, sample_kida_file):
         """Test that data structures are properly initialized."""
@@ -173,14 +166,12 @@ class TestNetworkInitialization:
             network = Network(sample_kida_file)
 
         # Check data structure types and initial states
-        assert isinstance(network.species, list)
-        assert isinstance(network.species_dict, dict)
-        assert isinstance(network.reactions, list)
-        assert isinstance(network.reactions_dict, dict)
+        assert isinstance(network.species, Species)
+        assert isinstance(network.reactions, Reactions)
         assert isinstance(network.mass_dict, dict)
 
-        # Check that rlist and plist are generated
-        assert network.rlist is not None
-        assert network.plist is not None
-        assert hasattr(network.rlist, "shape")  # Should be numpy array
-        assert hasattr(network.plist, "shape")  # Should be numpy array
+        # Check that reactant_matrix and product_matrix are generated
+        assert network.reactant_matrix is not None
+        assert network.product_matrix is not None
+        assert hasattr(network.reactant_matrix, "shape")  # Should be numpy array
+        assert hasattr(network.product_matrix, "shape")  # Should be numpy array

@@ -41,12 +41,16 @@ import re
 from collections.abc import Callable
 from functools import cache, reduce
 from itertools import product
-from typing import Any, List, Set, Tuple, TypedDict, cast
+from typing import TYPE_CHECKING, Any, List, Set, Tuple, TypedDict, cast
 
 import sympy as sp
 
+from .core.logger import JaffLogger, jaff_progress
 from .jaff_types import IndexedList, IndexedValue
 from .network import Network
+
+if TYPE_CHECKING:
+    import logging
 
 
 class ExtrasDict(TypedDict):
@@ -270,6 +274,7 @@ class Codegen:
 
         # Set network object
         self.net: Network = network
+        self.logger: logging.Logger = JaffLogger().get_logger()
 
     def get_commons(
         self,
@@ -314,11 +319,9 @@ class Codegen:
             )
 
         scommons += (
-            f"{definition_prefix}nspecs {assign_op} {len(self.net.species)}{lend}\n"
+            f"{definition_prefix}nspecs {assign_op} {self.net.species.count}{lend}\n"
         )
-        scommons += (
-            f"{definition_prefix}nreactions {assign_op} {len(self.net.reactions)}{lend}\n"
-        )
+        scommons += f"{definition_prefix}nreactions {assign_op} {self.net.reactions.count}{lend}\n"
 
         return scommons
 
@@ -372,7 +375,7 @@ class Codegen:
             "extras": {"cse": IndexedList()},
             "expressions": IndexedList(),
         }
-        cse_dict: dict[int, sp.Expr | str] = {}
+        cse_dict: dict[int, sp.Basic | str] = {}
         if use_cse:
             # Collect all rate expressions as SymPy objects, excluding strings and photorates
             for i, rea in enumerate(self.net.reactions):
@@ -619,23 +622,23 @@ class Codegen:
             Species 0:  - flux[0] + flux[3]
             Species 1:  - flux[1] + flux[2]
         """
-        # Build ODE expressions by accumulating flux contributions
-        # Each reaction contributes to derivatives of its reactants (negative)
-        # and products (positive)
-        ode = {specie.index: "" for specie in self.net.species}
-        for i, rea in enumerate(self.net.reactions):
-            # Subtract flux for each reactant
-            for rr in rea.reactants:
-                rrfidx = self.net.species_dict[str(rr)]
-                ode[rrfidx] += f" - flux{self.lb}{i + self.ioff}{self.rb}"
-            # Add flux for each product
-            for pp in rea.products:
-                ppfidx = self.net.species_dict[str(pp)]
-                ode[ppfidx] += f" + flux{self.lb}{i + self.ioff}{self.rb}"
 
-        out = IndexedList()
-        for idx, expr in ode.items():
-            out.append(IndexedValue([idx], expr))
+        with jaff_progress.indeterminate("Generating ode expressions"):
+            # Build ODE expressions by accumulating flux contributions
+            # Each reaction contributes to derivatives of its reactants (negative)
+            # and products (positive)
+            ode = {specie.index: "" for specie in self.net.species}
+            for i, rea in enumerate(self.net.reactions):
+                # Subtract flux for each reactant
+                for rr in rea.reactants:
+                    ode[rr.index] += f" - flux{self.lb}{i + self.ioff}{self.rb}"
+                # Add flux for each product
+                for pp in rea.products:
+                    ode[pp.index] += f" + flux{self.lb}{i + self.ioff}{self.rb}"
+
+            out = IndexedList()
+            for idx, expr in ode.items():
+                out.append(IndexedValue([idx], expr))
 
         return out
 
@@ -729,7 +732,7 @@ class Codegen:
         norm = 0, nden is specie number density
         norm = 1, nden is specie density
         """
-        nspec = len(self.net.species)
+        nspec = self.net.species.count
         nden_matrix = sp.MatrixSymbol("nden", nspec, 1)
 
         # Precompute specific internal energy equation if requested
@@ -820,37 +823,42 @@ class Codegen:
             >>> for iv in result["expressions"]:
             ...     print(f"dydt[{iv.indices[0]}] = {iv.value}")
         """
-        ir: IndexedReturn = {
-            "extras": {"cse": IndexedList()},
-            "expressions": IndexedList(),
-        }
+        with jaff_progress.indeterminate("Generating odes"):
+            ir: IndexedReturn = {
+                "extras": {"cse": IndexedList()},
+                "expressions": IndexedList(),
+            }
 
-        subs_k = {
-            sp.symbols(f"k[{i}]"): rea.rate for i, rea in enumerate(self.net.reactions)
-        }
+            subs_k = {
+                sp.symbols(f"k[{i}]"): rea.rate
+                for i, rea in enumerate(self.net.reactions)
+            }
 
-        ode_symbols = self.net.sodes()
-        ode_symbols = [sode.xreplace(subs_k) for sode in ode_symbols]
+            ode_symbols = self.net.sodes()
+            ode_symbols = [sode.xreplace(subs_k) for sode in ode_symbols]
 
         if use_cse:
-            cse_var = sp.numbered_symbols(prefix=cse_var)
-            replacements, reduced_exprs = sp.cse(ode_symbols, symbols=cse_var)
+            with jaff_progress.indeterminate("Generating cse expressions"):
+                cse_var = sp.numbered_symbols(prefix=cse_var)
+                replacements, reduced_exprs = sp.cse(ode_symbols, symbols=cse_var)
 
-            # Build separate CSE blocks for RHS and Jacobian
-            replacements = self.__prune_cse(replacements, reduced_exprs)
+                # Build separate CSE blocks for RHS and Jacobian
+                replacements = self.__prune_cse(replacements, reduced_exprs)
 
-            # Generate ODE code with only the needed CSE assignments
-            pattern = re.compile(r"(\d+)")
-            for var, expr in replacements:
-                match = pattern.search(str(var))
-                idx: int = int(match.group(0)) if match is not None else 0
-                expr = self.code_gen(expr, strict=False, allow_unknown_functions=True)
-                ir["extras"]["cse"].append(IndexedValue([idx], expr))
+                # Generate ODE code with only the needed CSE assignments
+                pattern = re.compile(r"(\d+)")
+                for var, expr in replacements:
+                    match = pattern.search(str(var))
+                    idx: int = int(match.group(0)) if match is not None else 0
+                    expr = self.code_gen(expr, strict=False, allow_unknown_functions=True)
+                    ir["extras"]["cse"].append(IndexedValue([idx], expr))
 
-            ode_symbols = reduced_exprs
+                ode_symbols = reduced_exprs
 
         # Generate ODE code without CSE
-        for i, expr in enumerate(ode_symbols):
+        for i, expr in enumerate(
+            jaff_progress.track(ode_symbols, description="Generating ode code")
+        ):
             expr = self.code_gen(expr, strict=False, allow_unknown_functions=True)
             ir["expressions"].append(IndexedValue([i], expr))
 
@@ -953,42 +961,48 @@ class Codegen:
             ...     f"Energy equation at index {dedt_expr.indices[0]}: {dedt_expr.value}"
             ... )
         """
-        ir: IndexedReturn = {
-            "extras": {"cse": IndexedList()},
-            "expressions": IndexedList(),
-        }
+        with jaff_progress.indeterminate("Generating rhs equations"):
+            ir: IndexedReturn = {
+                "extras": {"cse": IndexedList()},
+                "expressions": IndexedList(),
+            }
 
-        subs_k = {
-            sp.symbols(f"k[{i}]"): rea.rate for i, rea in enumerate(self.net.reactions)
-        }
+            subs_k = {
+                sp.symbols(f"k[{i}]"): rea.rate
+                for i, rea in enumerate(self.net.reactions)
+            }
 
-        rhs_symbols = self.net.sodes()
-        rhs_symbols = [sode.xreplace(subs_k) for sode in rhs_symbols]
-        rhs_symbols.extend(
-            [
-                self.__gen_sdedt(specific_eint, norm),
-                *(self.net.sradodes(rad_order) if radiation else []),
-            ]
-        )
+            rhs_symbols = self.net.sodes()
+            rhs_symbols = [sode.xreplace(subs_k) for sode in rhs_symbols]
+            rhs_symbols.extend(
+                [
+                    self.__gen_sdedt(specific_eint, norm),
+                    *(self.net.sradodes(rad_order) if radiation else []),
+                ]
+            )
 
         if use_cse:
-            cse_var = sp.numbered_symbols(prefix=cse_var)
-            replacements, reduced_exprs = sp.cse(rhs_symbols, symbols=cse_var)
+            with jaff_progress.indeterminate("Generating cse expressions"):
+                self.logger.info("Generating cse expressions")
+                cse_var = sp.numbered_symbols(prefix=cse_var)
+                replacements, reduced_exprs = sp.cse(rhs_symbols, symbols=cse_var)
 
-            # Build separate CSE blocks for RHS and Jacobian
-            replacements = self.__prune_cse(replacements, reduced_exprs)
+                # Build separate CSE blocks for RHS and Jacobian
+                replacements = self.__prune_cse(replacements, reduced_exprs)
 
-            # Generate ODE code with only the needed CSE assignments
-            pattern = re.compile(r"(\d+)")
-            for var, expr in replacements:
-                match = pattern.search(str(var))
-                idx: int = int(match.group(0)) if match is not None else 0
-                expr = self.code_gen(expr, strict=False, allow_unknown_functions=True)
-                ir["extras"]["cse"].append(IndexedValue([idx], expr))
+                # Generate ODE code with only the needed CSE assignments
+                pattern = re.compile(r"(\d+)")
+                for var, expr in replacements:
+                    match = pattern.search(str(var))
+                    idx: int = int(match.group(0)) if match is not None else 0
+                    expr = self.code_gen(expr, strict=False, allow_unknown_functions=True)
+                    ir["extras"]["cse"].append(IndexedValue([idx], expr))
 
-            rhs_symbols = reduced_exprs
+                rhs_symbols = reduced_exprs
 
-        for i, expr in enumerate(rhs_symbols):
+        for i, expr in enumerate(
+            jaff_progress.track(rhs_symbols, description="Generating RHS code")
+        ):
             expr = self.code_gen(expr, strict=False, allow_unknown_functions=True)
             ir["expressions"].append(IndexedValue([i], expr))
 
@@ -1070,23 +1084,28 @@ class Codegen:
         radode_symbols = self.net.sradodes(order)
 
         if use_cse:
-            cse_var = sp.numbered_symbols(prefix=cse_var)
-            replacements, reduced_exprs = sp.cse(radode_symbols, symbols=cse_var)
+            with jaff_progress.indeterminate("Generating cse expressions"):
+                cse_var = sp.numbered_symbols(prefix=cse_var)
+                replacements, reduced_exprs = sp.cse(radode_symbols, symbols=cse_var)
 
-            # Build separate CSE blocks for RHS and Jacobian
-            replacements = self.__prune_cse(replacements, reduced_exprs)
+                # Build separate CSE blocks for RHS and Jacobian
+                replacements = self.__prune_cse(replacements, reduced_exprs)
 
-            # Generate ODE code with only the needed CSE assignments
-            pattern = re.compile(r"(\d+)")
-            for var, expr in replacements:
-                match = pattern.search(str(var))
-                idx: int = int(match.group(0)) if match is not None else 0
-                expr = self.code_gen(expr, strict=False, allow_unknown_functions=True)
-                ir["extras"]["cse"].append(IndexedValue([idx], expr))
+                # Generate ODE code with only the needed CSE assignments
+                pattern = re.compile(r"(\d+)")
+                for var, expr in replacements:
+                    match = pattern.search(str(var))
+                    idx: int = int(match.group(0)) if match is not None else 0
+                    expr = self.code_gen(expr, strict=False, allow_unknown_functions=True)
+                    ir["extras"]["cse"].append(IndexedValue([idx], expr))
 
-            radode_symbols = reduced_exprs
+                radode_symbols = reduced_exprs
 
-        for i, expr in enumerate(radode_symbols):
+        for i, expr in enumerate(
+            jaff_progress.track(
+                radode_symbols, description="Generating radiaton ode code"
+            )
+        ):
             expr = self.code_gen(expr, strict=False, allow_unknown_functions=True)
             ir["expressions"].append(IndexedValue([i], expr))
 
@@ -1187,103 +1206,109 @@ class Codegen:
             >>> for iv in nested:
             ...     print(f"Row {iv.indices[0]} has {len(iv.value)} non-zero elements")
         """
-        if radiation and rad_order not in [0, 1, 2, 3]:
-            raise ValueError("Invalid order: Supported orders are 0, 1, 2, 3")
 
-        ir: IndexedReturn = {
-            "extras": {"cse": IndexedList()},
-            "expressions": IndexedList(),
-        }
-        # Create symbolic variakbles representing species concentrations for Jacobian
-        # We use temporary scalar symbols y_i for robust SymPy manipulation, then
-        # remap names to `nden[i]` at codegen time to match templates.
-        n_species = len(self.net.species)
-        n_rad_eqns = (
-            2 * self.net.radiation.nbands if radiation and self.net.radiation else 0
-        )
-        n_ode_eqns = n_species + int(use_dedt) + n_rad_eqns
+        with jaff_progress.indeterminate("Preprocessing jacobian"):
+            if radiation and rad_order not in [0, 1, 2, 3]:
+                raise ValueError("Invalid order: Supported orders are 0, 1, 2, 3")
 
-        y_syms = [sp.symbols(f"y_{i}") for i in range(n_species)]
-
-        # Adding photon number density and flux symbols if radiation is enabled
-        if radiation and self.net.radiation:
-            # Placeholders for substitution
-            y_syms.extend([sp.symbols("xx") for _ in range(n_rad_eqns)])
-
-            for i in range(self.net.radiation.nbands):
-                ei, fi = self.net.radiation.ordered_index(i, rad_order)
-                y_syms[n_species + ei] = sp.symbols(f"ry_{i}")
-                y_syms[n_species + fi] = sp.symbols(f"fy_{i}")
-
-        # Build mapping to replace any Indexed occurrences of nden[...] in rate expressions
-        # with the corresponding scalar y_i symbols.
-        nden_matrix = sp.MatrixSymbol("nden", n_species, 1)
-        nden_to_y = {}
-        radden_to_y = {}
-        radflux_to_y = {}
-
-        for i in range(n_species):
-            # Support both nden[i] and nden[Idx(i)] forms
-            nden_to_y[nden_matrix[i, 0]] = y_syms[i]
-            nden_to_y[nden_matrix[sp.Idx(i), 0]] = y_syms[i]
-
-        if radiation and self.net.radiation:
-            radden_matrix = sp.MatrixSymbol(
-                "radeden" if self.net.radiation.energy_density else "photden",
-                self.net.radiation.nbands,
-                1,
+            ir: IndexedReturn = {
+                "extras": {"cse": IndexedList()},
+                "expressions": IndexedList(),
+            }
+            # Create symbolic variakbles representing species concentrations for Jacobian
+            # We use temporary scalar symbols y_i for robust SymPy manipulation, then
+            # remap names to `nden[i]` at codegen time to match templates.
+            n_species = self.net.species.count
+            n_rad_eqns = (
+                2 * self.net.radiation.nbands if radiation and self.net.radiation else 0
             )
-            radflux_matrix = sp.MatrixSymbol("rflux", self.net.radiation.nbands, 1)
+            n_ode_eqns = n_species + int(use_dedt) + n_rad_eqns
 
-            for i in range(self.net.radiation.nbands):
-                ei, fi = self.net.radiation.ordered_index(i, rad_order)
-                # Support both radden[i] and radden[Idx(i)] forms
-                radden_to_y[radden_matrix[i, 0]] = y_syms[n_species + ei]
-                radden_to_y[radden_matrix[sp.Idx(i), 0]] = y_syms[n_species + ei]
-                # Support both radflux[i] and radflux[Idx(i)] forms
-                radflux_to_y[radflux_matrix[i, 0]] = y_syms[n_species + fi]
-                radflux_to_y[radflux_matrix[sp.Idx(i), 0]] = y_syms[n_species + fi]
+            y_syms = [sp.symbols(f"y_{i}") for i in range(n_species)]
 
-        # Precompute rate expressions with nden[...] mapped to y_i
-        # This substitution allows SymPy to properly differentiate rates w.r.t. species
-        k_exprs = [
-            rea.rate.xreplace({**nden_to_y, **radden_to_y, **radflux_to_y})
-            for rea in self.net.reactions
-        ]
+            # Adding photon number density and flux symbols if radiation is enabled
+            if radiation and self.net.radiation:
+                # Placeholders for substitution
+                y_syms.extend([sp.symbols("xx") for _ in range(n_rad_eqns)])
 
-        # Dict to replace any remaining k[i] symbols defensively before differentiating
-        subs_k = {
-            sp.symbols(f"k[{i}]"): k_exprs[i] for i in range(len(self.net.reactions))
-        }
-        ode_symbols = self.net.sodes()
+                for i in range(self.net.radiation.nbands):
+                    ei, fi = self.net.radiation.ordered_index(i, rad_order)
+                    y_syms[n_species + ei] = sp.symbols(f"ry_{i}")
+                    y_syms[n_species + fi] = sp.symbols(f"fy_{i}")
 
-        if use_dedt:
-            ode_symbols.append(self.__gen_sdedt(specific_eint=specific_eint, norm=norm))
+            # Build mapping to replace any Indexed occurrences of nden[...] in rate expressions
+            # with the corresponding scalar y_i symbols.
+            nden_matrix = sp.MatrixSymbol("nden", n_species, 1)
+            nden_to_y = {}
+            radden_to_y = {}
+            radflux_to_y = {}
 
-        if radiation:
-            ode_symbols.extend(self.net.sradodes(order=rad_order))
+            for i in range(n_species):
+                # Support both nden[i] and nden[Idx(i)] forms
+                nden_to_y[nden_matrix[i, 0]] = y_syms[i]
+                nden_to_y[nden_matrix[sp.Idx(i), 0]] = y_syms[i]
 
-        ode_symbols = [
-            sode.xreplace({**nden_to_y, **radden_to_y, **radflux_to_y, **subs_k})
-            for sode in ode_symbols
-        ]
+            if radiation and self.net.radiation:
+                radden_matrix = sp.MatrixSymbol(
+                    "radeden" if self.net.radiation.energy_density else "photden",
+                    self.net.radiation.nbands,
+                    1,
+                )
+                radflux_matrix = sp.MatrixSymbol("rflux", self.net.radiation.nbands, 1)
+
+                for i in range(self.net.radiation.nbands):
+                    ei, fi = self.net.radiation.ordered_index(i, rad_order)
+                    # Support both radden[i] and radden[Idx(i)] forms
+                    radden_to_y[radden_matrix[i, 0]] = y_syms[n_species + ei]
+                    radden_to_y[radden_matrix[sp.Idx(i), 0]] = y_syms[n_species + ei]
+                    # Support both radflux[i] and radflux[Idx(i)] forms
+                    radflux_to_y[radflux_matrix[i, 0]] = y_syms[n_species + fi]
+                    radflux_to_y[radflux_matrix[sp.Idx(i), 0]] = y_syms[n_species + fi]
+
+            # Precompute rate expressions with nden[...] mapped to y_i
+            # This substitution allows SymPy to properly differentiate rates w.r.t. species
+            k_exprs = [
+                rea.rate.xreplace({**nden_to_y, **radden_to_y, **radflux_to_y})
+                for rea in self.net.reactions
+            ]
+
+            # Dict to replace any remaining k[i] symbols defensively before differentiating
+            subs_k = {
+                sp.symbols(f"k[{i}]"): k_exprs[i] for i in range(len(self.net.reactions))
+            }
+            ode_symbols = self.net.sodes()
+
+            if use_dedt:
+                ode_symbols.append(
+                    self.__gen_sdedt(specific_eint=specific_eint, norm=norm)
+                )
+
+            if radiation:
+                ode_symbols.extend(self.net.sradodes(order=rad_order))
+
+            ode_symbols = [
+                sode.xreplace({**nden_to_y, **radden_to_y, **radflux_to_y, **subs_k})
+                for sode in ode_symbols
+            ]
 
         # Compute the Jacobian matrix d(f)/d(y) via symbolic differentiation
         # This gives exact analytical derivatives for stiff ODE solvers
-        jacobian_matrix = sp.Matrix(ode_symbols).jacobian(y_syms)
 
-        if use_dedt:
-            # Calculate internal energy derivatives and append as extra column
-            dde = sp.zeros(n_ode_eqns, 1)
-            dedot_dtgas = sp.diff(self.__get_sym_eos(), sp.symbols("tgas"))
+        with jaff_progress.indeterminate("Generating jacobian"):
+            jacobian_matrix = sp.Matrix(ode_symbols).jacobian(y_syms)
 
-            for i in range(n_ode_eqns):
-                dxdot_dtgas = sp.diff(ode_symbols[i], sp.symbols("tgas"))
-                dde[i, 0] = dxdot_dtgas / dedot_dtgas
-            left = jacobian_matrix[:, :n_species]
-            right = jacobian_matrix[:, n_species:]
+            if use_dedt:
+                # Calculate internal energy derivatives and append as extra column
+                dde = sp.zeros(n_ode_eqns, 1)
+                dedot_dtgas = sp.diff(self.__get_sym_eos(), sp.symbols("tgas"))
 
-            jacobian_matrix = left.row_join(dde).row_join(right)
+                for i in range(n_ode_eqns):
+                    dxdot_dtgas = sp.diff(ode_symbols[i], sp.symbols("tgas"))
+                    dde[i, 0] = dxdot_dtgas / dedot_dtgas
+                left = jacobian_matrix[:, :n_species]
+                right = jacobian_matrix[:, n_species:]
+
+                jacobian_matrix = left.row_join(dde).row_join(right)
 
         # Precompile regex for fast substitution
         dpattern = re.compile(r"\by_(\d+)\b")
@@ -1298,42 +1323,54 @@ class Codegen:
         # Apply common subexpression elimination if requested
         # CSE significantly reduces code size and computation time for large networks
         if use_cse:
-            cse_var = sp.numbered_symbols(prefix=cse_var)
-            replacements, reduced_exprs = sp.cse(list(jacobian_matrix), symbols=cse_var)
+            with jaff_progress.indeterminate("Generating cse expressions"):
+                cse_var = sp.numbered_symbols(prefix=cse_var)
+                replacements, reduced_exprs = sp.cse(
+                    list(jacobian_matrix), symbols=cse_var
+                )
 
-            # Build separate CSE blocks for RHS and Jacobian
-            replacements = self.__prune_cse(replacements, reduced_exprs)
+                # Build separate CSE blocks for RHS and Jacobian
+                replacements = self.__prune_cse(replacements, reduced_exprs)
+                replacements_dict = {str(k): v for k, v in replacements}
 
-            # Generate Jacobian code with only the needed CSE assignments
-            pattern = re.compile(r"(\d+)")
-            for var, expr in replacements:
-                expr = self.__convert_unknown_derivatives(expr)
-                match = pattern.search(str(var))
-                idx: int = int(match.group(0)) if match is not None else 0
-                expr_str = self.code_gen(expr, strict=False, allow_unknown_functions=True)
-                expr_str = dpattern.sub(lambda m: replace_y(m, "nden"), expr_str)
-
-                if radiation and self.net.radiation is not None:
-                    rad = self.net.radiation
-                    expr_str = rrdpattern.sub(
-                        lambda m: replace_y(
-                            m,
-                            "radeden" if rad.energy_density else "photden",
-                        ),
-                        expr_str,
+                # Generate Jacobian code with only the needed CSE assignments
+                pattern = re.compile(r"(\d+)")
+                for var, expr in replacements:
+                    expr = self.__convert_unknown_derivatives(expr, replacements_dict)
+                    match = pattern.search(str(var))
+                    idx: int = int(match.group(0)) if match is not None else 0
+                    expr_str = self.code_gen(
+                        expr, strict=False, allow_unknown_functions=True
                     )
-                    expr_str = rfdpattern.sub(lambda m: replace_y(m, "rflux"), expr_str)
+                    expr_str = dpattern.sub(lambda m: replace_y(m, "nden"), expr_str)
 
-                ir["extras"]["cse"].append(IndexedValue([idx], expr_str))
+                    if radiation and self.net.radiation is not None:
+                        rad = self.net.radiation
+                        expr_str = rrdpattern.sub(
+                            lambda m: replace_y(
+                                m,
+                                "radeden" if rad.energy_density else "photden",
+                            ),
+                            expr_str,
+                        )
+                        expr_str = rfdpattern.sub(
+                            lambda m: replace_y(m, "rflux"), expr_str
+                        )
+
+                    ir["extras"]["cse"].append(IndexedValue([idx], expr_str))
 
         # Generate Jacobian code without CSE
-        for i, j in product(range(n_ode_eqns), repeat=2):
+        for i, j in jaff_progress.track(
+            product(range(n_ode_eqns), repeat=2), description="Generating jacobian code"
+        ):
             expr = reduced_exprs[i * n_ode_eqns + j] if use_cse else jacobian_matrix[i, j]
 
             if expr == 0:
                 continue
 
-            expr = self.__convert_unknown_derivatives(expr)
+            expr = self.__convert_unknown_derivatives(
+                expr, replacements_dict if use_cse else None
+            )
             expr_str = self.code_gen(expr, strict=False, allow_unknown_functions=True)
             expr_str = dpattern.sub(lambda m: replace_y(m, "nden"), expr_str)
 
@@ -1432,35 +1469,76 @@ class Codegen:
         return jac_code
 
     @staticmethod
-    def __convert_unknown_derivatives(expr: sp.Expr):
+    def __convert_unknown_derivatives(expr: sp.Expr, cse_defs: dict | None = None):
+        cse_dict = cse_defs or {}
         replacement_dict = {}
+
+        def resolve_dexpr(dexpr: sp.Basic) -> sp.Basic:
+            while str(dexpr) in cse_dict:
+                dexpr = cse_dict[str(dexpr)]
+            return dexpr
+
+        for ex in expr.atoms(sp.Derivative):
+            dexpr = resolve_dexpr(ex.expr)
+
+            if (
+                not hasattr(dexpr, "func")
+                or not hasattr(dexpr.func, "__name__")
+                or not hasattr(dexpr, "args")
+            ):
+                continue
+
+            deriv_name = dexpr.func.__name__
+            vars = list(ex.variables)
+            args = list(dexpr.args)
+
+            try:
+                func_sig_suffix = "_".join([str(args.index(var)) for var in vars])
+            except ValueError:
+                continue
+
+            new_func_sig = f"{deriv_name}_partial_{func_sig_suffix}"
+            new_func = sp.Function(new_func_sig)(*args)  # type: ignore
+            replacement_dict[ex] = new_func
 
         for ex in expr.atoms(sp.Subs):
             deriv = ex.args[0]
-            sub_var = cast(tuple[sp.Basic, ...], ex.args[1])
-            sub_val = cast(tuple[sp.Basic, ...], ex.args[2])
-
             if isinstance(deriv, sp.Derivative):
+                sub_var = cast(tuple[sp.Basic, ...], ex.args[1])
+                sub_val = cast(tuple[sp.Basic, ...], ex.args[2])
                 sub_dict = dict(zip(sub_var, sub_val))
-                dexpr = deriv.expr
+
+                dexpr = resolve_dexpr(deriv.expr)
+
+                if (
+                    not hasattr(dexpr, "func")
+                    or not hasattr(dexpr.func, "__name__")
+                    or not hasattr(dexpr, "args")
+                ):
+                    continue
+
                 deriv_name = dexpr.func.__name__
                 vars = [var.xreplace(sub_dict) for var in deriv.variables]
                 args = [arg.xreplace(sub_dict) for arg in dexpr.args]
 
-                func_sig_suffix = "_".join(
-                    [str(i) for i in [args.index(var) for var in vars]]
-                )
+                try:
+                    func_sig_suffix = "_".join([str(args.index(var)) for var in vars])
+                except ValueError:
+                    continue
+
                 new_func_sig = f"{deriv_name}_partial_{func_sig_suffix}"
 
                 new_func = sp.Function(new_func_sig)(*args)  # type: ignore
                 replacement_dict[ex] = new_func
+
+        # Replace all matched nodes top-down
         expr = expr.xreplace(replacement_dict)
 
         return expr
 
     @staticmethod
     def __prune_cse(
-        replacements: List[Tuple[sp.Symbol, sp.Expr]], expressions: List[sp.Expr]
+        replacements: list[tuple[sp.Symbol, sp.Expr]], expressions: List[sp.Expr]
     ) -> List[Tuple[sp.Symbol, sp.Expr]]:
         """
         Prune unused CSE (common subexpression elimination) temporaries.

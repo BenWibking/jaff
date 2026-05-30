@@ -1,46 +1,74 @@
+from __future__ import annotations
+
 import sys
+from functools import cached_property
+from typing import TYPE_CHECKING
 
 import numpy as np
-import sympy
+from sympy import (
+    Basic,
+    Function,
+    ccode,
+    cxxcode,
+    fcode,
+    julia_code,
+    lambdify,
+    pycode,
+    rcode,
+    rust_code,
+    symbols,
+    sympify,
+)
+
+from jaff.elements import Elements
+
+from .core.logger import JaffLogger
+from .physics import constants
+from .species import Species
+from .types import Catalogue, Vector
+
+if TYPE_CHECKING:
+    from .species import Specie
 
 
 class Reaction:
     def __init__(
         self,
-        reactants,
-        products,
-        rate,
-        tmin,
-        tmax,
-        dE,
-        dRad_dt,
-        original_string,
-        errors=False,
+        reactants: list[Specie],
+        products: list[Specie],
+        rate: Basic,
+        tmin: float | None,
+        tmax: float | None,
+        dE: Basic,
+        dRad_dt: Basic,
+        original_string: str,
+        index: int,
+        errors: bool = False,
     ):
-        self.reactants = reactants
-        self.products = products
-        self.rate = rate
-        self.tmin = tmin
-        self.tmax = tmax
-        self.dE = dE
-        self.dRad_dt = dRad_dt
-        self.reaction = None
+        self.logger = JaffLogger().get_logger()
+        self.reactants: Species = Species(reactants, check_length=False)
+        self.products: Species = Species(products, check_length=False)
+        self.rate: Basic = rate
+        self.tmin: float | None = tmin
+        self.tmax: float | None = tmax
+        self.dE: Basic = dE
+        self.dRad_dt: Basic = dRad_dt
         self.custom_rad_rate: bool = False
-        self.rad_xsecs = None
-        self.xsecs_dict = (
-            None  # dictionary {"energy": [], "xsecs": []}, energy in erg, xsecs in cm^2
-        )
+        self.rad_xsecs: float | None = None
+        # dictionary {"energy": [], "xsecs": []}, energy in erg, xsecs in cm^2
+        self.xsecs_dict: dict | None = None
         self.original_string = original_string
         # Add verbatim property for backward compatibility
         self.verbatim: str = self.get_verbatim()
+        self.index: int = index
 
         self.check(errors)
-        self.serialized_exploded = self.serialize_exploded()
-        self.serialized = self.serialize()
+        self.serialized_exploded: str = self.serialize_exploded()
+        self.serialized: str = self.serialize()
         self.metadata: dict = {}
 
         # Add type metadata to reaction
-        self.guess_type()
+        self.rtype()
 
     def __repr__(self):
         return (
@@ -50,9 +78,34 @@ class Reaction:
     def __str__(self):
         return self.verbatim
 
-    def guess_type(self):
-        from sympy import Function, symbols
+    def __eq__(self, other):
+        if not isinstance(other, Reaction):
+            raise TypeError(
+                f"'==' not supported between instances of 'Reaction' and '{other}'"
+            )
 
+        return self.serialized == other.serialized
+
+    def __hash__(self):
+        return hash(self.serialized)
+
+    def __lt__(self, other):
+        if not isinstance(other, Reaction):
+            raise TypeError(
+                f"'<' not supported between instances of 'Reaction' and '{other}'"
+            )
+
+        return self.serialized < other.serialized
+
+    @cached_property
+    def species(self) -> Species:
+        return Species(list(set(self.reactants._list) | set(self.products._list)))
+
+    @cached_property
+    def elements(self) -> Elements:
+        return Elements(self.reactants._list + self.products._list)
+
+    def rtype(self) -> str:
         rtype = "unknown"
 
         if type(self.rate) is str:
@@ -76,103 +129,126 @@ class Reaction:
 
         return rtype
 
-    def is_same(self, other):
-        return self.serialized == other.serialized
-
-    def is_isomer_version(self, other):
+    def is_isomer_version(self, other: "Reaction") -> bool:
         # compare serialized forms (ignore isomers)
         is_same_serialized = self.serialized_exploded == other.serialized_exploded
 
         # compare actual species names (consider isomers)
-        rp1 = sorted([x.name for x in self.reactants + self.products])
-        rp2 = sorted([x.name for x in other.reactants + other.products])
+        rp1 = sorted([x.name for x in self.reactants._list + self.products._list])
+        rp2 = sorted([x.name for x in other.reactants._list + other.products._list])
         has_different_species_names = rp1 != rp2
 
         return is_same_serialized and has_different_species_names
 
-    # ****************
     # note that the serialized form uses the exploded form of species names
     # H2O+ will be serialzed as +/H/H/O, hence this will be identical to OH2+
-    def serialize_exploded(self):
+    def serialize_exploded(self) -> str:
         sr = "_".join(sorted([x.serialized for x in self.reactants]))
         sp = "_".join(sorted([x.serialized for x in self.products]))
-        return sr + "__" + sp
 
-    # ****************
+        return f"{sr}__{sp}"
+
     # this version uses the names and not the exploded forms of the species
-    def serialize(self):
+    def serialize(self) -> str:
         # serialize the reaction in the form R__P_P
         sr = "_".join(sorted([x.name for x in self.reactants]))
         sp = "_".join(sorted([x.name for x in self.products]))
-        return sr + "__" + sp
 
-    def check(self, errors):
+        return f"{sr}__{sp}"
+
+    def check(self, errors: bool) -> None:
         if not self.check_mass():
-            print("WARNING: Mass not conserved in reaction: " + self.get_verbatim())
-            if errors:
-                sys.exit(1)
-        if not self.check_charge():
-            print("WARNING: Charge not conserved in reaction: " + self.get_verbatim())
+            self.logger.warning(f"Mass not conserved in: {self.verbatim}")
             if errors:
                 sys.exit(1)
 
-    def check_mass(self):
+        if not self.check_charge():
+            self.logger.warning(f"Charge not conserved in: {self.verbatim}")
+            if errors:
+                sys.exit(1)
+
+    def check_mass(self) -> bool:
         return (
-            np.sum([x.mass for x in self.reactants])
-            - np.sum([x.mass for x in self.products])
+            np.sum([r.mass for r in self.reactants])
+            - np.sum([p.mass for p in self.products])
         ) < 9.1093837e-28
 
-    def check_charge(self):
+    def check_charge(self) -> bool:
         return (
             np.sum([x.charge for x in self.reactants])
             - np.sum([x.charge for x in self.products])
         ) == 0
 
-    def get_verbatim(self):
+    def get_verbatim(self) -> str:
         return (
-            " + ".join([x.name for x in self.reactants])
-            + " -> "
-            + " + ".join([x.name for x in self.products])
+            f"{' + '.join([x.name for x in self.reactants])}"
+            " -> "
+            f"{' + '.join([x.name for x in self.products])}"
         )
 
-    def get_latex(self):
+    def get_latex(self) -> str:
         latex = (
-            " + ".join([x.latex for x in self.reactants])
-            + "\\,\\to\\,"
-            + " + ".join([x.latex for x in self.products])
+            f"{' + '.join([r.latex() for r in self.reactants])}"
+            "\\,\\to\\,"
+            f"{' + '.join([x.latex() for x in self.products])}"
         )
-        return "$" + latex + "$"
+        return f"${latex}$"
 
     def get_flux_expression(
-        self, idx=0, rate_variable="k", species_variable="y", brackets="[]", idx_prefix=""
-    ):
+        self,
+        idx: int = 0,
+        rate_variable: str = "k",
+        species_variable: str = "y",
+        brackets: str = "[]",
+        idx_prefix: str = "",
+    ) -> str:
         if len(brackets) != 2:
-            print("ERROR: brackets must be a string of length 2, e.g. '[]'")
+            self.logger.error("Brackets must be a string of length 2, e.g. '[]'")
             sys.exit(1)
 
         lb, rb = brackets[0], brackets[1]
-
         flux = f"{rate_variable}{lb}{idx}{rb} * " + " * ".join(
             [f"{species_variable}{lb}{idx_prefix + x.fidx}{rb}" for x in self.reactants]
         )
+
         return flux
 
-    def has_any_species(self, species):
-        if type(species) is str:
-            species = [species]
-        return any([x.name in species for x in self.reactants + self.products])
+    def has_any_species(self, species: list[Specie | str] | str | Specie) -> bool:
+        sp_list: list[str] = []
+        if isinstance(species, Specie):
+            sp_list.append(species.name)
+        elif isinstance(species, str):
+            sp_list.append(species)
+        elif isinstance(species, list):
+            sp_list = [sp.name if isinstance(sp, Specie) else sp for sp in species]
 
-    def has_reactant(self, species):
-        if type(species) is str:
-            species = [species]
-        return any([x.name in species for x in self.reactants])
+        return any(
+            [x.name in sp_list for x in self.reactants._list + self.products._list]
+        )
 
-    def has_product(self, species):
-        if type(species) is str:
-            species = [species]
-        return any([x.name in species for x in self.products])
+    def has_reactant(self, species: list[Specie | str] | str | Specie) -> bool:
+        sp_list: list[str] = []
+        if isinstance(species, Specie):
+            sp_list.append(species.name)
+        elif isinstance(species, str):
+            sp_list.append(species)
+        elif isinstance(species, list):
+            sp_list = [sp.name if isinstance(sp, Specie) else sp for sp in species]
 
-    def get_code(self, lang="cpp"):
+        return all([s in self.reactants for s in sp_list])
+
+    def has_product(self, species: list[Specie | str] | str | Specie) -> bool:
+        sp_list: list[str] = []
+        if isinstance(species, Specie):
+            sp_list.append(species.name)
+        elif isinstance(species, str):
+            sp_list.append(species)
+        elif isinstance(species, list):
+            sp_list = [sp.name if isinstance(sp, Specie) else sp for sp in species]
+
+        return all([s in self.products for s in sp_list])
+
+    def get_code(self, lang="cpp") -> str:
         """
         Generate code for the reaction rate in the specified language.
 
@@ -187,13 +263,13 @@ class Reaction:
             ValueError: If the language is not supported
         """
         fmap = {
-            "python": sympy.pycode,
-            "c": sympy.ccode,
-            "cxx": sympy.cxxcode,
-            "fortran": sympy.fcode,
-            "rust": sympy.rust_code,
-            "julia": sympy.julia_code,
-            "r": sympy.rcode,
+            "python": pycode,
+            "c": ccode,
+            "cxx": cxxcode,
+            "fortran": fcode,
+            "rust": rust_code,
+            "julia": julia_code,
+            "r": rcode,
         }
 
         if not fmap.get(lang, ""):
@@ -202,7 +278,7 @@ class Reaction:
             )
         if (
             hasattr(self.rate, "func")
-            and isinstance(self.rate.func, type(sympy.Function("f")))
+            and isinstance(self.rate.func, type(Function("f")))
             and self.rate.func.__name__ == "photorates"
         ):
             # Return a placeholder that will be replaced later
@@ -212,23 +288,17 @@ class Reaction:
 
         return fmap[lang](self.get_sympy(), strict=False)
 
-    def get_sympy(self):
-        return sympy.sympify(self.rate)
+    def get_sympy(self) -> Basic:
+        return sympify(self.rate)
 
-    def plot(self, ax=None):
+    def plot(self, ax=None) -> None:
         import matplotlib.pyplot as plt
-        import numpy as np
 
-        if self.tmin is None:
-            tmin = 2.73
-        else:
-            tmin = self.tmin
-        if self.tmax is None:
-            tmax = 1e6
-        else:
-            tmax = self.tmax
+        tmin = 2.73 if self.tmin is None else self.tmin
+        tmax = 1e6 if self.tmax is None else self.tmax
+
         tgas = np.logspace(np.log10(tmin), np.log10(tmax), 100)
-        r = sympy.lambdify("tgas", self.rate, "numpy")
+        r = lambdify("tgas", self.rate, "numpy")
         y = np.array([r(t) for t in tgas])
 
         if ax is None:
@@ -245,19 +315,20 @@ class Reaction:
         if ax is None:
             plt.show()
 
-    def plot_xsecs(self, ax=None, energy_unit="eV", energy_log=True, xsecs_log=True):
+    def plot_xsecs(
+        self, ax=None, energy_unit="eV", energy_log=True, xsecs_log=True
+    ) -> None:
         import matplotlib.pyplot as plt
-        import numpy as np
 
         if self.xsecs_dict is None:
-            print("No cross sections available for this reaction.")
+            self.logger.info(f"No cross sections available for: {self}")
             return
 
         if ax is None:
             _, ax = plt.subplots()
 
-        clight = 2.99792458e10  # cm/s
-        hplanck = 6.62607015e-27  # erg s
+        clight = constants.cgs.c  # cm/s
+        hplanck = constants.cgs.h  # erg s
 
         if energy_unit == "eV":
             energies = np.array(self.xsecs_dict["energy"]) / 1.60218e-12
@@ -272,7 +343,7 @@ class Reaction:
             energies = clight * hplanck * 1e4 / np.array(self.xsecs_dict["energy"])
             xlabel = "Wavelength (µm)"
         else:
-            print("ERROR: Unknown energy unit '%s'" % energy_unit)
+            self.logger.error(f"Unknown energy unit: {energy_unit}")
             sys.exit(1)
 
         xsecs = np.array(self.xsecs_dict["xsecs"])
@@ -289,3 +360,88 @@ class Reaction:
 
         if ax is None:
             plt.show()
+
+
+class Reactions(Catalogue[Reaction]):
+    def __init__(self, reactions: list[Reaction] | None = None):
+        _by_name: dict[str, Reaction] | None = None
+        _by_serialized: dict[str, Reaction] = {}
+
+        if reactions is not None:
+            _by_name = {r.verbatim: r for r in reactions}
+            _by_serialized = {r.serialized: r for r in reactions}
+
+        super().__init__(reactions, _by_name)
+        self._by_serialized = _by_serialized
+
+    def add(self, reaction: Reaction) -> None:
+        if not isinstance(reaction, Reaction):
+            raise ValueError(f"'{reaction}' must be an instance of 'Reaction'")
+
+        self._by_name[reaction.verbatim] = reaction
+        self._by_serialized[reaction.serialized] = reaction
+        self._list.append(reaction)
+        self.count = len(self._list)
+
+    def from_serialized(self, serialized: str) -> Reaction:
+        return self._by_serialized[serialized]
+
+    def from_verbatim(self, verbatim: str, rtype: str | None = None) -> Reaction | None:
+        rea = self._by_name[verbatim]
+        if rtype is None or rea.rtype() == rtype:
+            return rea
+
+    def get_list(self) -> list[Reaction]:
+        return self._list
+
+    def get(self, reaction: str, rtype: str | None = None) -> Reaction | None:
+        rea = self[reaction]
+        if rtype is None or rea.rtype() == rtype:
+            return rea
+
+    def with_rtype(self, rtype: str):
+        return Vector([r for r in self if r.rtype() == rtype])
+
+    def verbatim(self) -> Vector[str]:
+        return Vector([r.verbatim for r in self])
+
+    def rtypes(self) -> Vector[str]:
+        return Vector([r.rtype() for r in self])
+
+    def reactants(self) -> Vector[Species]:
+        return Vector([r.reactants for r in self])
+
+    def products(self) -> Vector[Species]:
+        return Vector([r.products for r in self])
+
+    def rates(self) -> Vector[Basic]:
+        return Vector([r.rate for r in self])
+
+    def tmins(self) -> Vector[float | None]:
+        return Vector([r.tmin for r in self])
+
+    def tmaxes(self) -> Vector[float | None]:
+        return Vector([r.tmax for r in self])
+
+    def dE(self) -> Vector[Basic]:
+        return Vector([r.dE for r in self])
+
+    def dRad_dt(self) -> Vector[Basic]:
+        return Vector([r.dRad_dt for r in self])
+
+    def serialized(self) -> Vector[str]:
+        return Vector([r.serialized for r in self])
+
+    def serialized_exploded(self) -> Vector[str]:
+        return Vector([r.serialized_exploded for r in self])
+
+    def photo_reactions(self) -> Vector[Reaction]:
+        return Vector([r for r in self if r.rtype() == "photo"])
+
+    def photo_reaction_truths(self) -> Vector[int]:
+        return Vector([int(reaction.rtype() == "photo") for reaction in self])
+
+    def photo_reaction_indices(self) -> Vector[int]:
+        return Vector(
+            [i for i, reaction in enumerate(self) if reaction.rtype() == "photo"]
+        )

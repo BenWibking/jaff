@@ -6,22 +6,25 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
-import h5py
 import numpy as np
 from sympy import Basic, Symbol, __version__, expand_log, lambdify, log, srepr, symbols
 from sympy.core.function import AppliedUndef
 
 from .. import __version__ as jaff_version
 from ..common import SCHEMA_VERSION as SYMPY_SCHEMA
-from ..common import fast_log2, inverse_fast_log2, is_jaff_file, load_mass_dict
+from ..common import fast_log2, inverse_fast_log2, is_jaff_file
 from ..common import from_jsonable as sympy_from_jsonable
 from ..common import to_jsonable as sympy_to_jsonable
 from ..core.logger import JaffLogger
+from ..drivers.hdf5 import HDF5
 from ..errors import NotJaffFileError
+from ..jaff_types import HDF5Dict
+from ..reaction import Reactions
 
 if TYPE_CHECKING:
-    from .. import Network, Reaction, Species
+    from .. import Network, Reaction, Specie, Species
 else:
+    Specie = "Specie"
     Species = "Species"
     Reaction = "Reaction"
     Network = "Network"
@@ -29,8 +32,8 @@ else:
 ReactionProps = TypedDict(
     "ReactionProps",
     {
-        "reactants": list["Species"],
-        "products": list["Species"],
+        "reactants": list["Specie"],
+        "products": list["Specie"],
         "rate": Basic,
         "dE": Basic,
         "dRad_dt": Basic,
@@ -48,8 +51,7 @@ JaffProps = TypedDict(
     {
         "file_name": NotRequired[Path],
         "label": NotRequired[str],
-        "species": NotRequired[list["Species"]],
-        "species_dict": NotRequired[dict[str, int]],
+        "species": Species,
         "reactions": NotRequired[list[ReactionProps]],
     },
 )
@@ -176,16 +178,13 @@ def from_jaff_file(filename: str | Path, errors=False):
         errors : bool
             If True, run Network validation checks and exit on errors.
     """
-    from .. import Species
+    from .. import Specie, Species
 
     if isinstance(filename, str):
         filename = Path(filename)
 
     if not filename.exists():
-        raise FileNotFoundError(
-            f"Invalid network file supplied: {filename}\n"
-            "File not found in local file system"
-        )
+        raise FileNotFoundError(filename)
 
     if not is_jaff_file(filename):
         raise NotJaffFileError("Supplied file is not a jaff network file", filename)
@@ -211,8 +210,7 @@ def from_jaff_file(filename: str | Path, errors=False):
     net_data: JaffProps = {
         "file_name": Path(payload.get("file_name")),
         "label": payload.get("label"),
-        "species": [],
-        "species_dict": {},
+        "species": Species(),
         "reactions": [],
     }
 
@@ -234,19 +232,15 @@ def from_jaff_file(filename: str | Path, errors=False):
         by_index[idx] = name
 
     species_by_index = {}
-    species_list = []
-    species_dict = {}
-    mass_dict = load_mass_dict()
+    species_list = Species()
 
     for idx in sorted(by_index.keys()):
         name = by_index[idx]
-        sp_obj = Species(name, mass_dict, idx)
-        species_list.append(sp_obj)
-        species_dict[name] = idx
+        sp_obj = Specie(name, idx)
+        species_list.add(sp_obj)
         species_by_index[idx] = sp_obj
 
     net_data["species"] = species_list
-    net_data["species_dict"] = species_dict
 
     rate_symbols_payload = payload.get("rate_symbols") or []
     rate_symbol_assumptions = {}
@@ -337,7 +331,7 @@ def from_jaff_file(filename: str | Path, errors=False):
 
 
 def get_table(
-    reactions: list[Reaction],
+    reactions: Reactions,
     logger: logging.Logger | None,
     T_min=None,
     T_max=None,
@@ -548,7 +542,7 @@ def get_table(
 
 
 def write_data_table(
-    reactions: list[Reaction],
+    reactions: Reactions,
     logger: logging.Logger | None,
     fname: str | Path,
     label: str | None = None,
@@ -589,7 +583,7 @@ def write_data_table(
             adaptive error tolerance is not applied to rates below
             rate_min
         rate_max : float
-            rataes above rate_max are clipped to rate_max to prevent
+            rates above rate_max are clipped to rate_max to prevent
             overflow
         fast_log : bool
             if True, sample points are equally spaced in fast_log2(T)
@@ -686,10 +680,10 @@ def write_data_table(
     reactants = []
     products = []
     for i in react_list:
-        if reactions[i].guess_type() == "unknown":
+        if reactions[i].rtype() == "unknown":
             rtype.append("2_body")
         else:
-            rtype.append(reactions[i].guess_type())
+            rtype.append(reactions[i].rtype())
         reactants_ = {}
         for r in reactions[i].reactants:
             if r.name in reactants_.keys():
@@ -733,41 +727,41 @@ def write_data_table(
                 fp.write("\n")
 
     def to_hdf5():
-        # HDF5 output
-        with h5py.File(fname, mode="w") as fp:
-            # Create a group to contain the data
-            grp = fp.create_group("reaction_coeff")
+        output_names = []
+        output_units = []
+        for i, rt, r, p in zip(range(len(rtype)), rtype, reactants, products):
+            output_names.append(f"{rt} rate coefficient: {r} --> {p}")
+            output_units.append("cm^3 s^-1")
 
-            # Store metadata in the attributes
-            grp.attrs["input_names"] = ["temperature"]
-            grp.attrs["input_units"] = ["K"]
-            grp.attrs["xlo"] = np.array([temp[0]])
-            grp.attrs["xhi"] = np.array([temp[-1]])
-            if fast_log:  # Spacing type
-                grp.attrs["spacing"] = ["fast_log"]
-            else:
-                grp.attrs["spacing"] = ["log"]
+        hdfdict = HDF5Dict(
+            {
+                "reaction_coeff": {
+                    "_attrs": {
+                        "input_names": ["temperature"],
+                        "input_units": ["K"],
+                        "xlo": np.array([temp[0]]),
+                        "xhi": np.array([temp[-1]]),
+                        "spacing": ["fast_log"] if fast_log else ["log"],
+                    },
+                    "output_names": {
+                        "_data": output_names,
+                        "_dtype": "s",
+                        "_kind": "linear",
+                    },
+                    "output_units": {
+                        "_data": output_units,
+                        "_dtype": "s",
+                        "_kind": "linear",
+                    },
+                    "data": {
+                        "_data": coef,
+                        "_kind": "linear",
+                    },
+                }
+            }
+        )
 
-            # Store information on which reactions / rate coefficients
-            # are included; note that we store these as data sets
-            # instead of attributes to avoid problems in the case where
-            # the number of reactions is very large, and thus resulting
-            # size of the output reaction list exceeds the HDF5 limit
-            # on the sizes of attributes
-            output_names = []
-            output_units = []
-            for i, rt, r, p in zip(range(len(rtype)), rtype, reactants, products):
-                output_names.append(f"{rt} rate coefficient: {r} --> {p}")
-                output_units.append("cm^3 s^-1")
-            grp.create_dataset(
-                "output_names", data=output_names, dtype=h5py.string_dtype()
-            )
-            grp.create_dataset(
-                "output_units", data=output_units, dtype=h5py.string_dtype()
-            )
-
-            # Create data set holding the coefficient table
-            grp.create_dataset("data", data=coef)
+        HDF5().from_dict(fname, hdfdict)
 
     # Write output in appropriate format
     if out_type == "txt":

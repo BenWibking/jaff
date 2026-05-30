@@ -18,31 +18,37 @@ icon: lucide/house
 
 ---
 
-## Welcome to JAFF
+<!--## Welcome to JAFF-->
 
-JAFF is a comprehensive tool for working with astrochemical reaction networks. It provides a unified interface for parsing multiple network formats, analyzing chemical species and reactions, and generating optimized code for numerical simulations in multiple programming languages: **C**, **C++**, **Fortran**, **Python**, **Rust**, **Julia**, and **R**.
+JAFF is a comprehensive tool for working with astrochemical reaction networks. It provides a unified interface for parsing multiple network formats, analyzing chemical species and reactions, and generating optimized code for numerical simulations in multiple programming languages: `C`, `C++`, `Fortran`, `Python`, `Rust`, `Julia`, and `R`.
 
-## Key Features
+<div class="grid cards" markdown>
 
-### _Multi-Format Support_
+- :lucide-atom:{ .lg .middle } **Multi-format support**
 
-Parse networks from major astrochemistry databases including KIDA, UDFA, PRIZMO, KROME and UCLCHEM with automatic format detection.
+    ***
 
-### _Validation & Analysis_
+    Parses `KIDA`, `UDFA`, `PRIZMO`, `KROME`, and `UCLCHEM` networks with automatic format detection.
 
-Automatically validate mass and charge conservation, analyze stoichiometry and extract elemental composition from complex chemical formulas.
+- :lucide-chart-spline:{ .lg .middle } **Validation and Analysis**
 
-### _Code Generation_
+    ***
 
-Generate optimized code for reaction rates, ODEs, Jacobians, and flux calculations in **C**, **C++**, **Fortran**, **Python**, **Rust**, **Julia**, and **R** with optional common subexpression elimination (CSE).
+    Automatically validates mass and charge conservation, and extracts elemental composition.
 
-### _Temperature Dependent Rates_
+- :lucide-code:{ .lg .middle } **Code Generation**
 
-Evaluate rate coefficients with support for complex temperature dependencies, photochemistry, and cosmic ray ionization.
+    ***
 
-### _Template System_
+    Generates optimized code for rates, ODEs, Jacobians, and fluxes `C`, `C++`, `Fortran`, `Python`, `Rust`, `Julia`, and `R` with optional CSE.
 
-Powerful template language (JAFF directives) for customizing code generation to match your simulation framework.
+- :lucide-chart-no-axes-gantt:{ .lg .middle } **Template System**
+
+    ***
+
+    Powerful template language (JAFF directives) for customizing code generation to match any simulation framework.
+
+</div>
 
 ---
 
@@ -118,23 +124,23 @@ Generate efficient ODE solvers for modeling chemical evolution in:
 
     ***
 
-    Install JAFF and run your first network analysis
+    Install JAFF in your system and run your required network analysis
 
     [:octicons-arrow-right-24: Installation Guide](getting-started/installation.md)
 
-- :material-book-open-variant:{ .lg .middle } **User Guide**
+- :lucide-book-open:{ .lg .middle } **User Guide**
 
     ***
 
     Learn how to work with networks, species, and reactions
 
-    [:lucide-book-open: User Guide](user-guide/loading-networks.md)
+    [:octicons-arrow-right-24: User Guide](user-guide/loading-networks.md)
 
 - :lucide-braces:{ .lg .middle } **Code Generation**
 
     ***
 
-    Generate optimized code for your simulations
+    Generate optimized code for simulations
 
     [:octicons-arrow-right-24: Code Generation Guide](user-guide/code-generation.md)
 

@@ -4,10 +4,9 @@ from pathlib import Path
 from typing import Callable, TypedDict
 
 from sympy import Basic, parse_expr
-from tqdm import tqdm
 
 from .common import f90_convert, resolve_symbolic_dependencies
-from .core.logger import JaffLogger
+from .core.logger import JaffLogger, jaff_progress
 from .errors import ParserError
 
 patternProps = TypedDict(
@@ -63,7 +62,7 @@ parsedListProps = TypedDict(
         "p": list[str],
         "tmin": float | None,
         "tmax": float | None,
-        "rate": str | Basic,
+        "rate": str,
         "string": str,
     },
 )
@@ -78,7 +77,7 @@ class NetworkParser:
 
         file = file.resolve()
         if not file.exists():
-            raise FileNotFoundError(f"Network file not found in file system: {file}")
+            raise FileNotFoundError(file)
 
         self.__file: Path = file
         self.__logger: logging.Logger = logger or JaffLogger().get_logger()
@@ -124,8 +123,9 @@ class NetworkParser:
 
     def __parse_file(self) -> None:
         with open(self.__file, "r") as f:
+            lines = f.readlines()
             for i, line in enumerate(
-                tqdm(f, desc=f"Parsing {self.__file.name}", unit=" lines")
+                jaff_progress.track(lines, description=f"Parsing {self.__file.name}")
             ):
                 self.__nline = i + 1
                 self.__line = line
@@ -655,7 +655,7 @@ class NetworkParser:
 
         rates_dict = {
             1: f"{ka:.2e} * crate",
-            2: f"{ka:.2e} * exp(-{kc:.2e}*av)",
+            2: f"{ka:.2e} * chi * exp(-{kc:.2e} * av)",
             3: f"{ka:.2e}"
             + (f" * (tgas / 300) ** ({kb:.2e})" if kb != 0.0 else "")
             + (f" * exp(-{kc:.2f} / tgas)" if kc != 0.0 else ""),
