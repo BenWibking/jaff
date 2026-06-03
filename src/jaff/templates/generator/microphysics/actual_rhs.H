@@ -424,6 +424,10 @@ actual_rhs_qss(const burn_t &state, amrex::Array1D<amrex::Real, 1, 2 * neqs> &yd
   ydot(2 * ($nspec$ + 1) - 1) = amrex::max(qss_dedt, amrex::Real(0.0));
   ydot(2 * ($nspec$ + 1)) = amrex::max(-qss_dedt, amrex::Real(0.0));
   // $JAFF END
+  // $JAFF REPEAT idx, rhs, cse IN qss_rad_rhses $[REPLACE radeden\[\s*(\d+)\s*\] state.rn[\1] REPLACE photden\[\s*(\d+)\s*\] state.rn[\1] REPLACE rflux\[\s*(\d+)\s*\] state.rn[2*\1+1] REPLACE nden\[\s*(\d+)\s*\] state.xn[\1]]$
+  const amrex::Real qss_rad_cse$idx$ = $cse$;
+  ydot($idx+1$) = $rhs$;
+  // $JAFF END
 }
 
 template <class MatrixType>

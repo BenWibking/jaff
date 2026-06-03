@@ -5,9 +5,10 @@ from pathlib import Path
 from typing import List
 
 import pytest
+import sympy as sp
 
-from jaff.codegen import Codegen
 from jaff import Network
+from jaff.codegen import Codegen, TemplateParser
 
 
 @pytest.fixture
@@ -127,6 +128,46 @@ def test_qss_rhs_uses_stoichiometric_split(tmp_path):
     ]
 
     assert qss_comp == expected_qss_rhs
+
+
+def test_microphysics_qss_template_emits_radiation_split_slots(tmp_path):
+    """Radiation QSS slots are emitted as production/destruction pairs."""
+
+    network_file = tmp_path / "test_qss_radiation.dat"
+    network_file.write_text("@format:idx, R, R, P, rate\n1, H, H, H2, 1.0\n")
+
+    network = Network(
+        str(network_file),
+        funcfile="none",
+        rad_bands=[1.0, 2.0],
+        _from_cli=True,
+    )
+    assert network.radiation is not None
+
+    photden = sp.MatrixSymbol("photden", 1, 1)
+    network.radiation.groups[0].props[network.reactions[0]] = {
+        "k": 2 * photden[sp.Idx(0)],
+        "delta_rad": sp.Float(3.0),
+    }
+
+    template_file = (
+        Path(__file__).parent.parent
+        / "src"
+        / "jaff"
+        / "templates"
+        / "generator"
+        / "microphysics"
+        / "actual_rhs.H"
+    )
+    generated = TemplateParser(network, template_file).parse_file()
+    qss_body = generated.split("actual_rhs_qss", 1)[1].split(
+        "template <class MatrixType>", 1
+    )[0]
+
+    assert "ydot(7) = 6.0*state.rn[0];" in qss_body
+    assert "ydot(8) = qss_rad_cse0*state.rn[0];" in qss_body
+    assert "ydot(9) = 0.0;" in qss_body
+    assert "ydot(10) = qss_rad_cse0*state.rn[2*0+1];" in qss_body
 
 
 def test_network_reactions_loaded_dedt(test_network_dedt: Network):
