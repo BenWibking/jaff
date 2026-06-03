@@ -107,6 +107,28 @@ def test_ode_and_jac(test_codegen: Codegen):
         assert comp == excomp, f"Jacobian: {comp} must be equal to {excomp}"
 
 
+def test_qss_rhs_uses_stoichiometric_split(tmp_path):
+    """QSS RHS keeps production and destruction terms separate by stoichiometry."""
+
+    network_file = tmp_path / "test_qss.dat"
+    network_file.write_text("@format:idx, R, R, P, rate\n1, H, H, H2, 1.0\n")
+
+    cg = Codegen(Network(str(network_file)), lang="c++")
+    qss_rhs = cg.get_qss_rhs_str(use_cse=False)
+
+    qss_comp = qss_rhs.strip().split("\n")
+    qss_comp = [comp.split("=")[-1].strip().strip(";") for comp in qss_comp]
+
+    expected_qss_rhs = [
+        "0.0",
+        "2.0*std::pow(nden[0], 2)",
+        "1.0*std::pow(nden[0], 2)",
+        "0.0",
+    ]
+
+    assert qss_comp == expected_qss_rhs
+
+
 def test_network_reactions_loaded_dedt(test_network_dedt: Network):
     """Test that the test network loads with expected reactions."""
 
