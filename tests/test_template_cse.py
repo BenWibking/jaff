@@ -10,7 +10,7 @@ import pytest
 
 from jaff import Network
 from jaff.codegen import Codegen
-from jaff.codegen._template_engine import TemplateParser
+from jaff.codegen import TemplateParser
 from jaff.errors import ParserError
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -33,7 +33,7 @@ def cse_net() -> Network:
 
 def _render(net: Network, tmp_path: Path, header: str, body: str) -> str:
     template = tmp_path / "t.py"
-    template.write_text(f"# $JAFF REPEAT {header}\n{body}\n# $JAFF END\n")
+    template.write_text(f"$$JAFF REPEAT {header}\n{body}\n$$JAFF END\n")
     return TemplateParser(net, template).parse_file()
 
 
@@ -118,8 +118,8 @@ def test_suffix_pattern_consistent_for_every_prop(
         ("$idx$x = $cse$\nk[$idx$] = $rate$", "identifier"),
         # array-style temporaries are not identifiers
         ("cse[$idx$] = $cse$\nk[$idx$] = $rate$", "identifier"),
-        # offset index would declare cse1 for temporary cse0
-        ("cse$idx+1$ = $cse$\nk[$idx$] = $rate$", "offset"),
+        # arithmetic on the index would declare cse1 for temporary cse0
+        ("cse$idx+1$ = $cse$\nk[$idx$] = $rate$", "arithmetic"),
         # temporaries must be emitted (and named) before they are used
         ("k[$idx$] = $rate$\ncse$idx$ = $cse$", r"\$cse\$"),
     ],

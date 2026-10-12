@@ -197,7 +197,9 @@ def _fortran_code_gen(expr: Any, **kwargs: Any) -> str:
     return _fortran_free_wrap(sp.fcode(expr, standard=95, source_format="free", **kwargs))
 
 
-def wrap_fortran_source(text: str, width: int = _FORTRAN_WIDTH) -> str:
+def wrap_fortran_source(
+    text: str, width: int = _FORTRAN_WIDTH, comment: str | None = None
+) -> str:
     """Re-wrap every over-long executable statement in a fixed-form source.
 
     :func:`_fortran_code_gen` only wraps expressions that pass through
@@ -217,6 +219,9 @@ def wrap_fortran_source(text: str, width: int = _FORTRAN_WIDTH) -> str:
         Complete generated Fortran source.
     width : int, optional
         Significant column count.  Default 72.
+    comment : str or None, optional
+        Extra comment prefix whose lines are also left untouched, e.g. the
+        ``$$JAFF COMMENT`` token of a template.  ``!`` lines always are.
 
     Returns
     -------
@@ -243,7 +248,9 @@ def wrap_fortran_source(text: str, width: int = _FORTRAN_WIDTH) -> str:
 
         stripped = line.lstrip()
         leader = stripped.split("(", 1)[0].split()[0].lower() if stripped else ""
-        is_comment = stripped.startswith("!")
+        is_comment = stripped.startswith("!") or bool(
+            comment and stripped.startswith(comment)
+        )
         is_decl = "::" in line or leader in _FORTRAN_NOWRAP_LEADERS
 
         if is_comment or is_decl:
@@ -273,6 +280,8 @@ class Language:
 
     _register: ClassVar[dict[str, "Language"]] = {}
     LOOKUP: ClassVar[dict[str, str]] = {}
+    # Template file extension (lowercase, no dot) -> canonical language name.
+    EXTENSIONS: ClassVar[dict[str, str]] = {}
 
     # Override vocabulary consumed by derive(). "[,]" -> J[i, j]; "[]" -> J[i][j].
     BRACKET_FORMATS: ClassVar[tuple[str, ...]] = ("()", "{}", "[]", "<>")
@@ -294,6 +303,7 @@ class Language:
     # Immutable per-language config set by each subclass.
     name: ClassVar[str]
     aliases: ClassVar[tuple[str, ...]] = ()
+    extensions: ClassVar[tuple[str, ...]] = ()  # lowercase, no leading dot
     brac: ClassVar[str]
     matrix_sep: ClassVar[str]
     code_gen: ClassVar[Callable[..., str]]
@@ -320,8 +330,18 @@ class Language:
         if not getattr(cls, "name", None):
             raise ValueError(f"{cls.__name__} must define a 'name' class attribute")
 
+        # Validate before touching any registry so a failure leaves no trace.
+        for ext in cls.extensions:
+            owner = Language.EXTENSIONS.get(ext)
+            if owner is not None and owner != cls.name:
+                raise ValueError(
+                    f"{cls.__name__}: extension '{ext}' already belongs to {owner}"
+                )
+
         for alias in (cls.name, *cls.aliases):
             Language.LOOKUP[alias] = cls.name
+        for ext in cls.extensions:
+            Language.EXTENSIONS[ext] = cls.name
 
         # Matrix brackets default to the 1-D brackets + the language separator.
         cls.lb, cls.rb = cls.brac[0], cls.brac[1]
@@ -329,6 +349,23 @@ class Language:
         cls.sep = cls.matrix_sep
 
         Language._register[cls.name] = cls()
+
+    @classmethod
+    def from_extension(cls, ext: str) -> "Language | None":
+        """Look up a language by template file extension.
+
+        Parameters
+        ----------
+        ext : str
+            File extension, with or without a leading dot; case-insensitive.
+
+        Returns
+        -------
+        Language or None
+            The registered singleton, or ``None`` if no language claims ``ext``.
+        """
+        name = Language.EXTENSIONS.get(ext.lstrip(".").lower())
+        return Language._register[name] if name is not None else None
 
     def derive(
         self,
@@ -458,6 +495,7 @@ class Language:
 class Cxx(Language):
     name = "cxx"
     aliases = ("c++", "cpp")
+    extensions = ("cpp", "cxx", "cc", "hpp", "hxx", "hh", "h")
     brac = "[]"
     assignment_op = "="
     line_end = ";"
@@ -478,6 +516,7 @@ class Cxx(Language):
 
 class C(Language):
     name = "c"
+    extensions = ("c",)
     brac = "[]"
     assignment_op = "="
     line_end = ";"
@@ -499,6 +538,7 @@ class C(Language):
 class Fortran(Language):
     name = "fortran"
     aliases = ("f90",)
+    extensions = ("f", "for", "f90", "f95", "f03", "f08")
     brac = "()"
     assignment_op = "="
     line_end = ""
@@ -519,6 +559,7 @@ class Fortran(Language):
 class Python(Language):
     name = "python"
     aliases = ("py",)
+    extensions = ("py",)
     brac = "[]"
     assignment_op = "="
     line_end = ""
@@ -539,6 +580,7 @@ class Python(Language):
 class Rust(Language):
     name = "rust"
     aliases = ("rs",)
+    extensions = ("rs",)
     brac = "[]"
     assignment_op = "="
     line_end = ";"
@@ -560,6 +602,7 @@ class Rust(Language):
 class Julia(Language):
     name = "julia"
     aliases = ("jl",)
+    extensions = ("jl",)
     brac = "[]"
     assignment_op = "="
     line_end = ""
@@ -584,6 +627,7 @@ class Julia(Language):
 
 class R(Language):
     name = "r"
+    extensions = ("r",)
     brac = "[]"
     assignment_op = "<-"
     line_end = ""

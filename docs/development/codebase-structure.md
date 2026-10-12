@@ -65,7 +65,33 @@ src/jaff/
 │   ├── codegen.py              # SymPy → C/C++/Fortran/Python/Rust/Julia/R
 │   ├── preprocessor.py         # Template marker substitution
 │   ├── builder.py              # Plugin-based orchestration
-│   └── _template_engine.py     # JAFF directive rendering
+│   └── templating/             # The $$JAFF template engine (TemplateParser)
+│       ├── __init__.py         # Package entry; jaff.codegen re-exports TemplateParser
+│       ├── parser.py           # TemplateParser: renders one file; language from LANG or extension
+│       ├── engine.py           # Single pass splitting a template into text and directive blocks
+│       ├── syntax.py           # Parses one directive header (Lark) into a command + options
+│       ├── grammar.lark        # Lark grammar of a directive header and its { } option block
+│       ├── blocks.py           # TextBlock / CommandBlock types produced by the engine
+│       ├── options.py          # Options of one block: REPLACE pairs, USE names, groups
+│       ├── resolve.py          # USE layering, per-command group checks, REPLACE compilation
+│       ├── render.py           # Validates then renders blocks; registers DEFINEs, echoes directives
+│       ├── context.py          # RenderContext: network, Codegen, file, echo settings, DEFINEs
+│       ├── placeholders.py     # $name$ / $name op N$ substitution and line splitting
+│       ├── values.py           # Parsers for option-group values
+│       ├── errors.py           # TemplateError, turned into a ParserError with line info
+│       └── commands/           # One package per command: command.py + props.py tables
+│           ├── __init__.py     # COMMANDS registry
+│           ├── base.py         # Command base class and shared rendering helpers
+│           ├── repeat/         # REPEAT: command.py, props.py (PROPERTIES, option
+│           │                   #   settings), expand.py (vertical/horizontal expansion)
+│           ├── reduce/         # REDUCE: command.py, props.py (PROPERTIES)
+│           ├── sub/            # SUB: command.py, props.py (TOKENS)
+│           ├── get/            # GET: command.py, props.py (PROPERTIES)
+│           ├── has/            # HAS: command.py, props.py (KINDS)
+│           ├── define/         # DEFINE: named option sets for USE
+│           ├── lang/           # LANG: target language of the file
+│           ├── comment/        # COMMENT: token used to echo directives
+│           └── end/            # END: closes a directive body
 │
 ├── io/                         # Serialization and logging
 │   ├── _io.py                  # .jaff gzip-JSON read/write; data table export
