@@ -42,7 +42,9 @@ def main(path):
             if output.get("output_type") == "error":
                 bad.append((number, f"{output.get('ename')}: {output.get('evalue')}"))
                 break
-            text = " ".join(TAGS.sub("", ANSI.sub("", _as_str(t))) for t in _texts(output))
+            text = " ".join(
+                TAGS.sub("", ANSI.sub("", _as_str(t))) for t in _texts(output)
+            )
             if TRACEBACK.search(text):
                 bad.append((number, "traceback in cell output"))
                 break

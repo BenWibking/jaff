@@ -17,7 +17,5 @@ def test_import_keeps_sys_excepthook():
         "import jaff\n"
         "assert sys.excepthook is before, sys.excepthook\n"
     )
-    result = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True
-    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
