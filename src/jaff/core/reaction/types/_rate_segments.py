@@ -157,11 +157,16 @@ class RateSegments(Catalogue[RateSegment]):
     def sort(self) -> "RateSegments":
         """Sort the segments in place by ascending lower temperature bound.
 
+        A segment with no lower bound (``tmin`` is ``None``) is open toward
+        low temperatures, so it sorts first.
+
         Returns
         -------
         RateSegments
             ``self``, to allow chaining (e.g. ``segs.sort().evaluate_...()``).
         """
-        self._list = sorted(self._list, key=lambda s: s.tmin)
+        self._list = sorted(
+            self._list, key=lambda s: float("-inf") if s.tmin is None else s.tmin
+        )
 
         return self
