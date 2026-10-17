@@ -386,8 +386,10 @@ def _():
     JAFFGEN = Path(sys.executable).parent / "jaffgen"
     PLOT_SIZE = (5.5, 3.5)
 
-    _scratch_dir = tempfile.TemporaryDirectory()
-    scratch = Path(_scratch_dir.name)
+    # Returned from this cell so it stays alive: a TemporaryDirectory deletes its
+    # folder when garbage-collected, and _-prefixed names are dropped after the cell.
+    scratch_dir = tempfile.TemporaryDirectory()
+    scratch = Path(scratch_dir.name)
 
     def run(cmd: List, cwd: Path | None = None, env: Dict | None = None):
         """Run *cmd*, show its output, and fail the cell on a nonzero exit code."""
@@ -438,6 +440,7 @@ def _():
         plt,
         run,
         scratch,
+        scratch_dir,
         sys,
     )
 

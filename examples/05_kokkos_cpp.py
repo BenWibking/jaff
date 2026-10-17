@@ -267,8 +267,10 @@ def _():
     JAFFGEN = Path(sys.executable).parent / "jaffgen"
     PLOT_SIZE = (5.5, 3.5)
 
-    _scratch_dir = tempfile.TemporaryDirectory()
-    scratch = Path(_scratch_dir.name)
+    # Returned from this cell so it stays alive: a TemporaryDirectory deletes its
+    # folder when garbage-collected, and _-prefixed names are dropped after the cell.
+    scratch_dir = tempfile.TemporaryDirectory()
+    scratch = Path(scratch_dir.name)
 
     def load_network(path: Path, **kwargs) -> Network:
         """Load a network, hiding the banner JAFF prints on stdout."""
@@ -300,7 +302,19 @@ def _():
             show_column_summaries=False,
         )
 
-    return COTHIN, JAFFGEN, PLOT_SIZE, file_table, load_network, mo, np, plt, run, scratch
+    return (
+        COTHIN,
+        JAFFGEN,
+        PLOT_SIZE,
+        file_table,
+        load_network,
+        mo,
+        np,
+        plt,
+        run,
+        scratch,
+        scratch_dir,
+    )
 
 
 if __name__ == "__main__":
