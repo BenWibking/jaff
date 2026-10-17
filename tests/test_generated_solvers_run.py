@@ -49,8 +49,10 @@ def test_python_solve_ivp_driver_runs(tmp_path):
 
 
 @pytest.mark.skipif(
-    shutil.which("gfortran") is None or shutil.which("make") is None,
-    reason="needs gfortran and make",
+    not sys.platform.startswith("linux")
+    or shutil.which("gfortran") is None
+    or shutil.which("make") is None,
+    reason="needs Linux with gfortran and make",
 )
 def test_fortran_dlsodes_builds_and_runs(tmp_path):
     _jaffgen(DEMO2, "fortran_dlsodes", tmp_path)
@@ -71,8 +73,10 @@ def test_fortran_dlsodes_builds_and_runs(tmp_path):
 
 
 @pytest.mark.skipif(
-    shutil.which("cmake") is None or shutil.which("clang++") is None,
-    reason="needs cmake and clang++ (and network access for FetchContent)",
+    not sys.platform.startswith("linux")
+    or shutil.which("cmake") is None
+    or shutil.which("clang++") is None,
+    reason="needs Linux with cmake and clang++ (and network access for FetchContent)",
 )
 def test_kokkos_ode_builds_and_runs(tmp_path):
     _jaffgen(DEMO2, "kokkos_ode", tmp_path)

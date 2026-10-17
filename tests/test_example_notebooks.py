@@ -14,7 +14,9 @@ EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 
 NOTEBOOKS: List[str] = sorted(p.name for p in EXAMPLES.glob("*.py"))
 
-# External programs a notebook shells out to; it is skipped if any is missing.
+# External programs a notebook shells out to. It is skipped if any is missing, and
+# off Linux altogether: Windows/macOS toolchains differ (e.g. no plain gfortran,
+# multi-config build/Debug/*.exe layouts).
 REQUIRES: Dict[str, List[str]] = {
     "04_codegen_jaffgen.py": ["gfortran", "make"],
     "05_kokkos_cpp.py": ["cmake", "clang++"],
@@ -24,8 +26,14 @@ REQUIRES: Dict[str, List[str]] = {
 def _params() -> List[Any]:
     params = []
     for name in NOTEBOOKS:
-        missing = [tool for tool in REQUIRES.get(name, []) if shutil.which(tool) is None]
-        marks = pytest.mark.skip(reason=f"needs {', '.join(missing)}") if missing else ()
+        tools = REQUIRES.get(name, [])
+        missing = [tool for tool in tools if shutil.which(tool) is None]
+        if tools and not sys.platform.startswith("linux"):
+            marks = pytest.mark.skip(reason="builds external code; Linux only")
+        elif missing:
+            marks = pytest.mark.skip(reason=f"needs {', '.join(missing)}")
+        else:
+            marks = ()
         params.append(pytest.param(name, marks=marks, id=name))
 
     return params
