@@ -5,9 +5,6 @@ from pathlib import Path
 
 from ......errors import ParserError
 
-#: KIDA's "no upper limit" ``Tmax``.  :class:`KidaReaction` returns it as-is;
-#: :meth:`KidaParser.process` maps it to ``None`` unless another range of the
-#: same reaction continues above it (then it is a real bound).
 KIDA_OPEN_TMAX = 9999.0
 
 

@@ -211,6 +211,26 @@ def test_sort_open_lower_bound_first():
     assert list(segs) == [low, high]
 
 
+@pytest.mark.parametrize(
+    "bounds",
+    [
+        [(None, 100), (None, 200)],  # two open lower bounds
+        [(100, None), (200, None)],  # two open upper bounds
+        [(10, None), (300, 500)],  # open upper bound below another range
+    ],
+)
+def test_sort_rejects_open_bound_off_the_edge(bounds):
+    """Only the lowest range may lack ``tmin``; only the highest may lack ``tmax``."""
+    segs = [RateSegment(Integer(i), lo, hi) for i, (lo, hi) in enumerate(bounds)]
+    with pytest.raises(ValueError, match="open"):
+        RateSegments(segs, "clip").sort()
+
+
+def test_sort_allows_lone_fully_open_segment():
+    seg = RateSegment(Integer(1), None, None)
+    assert list(RateSegments([seg], "clip").sort()) == [seg]
+
+
 def test_network_open_ended_ranges(tmp_path):
     dat = tmp_path / "open.dat"
     dat.write_text(

@@ -31,6 +31,7 @@ class KidaParser(Parser):
             ParsedRecord(**fields, source_index=rec.source_index, sub_order=rec.sub_order)
             for rec, fields in parsed
         ]
+
         return ParseResult(reactions, {})
 
 
@@ -49,6 +50,7 @@ def _resolve_open_tmax(rows: list[dict]) -> None:
     for f in rows:
         if f["tmax"] != KIDA_OPEN_TMAX:
             continue
+
         lo = float("-inf") if f["tmin"] is None else f["tmin"]
         later = starts.get((tuple(f["r"]), tuple(f["p"])), [])
         if not any(t > lo for t in later):
