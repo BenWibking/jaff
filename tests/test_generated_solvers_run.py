@@ -16,11 +16,13 @@ DEMO2 = REPO / "networks" / "demos" / "demo2.jet"
 
 def _jaffgen(network: Path, template: str, outdir: Path) -> None:
     """Run the jaffgen CLI the way a user would and require success."""
+    # The console script installed next to this interpreter (jaffgen.exe on Windows).
+    jaffgen = shutil.which("jaffgen", path=str(Path(sys.executable).parent))
+    assert jaffgen is not None, "jaffgen console script not found"
+
     proc = subprocess.run(
         [
-            sys.executable,
-            "-m",
-            "jaff.cli.jaffgen._engine",
+            jaffgen,
             "--network",
             str(network),
             "--template",
