@@ -2,9 +2,13 @@
 # ABOUTME: (where needed) and executed, and must exit 0 without solver errors
 
 import os
+import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 DEMO2 = REPO / "networks" / "demos" / "demo2.jet"
@@ -42,3 +46,25 @@ def test_python_solve_ivp_driver_runs(tmp_path):
     )
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+@pytest.mark.skipif(
+    shutil.which("gfortran") is None or shutil.which("make") is None,
+    reason="needs gfortran and make",
+)
+def test_fortran_dlsodes_builds_and_runs(tmp_path):
+    _jaffgen(DEMO2, "fortran_dlsodes", tmp_path)
+
+    build = subprocess.run(["make"], cwd=tmp_path, capture_output=True, text=True)
+    assert build.returncode == 0, build.stdout + build.stderr
+
+    run = subprocess.run(["./test"], cwd=tmp_path, capture_output=True, text=True)
+    output = run.stdout + run.stderr
+
+    assert run.returncode == 0, output
+    assert "DLSODES-" not in output, output
+
+    # The driver holds the gas temperature fixed at its initial 100 K.
+    tgas = re.search(r"tgas\s*=\s*(\S+)", output)
+    assert tgas, output
+    assert float(tgas.group(1).replace("D", "E")) == pytest.approx(100.0)
