@@ -68,3 +68,23 @@ def test_fortran_dlsodes_builds_and_runs(tmp_path):
     tgas = re.search(r"tgas\s*=\s*(\S+)", output)
     assert tgas, output
     assert float(tgas.group(1).replace("D", "E")) == pytest.approx(100.0)
+
+
+@pytest.mark.skipif(
+    shutil.which("cmake") is None or shutil.which("clang++") is None,
+    reason="needs cmake and clang++ (and network access for FetchContent)",
+)
+def test_kokkos_ode_builds_and_runs(tmp_path):
+    _jaffgen(DEMO2, "kokkos_ode", tmp_path)
+
+    for cmd in (
+        ["cmake", "-S", ".", "-B", "build", "-DCMAKE_CXX_COMPILER=clang++"],
+        ["cmake", "--build", "build", "-j"],
+        ["./build/chemistry_ode"],
+    ):
+        proc = subprocess.run(cmd, cwd=tmp_path, capture_output=True, text=True)
+        assert proc.returncode == 0, f"{cmd}:\n{proc.stdout}{proc.stderr}"
+
+    assert "Number of reactions: 2" in proc.stdout, proc.stdout
+    # The driver reports element and charge conservation from injected metadata.
+    assert "net_charge:" in proc.stdout, proc.stdout
