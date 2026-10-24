@@ -1,6 +1,7 @@
 # ABOUTME: Tests for jaff.plotting.api builders and Reaction/Reactions wrappers
 # ABOUTME: Nesting -> panels, per-panel scales, save by suffix, None on nothing
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import warnings
@@ -11,25 +12,32 @@ import numpy as np
 import pytest
 import sympy
 
+from jaff.core.reaction import PhotoReactionProps
 from jaff.plotting import plot, plot_rates, plot_xsecs
+from tests.xsec_props import make_xsec_props
 
 TGAS = sympy.Symbol("tgas")
 
 
 def _r(k):
     return SimpleNamespace(
-        rate=k * (TGAS / 300) ** 0.5, tmin=10, tmax=1000, get_latex=lambda: f"$R_{k}$"
+        rate_coefficient=k * (TGAS / 300) ** 0.5,
+        tmin=10,
+        tmax=1000,
+        get_latex=lambda: f"$R_{k}$",
     )
 
 
 def _photo(name):
     energy = np.linspace(10.0, 20.0, 11)
     return SimpleNamespace(
-        xsecs_dict={
-            "photon_energy": energy,
-            "photodecay": np.full(11, 1e-18),
-            "photo_absorption": np.full(11, 2e-18),
-        },
+        photo=PhotoReactionProps(
+            xsec=make_xsec_props(
+                photon_energy=energy,
+                photodecay=np.full(11, 1e-18),
+                photo_absorption=np.full(11, 2e-18),
+            )
+        ),
         get_latex=lambda: name,
     )
 
@@ -89,12 +97,12 @@ class TestPlotRates:
         assert _labels(axes[0, 0]) == ["a", "b"]
 
     def test_unevaluable_panel_dropped(self):
-        bad = SimpleNamespace(rate=sympy.Symbol("ntot"), tmin=None, tmax=None)
+        bad = SimpleNamespace(rate_coefficient=sympy.Symbol("ntot"), tmin=None, tmax=None)
         _, axes = plot_rates([bad, _r(1)], grid=(1, 2), show=False)
         assert [a.axison for a in axes.ravel()] == [True, False]
 
     def test_nothing_evaluable_returns_none(self):
-        bad = SimpleNamespace(rate=sympy.Symbol("ntot"), tmin=None, tmax=None)
+        bad = SimpleNamespace(rate_coefficient=sympy.Symbol("ntot"), tmin=None, tmax=None)
         assert plot_rates(bad, show=False) is None
 
     def test_figure_title_not_leaked_from_panels(self):
@@ -120,7 +128,7 @@ class TestPlotXsecs:
         assert [a.get_title() for a in axes.ravel()] == ["$C$", "$O$"]
 
     def test_nothing_returns_none(self):
-        assert plot_xsecs(SimpleNamespace(xsecs_dict=None), show=False) is None
+        assert plot_xsecs(SimpleNamespace(photo=None), show=False) is None
 
 
 class TestReactionWrappers:
@@ -212,14 +220,14 @@ class TestMisc:
             plot_rates([_r(1), _r(2)], grid=(1, 1), show=False)
 
     def test_prefix_counts_contributing_reactions(self):
-        none = SimpleNamespace(xsecs_dict=None, get_latex=lambda: "N")
+        none = SimpleNamespace(photo=None, get_latex=lambda: "N")
         _, axes = plot_xsecs([none, _photo("$C$")], show=False)
         ax = axes[0, 0]
         assert ax.get_title() == "$C$"
         assert _labels(ax) == ["Photoabsorption", "Photodecay"]
 
     def test_labels_align_across_dropped_panel(self):
-        bad = SimpleNamespace(rate=sympy.Symbol("ntot"), tmin=None, tmax=None)
+        bad = SimpleNamespace(rate_coefficient=sympy.Symbol("ntot"), tmin=None, tmax=None)
         _, axes = plot_rates(
             [[_r(1)], [bad], [_r(2)]], labels=["a", "b", "c"], grid=(1, 3), show=False
         )
@@ -273,7 +281,7 @@ class TestLegendCapChunking:
         assert any("legend" in m for m in jaff_warnings)
 
     def test_unevaluable_not_counted(self):
-        bad = SimpleNamespace(rate=sympy.Symbol("ntot"), tmin=None, tmax=None)
+        bad = SimpleNamespace(rate_coefficient=sympy.Symbol("ntot"), tmin=None, tmax=None)
         _, axes = plot_rates([bad] + [_r(k) for k in range(1, 13)], show=False)
         assert axes.shape == (1, 1) and len(_labels(axes[0, 0])) == 12
 
@@ -326,7 +334,7 @@ class TestClose:
 
 def _zero(k):
     return SimpleNamespace(
-        rate=0 * TGAS, tmin=10, tmax=1000, get_latex=lambda: f"$Z_{k}$"
+        rate_coefficient=0 * TGAS, tmin=10, tmax=1000, get_latex=lambda: f"$Z_{k}$"
     )
 
 
@@ -350,9 +358,10 @@ class TestUnplottableSeries:
 
     def test_zero_xsec_reaction_dropped_before_chunking(self):
         zero = _photo("$Z$")
-        zero.xsecs_dict = {
-            k: v * 0 if k != "photon_energy" else v for k, v in zero.xsecs_dict.items()
-        }
+        xs = zero.photo.xsec
+        zero.photo.xsec = replace(
+            xs, photodecay=xs.photodecay * 0, photo_absorption=xs.photo_absorption * 0
+        )
         photos = [zero] + [_photo(f"$P_{k}$") for k in range(6)]
         _, axes = plot_xsecs(photos, show=False)
         assert axes.shape == (1, 1) and len(_labels(axes[0, 0])) == 12
@@ -404,7 +413,9 @@ class TestReviewMinor:
 
 class TestWarningSummary:
     def test_unevaluable_rates_summarised(self, jaff_warnings):
-        bad = [SimpleNamespace(rate=sympy.Symbol("ntot"), tmin=None, tmax=None)] * 3
+        bad = [
+            SimpleNamespace(rate_coefficient=sympy.Symbol("ntot"), tmin=None, tmax=None)
+        ] * 3
         _, axes = plot_rates(bad + [_r(1), _r(2)], show=False)
         assert len(_labels(axes[0, 0])) == 2
         hits = [m for m in jaff_warnings if "cannot be evaluated" in m]
@@ -415,7 +426,9 @@ class TestWarningSummary:
 
 
 def test_grid_with_unevaluable_panels_warns_once_per_cause(jaff_warnings):
-    bad = [SimpleNamespace(rate=sympy.Symbol("ntot"), tmin=None, tmax=None)] * 5
+    bad = [
+        SimpleNamespace(rate_coefficient=sympy.Symbol("ntot"), tmin=None, tmax=None)
+    ] * 5
     plot_rates([*bad, _r(1), _r(2)], grid=(3, 3), show=False)
     assert not any("has nothing to plot" in m for m in jaff_warnings)
     assert sum("cannot be evaluated" in m for m in jaff_warnings) == 1
@@ -423,6 +436,6 @@ def test_grid_with_unevaluable_panels_warns_once_per_cause(jaff_warnings):
 
 def test_reactions_plot_xsecs_grid_no_per_panel_spam(jaff_warnings):
     plot_xsecs(
-        [SimpleNamespace(xsecs_dict=None)] * 4 + [_photo("$C$")], grid=(3, 3), show=False
+        [SimpleNamespace(photo=None)] * 4 + [_photo("$C$")], grid=(3, 3), show=False
     )
     assert not any("has nothing to plot" in m for m in jaff_warnings)

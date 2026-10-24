@@ -10,6 +10,8 @@ into a format-independent ``parsedListProps`` dict with keys:
 - ``"rate"``   — rate expression as a Python/SymPy-compatible string
 - ``"type"``   — reaction type concluded by the parser (e.g. ``"photo"``)
 - ``"string"`` — the original network-file line (for error reporting)
+- ``"format"`` — name of the parser that produced the reaction
+- ``"metadata"`` — parser-private data for that parser's post-processing
 
 Supported file formats
 ----------------------
@@ -43,7 +45,7 @@ from sympy import Basic
 
 from ....common import resolve_symbolic_dependencies
 from ....io import JaffLogger, jaff_progress
-from ._formats import Record, all_parsers
+from ._formats import Parser, Record, all_parsers
 from ._typing import parsedListProps
 
 
@@ -121,18 +123,21 @@ class NetworkParser:
 
         self.__parse_file()
 
+        # Each parsed record is kept with the name of the parser that made it.
         reactions = []
+        self.__used_parsers: list[Parser] = []
         for parser in self.__parsers:
             bucket = self.__buckets.get(parser.name)
             if not bucket:
                 continue
 
+            self.__used_parsers.append(parser)
             result = parser.process(bucket)
-            reactions.extend(result.reactions)
+            reactions.extend((pr, parser.name) for pr in result.reactions)
             self.__globals.update(result.globals)
 
-        reactions.sort(key=lambda pr: (pr.source_index, pr.sub_order))
-        self.__parsed_list[:] = [pr.as_parsed_props() for pr in reactions]
+        reactions.sort(key=lambda item: (item[0].source_index, item[0].sub_order))
+        self.__parsed_list[:] = [pr.as_parsed_props(name) for pr, name in reactions]
 
         self.__normalize_rates()
         self.__globals = resolve_symbolic_dependencies(self.__globals, fname=self.__file)
@@ -152,6 +157,13 @@ class NetworkParser:
 
         return
 
+    def get_parsers(self) -> list[Parser]:
+        """Return the parsers that produced records, in priority order.
+
+        ``Network`` calls each one's ``post_process`` once the network is built.
+        """
+        return list(self.__used_parsers)
+
     def get_parsed(self) -> tuple[list[parsedListProps], dict[str, Basic]]:
         """Return the parsed reaction list and resolved global variable map.
 
@@ -160,7 +172,8 @@ class NetworkParser:
         tuple[list[parsedListProps], dict[str, Basic]]
             - ``list[parsedListProps]``: one dict per reaction with keys
               ``"r"``, ``"p"``, ``"tmin"``, ``"tmax"``, ``"rate"``,
-              ``"type"``, ``"string"``.
+              ``"type"``, ``"string"``, ``"source_index"``, ``"format"``,
+              ``"metadata"``.
             - ``dict[str, Basic]``: global symbolic constants defined in the
               file (e.g. ``@var`` entries), with all inter-dependencies
               resolved via SymPy substitution.

@@ -17,6 +17,8 @@ src/jaff/
 │   │   ├── _spec.py            # NetworkSpec — normalized Network params
 │   │   └── _args.py            # NetworkArgs — raw CLI arg accumulator
 │   ├── reaction/               # reaction.py (Reaction) · reactions.py (Reactions)
+│   │                           #   reaction_props.py (PhotoReactionProps, GroupedPhotoReactionProps,
+│   │                           #   ShieldingProps)
 │   ├── species/                # specie.py (Specie) · species.py (Species)
 │   ├── elements/               # element.py (Element) · elements.py (Elements)
 │   ├── parsers/                # File parsers (network + auxiliary)
@@ -34,20 +36,18 @@ src/jaff/
 │   │   │       └── kida/       # parser.py + reaction.py handler
 │   │   └── auxiliary_func/     # .jfunc auxiliary function parser
 │   │       ├── _engine.py      # AuxiliaryFunctionParser
-│   │       └── _typing/        # AuxiliaryFunctionsDict
+│   │       └── function_props.py # AuxiliaryFunctionProps (one parsed function)
 │   └── _typing/                # Shared core TypedDicts (Network/Element/Reaction)
 │
 ├── physics/                    # Symbolic ODE/flux generation + physics helpers
 │   ├── _equations.py           # get_sfluxes, get_sodes, get_sradodes
 │   ├── photo_reactions/        # Photochemistry: cross sections, radiation, shielding
-│   │   ├── _photochemistry.py  # get_xsec / get_verner_xsec / shielding — lookups
+│   │   ├── _photochemistry.py  # XsecProps; get_xsec / get_verner_xsec / shielding — lookups
 │   │   ├── _radiation.py       # Radiation moment equations
-│   │   ├── _typing/            # TypedDicts (XsecsProps, ...)
-│   │   └── shielding/          # Shielding-function registry (@_register, by reaction metadata)
+│   │   └── shielding/          # Shielding-function registry (@_register, by photo.shielding.type)
 │   │       ├── _base.py        # ShieldingFunction ABC (name, reaction attrs)
 │   │       ├── global_/        # Global models, reaction=None (e.g. leiden.py)
 │   │       └── H2__PHOTON__H_H/ # Local H2 self-shielding (db1996, hg2015) + shared _utils
-│   ├── _typing/                # TypedDicts (Numeric, ...)
 │   └── constants.py            # Physical constants (astropy Quantities)
 │
 ├── plotting/                   # Spec-driven matplotlib plotting

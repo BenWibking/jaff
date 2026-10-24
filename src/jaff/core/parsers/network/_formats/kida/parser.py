@@ -34,6 +34,10 @@ class KidaParser(Parser):
 
         return ParseResult(reactions, {})
 
+    def post_process(self, network) -> None:
+        """No post-processing needed for this format."""
+        return
+
 
 def _resolve_open_tmax(rows: list[dict]) -> None:
     """Map KIDA's ``Tmax = 9999`` "no upper limit" to ``None`` in place.

@@ -41,5 +41,8 @@ class NetworkArgs:
     background_field: str = "draine"
     c: float = constants.c.cgs.value
     pi_database: str = "norad"
+    override_custom_rate: bool = False
+    override_custom_cross_section: bool = False
+    absorption_attenuates_flux: bool = True
     _from_cli: bool = True
     _metadata: dict[str, Any] = field(default_factory=dict)

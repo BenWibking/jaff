@@ -92,7 +92,7 @@ class JaffGen:
         The reaction network built from the resolved network args.
     jaffgen_config : dict
         Small back-reference payload (``{"output_dir": Path}``) read by the
-        shielding code via ``reaction._metadata["jaffgen"]["jaffgen_object"]``.
+        shielding code via ``network.spec._metadata["jaffgen_object"]``.
 
     Raises
     ------
@@ -119,7 +119,7 @@ class JaffGen:
         self.args: SimpleNamespace = args
         self.state: State = State()
         # Consumed by the shielding code (leiden.py) through the metadata
-        # back-reference: reaction._metadata["jaffgen"]["jaffgen_object"].
+        # back-reference: network.spec._metadata["jaffgen_object"].
         self.jaffgen_config: dict[str, Any] = {}
 
         print_motd("jaffgen")
@@ -280,6 +280,12 @@ class JaffGen:
                 sn.background_field = v
             if (v := nr.get("pi_database")) is not None:
                 sn.pi_database = v
+            if (v := nr.get("override_custom_rate")) is not None:
+                sn.override_custom_rate = v
+            if (v := nr.get("override_custom_cross_section")) is not None:
+                sn.override_custom_cross_section = v
+            if (v := nr.get("absorption_attenuates_flux")) is not None:
+                sn.absorption_attenuates_flux = v
 
         # The presence of a [network.dust] table enables the dust module
         # (photoelectric emission, ...); it is a network-level module, not a
@@ -672,6 +678,9 @@ class JaffGen:
                     c=sn.c,
                     background_field=sn.background_field,
                     pi_database=sn.pi_database,
+                    override_custom_rate=sn.override_custom_rate,
+                    override_custom_cross_section=sn.override_custom_cross_section,
+                    absorption_attenuates_flux=sn.absorption_attenuates_flux,
                 )
                 if sn.rad_bands
                 else None

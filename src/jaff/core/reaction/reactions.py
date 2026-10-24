@@ -60,6 +60,17 @@ class Reactions(Catalogue[Reaction]):
         )
         self._by_serialized = _by_serialized
         self._by_source_index = _by_source_index
+        # Filter results keyed by (filter, argument); cleared by add().
+        self.__filter_cache: dict[tuple[str, ...], Vector[Reaction]] = {}
+        self.__frozen: bool = False
+
+    def _freeze(self) -> None:
+        """Disallow further :meth:`add` calls.
+
+        ``Network`` freezes its catalogue before running the parsers'
+        post-processing hooks, which may change reactions but not add them.
+        """
+        self.__frozen = True
 
     @overload
     def __getitem__(self, key: str) -> Reaction | list[Reaction]: ...
@@ -144,9 +155,16 @@ class Reactions(Catalogue[Reaction]):
         ------
         ValueError
             If *reaction* is not a ``Reaction`` instance.
+        RuntimeError
+            If the catalogue has been frozen (see :meth:`freeze`).
         """
         if not isinstance(reaction, Reaction):
             raise ValueError(f"'{reaction}' must be an instance of 'Reaction'")
+
+        if self.__frozen:
+            raise RuntimeError(
+                "Reactions catalogue is frozen: Reactions cannot be further added to the network"
+            )
 
         reaction.catalogue_index = len(self._list)
         self._by_prop.setdefault(reaction.verbatim, []).append(reaction)
@@ -154,6 +172,7 @@ class Reactions(Catalogue[Reaction]):
         self._by_source_index[reaction.index] = reaction
         self._list.append(reaction)
         self.count = len(self._list)
+        self.__filter_cache.clear()
 
     def by_source_index(self, n: int) -> Reaction | None:
         """Return the reaction whose file-side number (``source_index``) is *n*.
@@ -307,7 +326,7 @@ class Reactions(Catalogue[Reaction]):
         if type is None or rea.type == type:
             return rea
 
-    def with_type(self, type: str):
+    def with_type(self, type: str) -> Vector[Reaction]:
         """Return all reactions matching the given reaction type.
 
         Parameters
@@ -320,8 +339,34 @@ class Reactions(Catalogue[Reaction]):
         Returns
         -------
         Vector[Reaction]
+            In catalogue order.  Cached: the same object is returned until a
+            reaction is added, so treat it as read-only.
         """
-        return Vector([r for r in self if r.type == type])
+        key = ("type", type)
+        if key not in self.__filter_cache:
+            self.__filter_cache[key] = Vector([r for r in self if r.type == type])
+
+        return self.__filter_cache[key]
+
+    def with_format(self, format: str) -> Vector[Reaction]:
+        """Return all reactions produced by the named network-format parser.
+
+        Parameters
+        ----------
+        format : str
+            Parser name, e.g. ``"prizmo"``, ``"krome"``, ``"kida"``.
+
+        Returns
+        -------
+        Vector[Reaction]
+            In catalogue order.  Cached: the same object is returned until a
+            reaction is added, so treat it as read-only.
+        """
+        key = ("format", format)
+        if key not in self.__filter_cache:
+            self.__filter_cache[key] = Vector([r for r in self if r._format == format])
+
+        return self.__filter_cache[key]
 
     def verbatim(self) -> Vector[str]:
         """Return a ``Vector`` of verbatim reaction strings.
@@ -359,8 +404,17 @@ class Reactions(Catalogue[Reaction]):
         """
         return Vector([r.products for r in self])
 
+    def rate_coefficients(self) -> Vector[Basic]:
+        """Return a ``Vector`` of rate-coefficient SymPy expressions.
+
+        Returns
+        -------
+        Vector[Basic]
+        """
+        return Vector([r.rate_coefficient for r in self])
+
     def rates(self) -> Vector[Basic]:
-        """Return a ``Vector`` of rate SymPy expressions.
+        """Return a ``Vector`` of reaction rates, ``rate_coefficient · Π nden``.
 
         Returns
         -------
@@ -395,15 +449,6 @@ class Reactions(Catalogue[Reaction]):
         """
         return Vector([r.dE for r in self])
 
-    def dRad(self) -> Vector[Basic]:
-        """Return a ``Vector`` of radiation-rate SymPy expressions.
-
-        Returns
-        -------
-        Vector[Basic]
-        """
-        return Vector([r.dRad for r in self])
-
     def serialized(self) -> Vector[str]:
         """Return a ``Vector`` of name-level serialized reaction strings.
 
@@ -421,6 +466,24 @@ class Reactions(Catalogue[Reaction]):
         Vector[str]
         """
         return Vector([r.serialized_exploded for r in self])
+
+    def radiation_emitters(self) -> Vector[Reaction]:
+        """Return all reactions that emit radiation (have a ``spectralYield``).
+
+        Returns
+        -------
+        Vector[Reaction]
+            Reactions whose ``rad.spectral_yield`` is set, in catalogue order.
+            Cached: the same object is returned until a reaction is added, so
+            treat it as read-only.
+        """
+        key = ("radiation_emitters",)
+        if key not in self.__filter_cache:
+            self.__filter_cache[key] = Vector(
+                [r for r in self if r.rad.spectral_yield is not None]
+            )
+
+        return self.__filter_cache[key]
 
     def photo_reactions(self) -> Vector[Reaction]:
         """Return all photo-reactions (``type == "photo"``).

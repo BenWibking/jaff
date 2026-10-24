@@ -5,10 +5,13 @@ import math
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 import sympy as sp
 
+from jaff.core.reaction import PhotoReactionProps
 from jaff.physics import RadiationProps
 from jaff.physics.photo_reactions._radiation import Radiation
+from tests.xsec_props import make_xsec_props
 
 
 class _Reaction:
@@ -16,17 +19,14 @@ class _Reaction:
 
     def __init__(self, energies, absorption, decay):
         E = np.array(energies, dtype=float)
-        self.xsecs_dict = {
-            "_equations": {"pa": True},
-            "photon_energy": E,
-            "photo_absorption": np.array(absorption, dtype=float),
-            "photodecay": np.array(decay, dtype=float),
-        }
-        self.dRad = sp.Float(0.0)
-        self._metadata = {}
-        self.rad_groups = []
-        self.rad_xsecs = None
-        self.rate = None
+        self.photo = PhotoReactionProps(
+            xsec=make_xsec_props(
+                absorption=True,
+                photon_energy=E,
+                photo_absorption=np.array(absorption, dtype=float),
+                photodecay=np.array(decay, dtype=float),
+            )
+        )
 
 
 def _radiation(bands, profile_index, mode="nph"):
@@ -51,41 +51,41 @@ def test_zero_band_before_nonzero_no_nan():
     """Band 0 (zero xsec) then band 1 (nonzero): rate finite, band 0 gives 0."""
     rad = _radiation([1.0, 2.0, 3.0], profile_index=2, mode="nph")
     rxn = _Reaction([1.0, 2.0, 3.0], absorption=[0.0, 0.0, 1.0], decay=[0.0, 0.0, 1.0])
-    rad.set_reaction_rate_coefficient(rxn)
+    k_tot, _, grouped = rad.get_reaction_rate_props(rxn)
 
-    assert not rxn.rate.has(sp.nan)
-    assert math.isfinite(_numeric(rxn.rate, rad))
-    # Band 0's stored coefficient is exactly zero; only band 1 contributes.
-    assert rad.groups[0].props[rxn]["k"] == 0
-    assert rad.groups[1].props[rxn]["k"] != 0
+    assert not k_tot.has(sp.nan)
+    assert math.isfinite(_numeric(k_tot, rad))
+    # Band 0's coefficient is exactly zero; only band 1 contributes.
+    assert grouped[0].k == 0
+    assert grouped[1].k != 0
 
 
 def test_energy_density_mode_zero_band_no_nan():
     """The /eavg energy-density path must also stay finite through a zero band."""
     rad = _radiation([1.0, 2.0, 3.0], profile_index=2, mode="u")
     rxn = _Reaction([1.0, 2.0, 3.0], absorption=[0.0, 0.0, 1.0], decay=[0.0, 0.0, 1.0])
-    rad.set_reaction_rate_coefficient(rxn)
+    k_tot, _, _ = rad.get_reaction_rate_props(rxn)
 
-    assert not rxn.rate.has(sp.nan)
-    assert math.isfinite(_numeric(rxn.rate, rad))
+    assert not k_tot.has(sp.nan)
+    assert math.isfinite(_numeric(k_tot, rad))
 
 
 def test_all_zero_cross_section_table():
     """An all-zero cross-section table yields a zero rate and total, no NaN."""
     rad = _radiation([1.0, 2.0, 3.0], profile_index=2, mode="nph")
     rxn = _Reaction([1.0, 2.0, 3.0], absorption=[0.0, 0.0, 0.0], decay=[0.0, 0.0, 0.0])
-    rad.set_reaction_rate_coefficient(rxn)
+    k_tot, xsec_tot, _ = rad.get_reaction_rate_props(rxn)
 
-    assert not rxn.rate.has(sp.nan)
-    assert _numeric(rxn.rate, rad) == 0.0
-    assert rxn.rad_xsecs == 0.0
+    assert not k_tot.has(sp.nan)
+    assert _numeric(k_tot, rad) == pytest.approx(0.0)
+    assert xsec_tot == pytest.approx(0.0)
 
 
 def test_xsec_frac_zero_total_is_zero():
     """When the total cross section is zero, every band fraction is defined as 0."""
     rad = _radiation([1.0, 2.0, 3.0], profile_index=2, mode="nph")
     rxn = _Reaction([1.0, 2.0, 3.0], absorption=[0.0, 0.0, 0.0], decay=[0.0, 0.0, 0.0])
-    rad.set_reaction_rate_coefficient(rxn)
+    _, _, grouped = rad.get_reaction_rate_props(rxn)
 
-    for g in rad.groups:
-        assert g.props[rxn]["xsec_frac"] == 0.0
+    for g in grouped:
+        assert g.xsec_frac == pytest.approx(0.0)

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sympy import Basic, Expr, Float, Idx, IndexedBase
+from sympy import Basic, Expr, Float, IndexedBase
 
 from ..io._logger import jaff_progress
 
@@ -51,7 +51,7 @@ def get_sfluxes(
     ----------
     reactions : Reactions
         Collection of all reactions in the network.  Each element must expose
-        ``.rate`` (a SymPy ``Expr``) and ``.reactants`` (an iterable of
+        ``.rate_coefficient`` (a SymPy ``Expr``) and ``.reactants`` (an iterable of
         reactant objects with a string representation matching a key in
         *species*).
     species : Species
@@ -75,11 +75,7 @@ def get_sfluxes(
     fluxes: list[Expr] = [Float(0.0) for _ in range(reactions.count)]
 
     for i, reaction in enumerate(reactions):
-        flux = reaction.rate
-        for reactant in reaction.reactants.core:
-            flux *= nden[species[str(reactant)].index]
-
-        fluxes[i] = flux
+        fluxes[i] = reaction.rate
 
     return fluxes
 
@@ -164,9 +160,10 @@ def get_sradodes(net: "Network", order: int = 0) -> list[Expr]:
 
     For each band *i* the function computes:
 
-    - ``grate[i]``: the *source/sink* term for the density moment, including
-      photoionisation/photodissociation losses and any user-defined
-      ``dRad`` source terms.
+    - ``grate[i]``: the *source/sink* term for the density moment: the
+      photoionisation/photodissociation losses plus the radiation emitted by
+      reactions with a spectral yield (``reaction.rad.group_yields`` times the
+      reaction rate).
     - ``gflux[i]``: the spatial-gradient term for the flux moment (obtained
       by substituting ``den[i] → rflux[i]`` in ``grate``).
 
@@ -209,15 +206,6 @@ def get_sradodes(net: "Network", order: int = 0) -> list[Expr]:
 
     Notes
     -----
-    Each reaction's ``dRad`` contribution is its band-integrated ``delta_rad``
-    (the radiation energy added per reaction event, erg) times the reaction
-    flux ``k * prod(nden)``, then divided by the band-average photon energy
-    ``group.eavg`` (erg) in **both** modes.  In energy-density mode ``props["k"]``
-    already carries an extra ``eavg`` (``radeden`` is an energy density), so the
-    division recovers the true flux and the result is erg cm⁻³ s⁻¹ added to
-    ``radeden``; in photon-density mode the division converts the per-event
-    energy to a photon count, giving cm⁻³ s⁻¹ added to ``photden``.
-
     The substitution ``den[i] → rflux[i]`` (via ``xreplace``) yields the
     flux-divergence term needed in the first-moment (flux) equation of the
     two-moment radiation transport system.
@@ -238,29 +226,62 @@ def get_sradodes(net: "Network", order: int = 0) -> list[Expr]:
     grate: list[Expr | float] = [Float(0.0) for _ in range(net.radiation.nbands)]
     gflux: list[Expr | float] = [Float(0.0) for _ in range(net.radiation.nbands)]
 
-    for group in jaff_progress.track(
-        rad_groups, description="Generating radiation equations"
+    # Per-band totals over all photo reactions: the radiation removed.
+    group_rates: list[Expr] = [Float(0.0) for _ in rad_groups]
+
+    for reaction in jaff_progress.track(
+        net.reactions.with_type("photo"), description="Generating radiation equations"
     ):
-        group_rate: Basic = Float(0.0)
-        group_dRad_dt_extra = Float(0.0)
-        for reaction, props in group.props.items():
-            rrate = props["k"]
+        # A custom-rate reaction is not coupled to the bands.
+        if reaction.photo is not None and reaction.photo.custom_rad_rate:
+            continue
+
+        # With radiation, Reaction.__init__ fills rgrouped for every other photo
+        # reaction or raises, so missing data is a broken invariant.
+        if reaction.photo is None or not reaction.photo.rgrouped:
+            raise RuntimeError(
+                f"Photo reaction {reaction} has no per-band radiation data"
+            )
+
+        # rgrouped is built by iterating rad_groups in order, one entry per band.
+        for group, props in zip(rad_groups, reaction.photo.rgrouped, strict=True):
+            rrate = props.k
             # Multiply by all reactant number densities (mass-action kinetics)
             # so rrate becomes the full reaction flux (k * prod(nden)).
             for reactant in reaction.reactants.core:
-                rrate *= nden[Idx(net.species[str(reactant)].index)]
+                rrate *= nden[net.species[str(reactant)].index]
 
             # Photochemical reactions *remove* radiation, hence the minus sign.
-            group_rate -= rrate
-            group_dRad_dt_extra += props["delta_rad"] * rrate
+            group_rates[group.index] -= rrate
+
+    # Per-group radiation emitted by any reaction with a spectral yield.
+    group_emissions: list[Expr] = [Float(0.0) for _ in rad_groups]
+    for reaction in net.reactions.radiation_emitters():
+        for group, group_yield in zip(rad_groups, reaction.rad.group_yields, strict=True):
+            group_emissions[group.index] += group_yield * reaction.rate
+
+    for group in rad_groups:
+        group_rate = group_rates[group.index]
+
+        # Absorption by the medium: -c <α>_i den_i.  Added before the den → rflux
+        # substitution it also attenuates the flux; afterwards only the density.
+        absorption: Expr = Float(0.0)
+        if group.absorption_coefficient is not None:
+            absorption = -net.radiation.c * group.absorption_coefficient * group.sym
+
+        if net.radiation.absorption_attenuates_flux:
+            group_rate += absorption
+            absorption = Float(0.0)
 
         # The flux-moment equation is obtained by substituting den → rflux in
         # the density-moment equation (two-moment closure).
         flux = group_rate.xreplace(flux_map)
+        group_rate += absorption
 
-        # Add the user-supplied dRad term to the density equation.  Divide by
-        # the band-average photon energy in BOTH modes:
-        group_rate += group_dRad_dt_extra / (group.eavg or 1)
+        # Emission is isotropic, so it feeds the density equation only.
+        group_rate += group_emissions[group.index]
+        if group.emissivity is not None:
+            group_rate += group.emissivity
 
         if net.dust is not None:
             group_rate, flux = handle_dust_reduction(net, group, group_rate, flux, rflux)

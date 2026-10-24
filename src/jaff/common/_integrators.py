@@ -18,6 +18,7 @@ This module provides:
 import operator
 from collections.abc import Callable
 from functools import lru_cache
+from typing import cast
 
 import numpy as np
 from scipy.integrate import quad, simpson, trapezoid
@@ -26,6 +27,7 @@ from sympy import (
     Basic,
     Expr,
     FiniteSet,
+    Integral,
     Not,
     Or,
     Piecewise,
@@ -35,6 +37,8 @@ from sympy import (
     piecewise_fold,
     solve,
 )
+from sympy import exp, exp_polar
+from sympy import integrate as sympy_integrate
 from sympy.core.relational import (
     Equality,
     GreaterThan,
@@ -346,6 +350,13 @@ def sym_integrate(
       breakpoints are extracted via :func:`get_bounds`; they are then passed to
       :func:`scipy.integrate.quad` as the ``points`` argument so the integrator
       can straddle discontinuities.
+    * **Zero outer regions** -- the domain is clipped to the breakpoint range
+      only on a side where the integrand is identically zero beyond the
+      outermost breakpoint (e.g. a Verner fit above ``E_max``), so a compact
+      support is not lost in an infinite interval.  A one-sided threshold such
+      as ``Piecewise((s, E >= E0), (0, True))`` stays non-zero above ``E0`` and
+      is integrated there.  With an infinite upper bound the integral is split
+      at the last breakpoint, so the finite part still gets the ``points``.
     * **Symbolic bounds** -- if *lower* or *upper* are SymPy
       :class:`~sympy.core.basic.Basic` objects (e.g. ``-oo`` / ``oo``)
       they are mapped to ``-np.inf`` / ``np.inf``.
@@ -379,21 +390,58 @@ def sym_integrate(
     """
     lower, upper = bounds
 
-    f_num, pts = _prepare(expr, sym)
+    f_num, pts, zero_below, zero_above = _prepare(expr, sym)
 
     # Resolve symbolic bounds to float ±inf
     t_low = float(lower) if not isinstance(lower, Basic) else -np.inf
     t_high = float(upper) if not isinstance(upper, Basic) else np.inf
 
-    # Clip the integration domain to the range covered by piecewise breakpoints
+    # Clip the domain to the breakpoint range only on a side where the integrand
+    # is zero beyond the outermost breakpoint (e.g. a Verner fit beyond E_max);
+    # a one-sided threshold stays non-zero past its single breakpoint.
     a, b = t_low, t_high
-    if pts:
+    if pts and zero_below:
         a = max(t_low, min(pts))
+    if pts and zero_above:
         b = min(t_high, max(pts))
 
     if a >= b:
         return 0.0
 
+    # quad does not accept the ``points`` argument when bounds are infinite, so
+    # integrate the finite part up to the last breakpoint (with its points)
+    # separately from the infinite tail.
+    if np.isinf(b) and not np.isinf(a) and pts and max(pts) > a:
+        tail, _ = quad(f_num, max(pts), b, limit=10000)
+
+        return _quad_finite(f_num, a, max(pts), pts) + tail
+
+    if np.isinf(a) or np.isinf(b):
+        val, _ = quad(f_num, a, b, limit=10000)
+
+        return val
+
+    return _quad_finite(f_num, a, b, pts)
+
+
+def _quad_finite(f_num: Callable, a: float, b: float, pts: tuple) -> float:
+    """``quad`` over a finite ``[a, b]`` with breakpoint and log-spaced hints.
+
+    Parameters
+    ----------
+    f_num : Callable
+        Lambdified integrand.
+    a, b : float
+        Finite integration limits, ``a < b``.
+    pts : tuple
+        Piecewise breakpoints; those strictly inside ``(a, b)`` are passed to
+        :func:`scipy.integrate.quad` as ``points``.
+
+    Returns
+    -------
+    float
+        The definite integral.
+    """
     sub_points = []
 
     # Add log-spaced interior hints when the domain spans >0.1 decades
@@ -408,13 +456,6 @@ def sym_integrate(
     sub_points.extend(internal_bounds)
 
     sub_points = sorted(list(set(sub_points)))
-
-    # quad does not accept the ``points`` argument when bounds are infinite
-    if np.isinf(a) or np.isinf(b):
-        val, _ = quad(f_num, a, b, limit=10000)
-
-        return val
-
     val, _ = quad(f_num, a, b, points=sub_points, limit=200)
 
     return val
@@ -440,14 +481,37 @@ def _prepare(expr: Basic, sym: Basic) -> tuple:
     Returns
     -------
     tuple
-        ``(f_num, pts)``: the NumPy-lambdified folded expression and the
-        tuple of breakpoints from :func:`get_bounds`.
+        ``(f_num, pts, zero_below, zero_above)``: the NumPy-lambdified folded
+        expression, the tuple of breakpoints from :func:`get_bounds`, and
+        whether the integrand is identically zero below the first and above
+        the last breakpoint.
     """
     folded = piecewise_fold(expr)
     f_num = lambdify(sym, folded, "numpy")
     pts = tuple(get_bounds(folded, sym))
+    if not pts:
+        return f_num, pts, False, False
 
-    return f_num, pts
+    zero_below = _is_zero_at(folded, sym, min(pts) - 1.0)
+    zero_above = _is_zero_at(folded, sym, max(pts) + 1.0)
+
+    return f_num, pts, zero_below, zero_above
+
+
+def _is_zero_at(folded: Basic, sym: Basic, x: float) -> bool:
+    """Whether the branch of *folded* selected at ``sym = x`` is identically zero.
+
+    Beyond the outermost breakpoint no condition changes, so the branch chosen
+    at one point there is the branch for the whole outer region.
+    """
+    if not isinstance(folded, Piecewise):
+        return False
+
+    for branch, cond in cast(tuple[tuple[Basic, Basic], ...], folded.args):
+        if cond.subs(sym, x) == S.true:
+            return branch.is_zero is True
+
+    return False
 
 
 def arr_integrate(
@@ -508,14 +572,17 @@ def smart_integrate(
     y: np.ndarray | Basic,
     x: np.ndarray | Basic,
     bounds: tuple[float | int | Basic, float | int | Basic],
-) -> float:
+) -> float | Expr:
     """
     Integrate tabulated data or a SymPy expression over an interval.
 
     Dispatches on the type of *y*: a :class:`numpy.ndarray` integrand is
     integrated with :func:`arr_integrate` over the sample abscissae *x*;
-    anything else is treated as a SymPy expression in the symbol *x* and
-    integrated with :func:`sym_integrate`.
+    anything else is treated as a SymPy expression in the symbol *x*.  An
+    expression in *x* alone is integrated numerically with
+    :func:`sym_integrate`; one with other free symbols (e.g. ``tgas``) is
+    integrated analytically with :func:`sympy.integrate`, so those symbols
+    stay in the result.
 
     Parameters
     ----------
@@ -528,14 +595,17 @@ def smart_integrate(
 
     Returns
     -------
-    float
-        The definite integral.
+    float or sympy.Expr
+        The definite integral: a float, or an expression in the other free
+        symbols of *y*.
 
     Raises
     ------
     TypeError
         If *y* is an array but *x* is not, or *y* is symbolic but *x* is not a
         :class:`sympy.Symbol`.
+    ValueError
+        If *y* has free symbols other than *x* and no closed-form integral.
     """
     if isinstance(y, np.ndarray):
         if not isinstance(x, np.ndarray):
@@ -550,7 +620,17 @@ def smart_integrate(
             f"Symbolic integrand needs a sympy Symbol variable, got {type(x).__name__}"
         )
 
-    return sym_integrate(y, x, bounds)
+    if not y.free_symbols - {x}:
+        return sym_integrate(y, x, bounds)
+
+    value = sympy_integrate(y, (x, *bounds))
+    if value.has(Integral):
+        raise ValueError(f"{y} has no closed-form integral over {x} in {tuple(bounds)}")
+
+    # SymPy may leave polar numbers (e.g. ``Ei(x*exp_polar(I*pi))``), which no
+    # code printer can emit.  The integral is real, so take the principal
+    # branch: exp_polar(I*pi) -> exp(I*pi) = -1, giving ``Ei(-x)``.
+    return value.replace(exp_polar, exp)
 
 
 def safe_integrate():

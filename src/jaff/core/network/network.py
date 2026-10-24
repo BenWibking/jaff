@@ -19,18 +19,16 @@ integer position of species ``X`` within the network.
 from __future__ import annotations
 
 import logging
-import re
 import sys
 from dataclasses import dataclass
 from functools import cached_property, lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from sympy import (
     Basic,
     Expr,
-    Float,
     parse_expr,
     symbols,
 )
@@ -51,17 +49,30 @@ from ...physics import (
     get_sodes,
     get_sradodes,
 )
-from ...physics.photo_reactions._radiation_props import validate_pi_database
+from ...physics.photo_reactions._radiation_props import (
+    validate_override_custom_cross_section,
+    validate_override_custom_rate,
+    validate_pi_database,
+)
 from ..elements import Elements
 from ..parsers import NetworkParser
-from ..reaction import RateSegment, RateSegments, Reaction, Reactions
+from ..reaction import (
+    PhotoReactionProps,
+    ReactionRadiationProps,
+    RateSegment,
+    RateSegments,
+    Reaction,
+    Reactions,
+    ShieldingProps,
+)
 from ..species import Specie, Species
 from ._spec import NetworkSpec
 from ._symbols import NetworkSymbols
 
 if TYPE_CHECKING:
     from .._typing import ElementProps
-    from ..parsers.auxiliary_func._typing import AuxiliaryFunctionsDict
+    from ..parsers.auxiliary_func import AuxiliaryFunctionProps
+    from ..parsers.network._formats import Parser
 
 
 @lru_cache(maxsize=200000)
@@ -167,8 +178,6 @@ class Network:
     symbols : NetworkSymbols
         Canonical symbols, density expressions, introspection sets and symbol
         standardization for this network.
-    dRad_dt_extra : Basic
-        Extra radiation moment source terms from ``@function`` definitions.
     radiation : Radiation | None
         Radiation field object; ``None`` when no radiation bands are specified.
     mass_dict : dict[str, ElementProps]
@@ -297,7 +306,6 @@ class Network:
         self.symbols: NetworkSymbols = NetworkSymbols(self)
         self.reactant_matrix: np.ndarray | None = None
         self.product_matrix: np.ndarray | None = None
-        self.dRad_dt_extra: Basic = Float(0.0)
         self.radiation: Radiation | None = (
             Radiation(self, radiation_props) if radiation_props is not None else None
         )
@@ -305,7 +313,7 @@ class Network:
             eos_props if eos_props is not None else EosProps("ideal")
         )
         self._use_proxy_photoreaction: bool = use_proxy_photoreaction
-        self.__photochemistry: None | Photochemistry = None
+        self._photochemistry: None | Photochemistry = None
         self.dust: Dust | None = (
             Dust(self, dust_props) if dust_props is not None else None
         )
@@ -317,12 +325,17 @@ class Network:
         self.mass_dict: dict[str, ElementProps] = load_mass_dict()
         Species.configure(self.mass_dict)
 
+        parsers: list[Parser] = []
         if not loaded_from_jaff_file:
-            self.__load_network()
+            parsers = self.__load_network()
         else:
             self.__load_network_from_jaff_file(jaff_props)
 
+        self.elements: Elements = Elements(self.species._list)
+        self.__post_process(parsers)
         self.__normalize_network_extras(loaded_from_jaff_file)
+        self.__set_emissivity(jaff_props.get("emissivity"))
+        self.__set_absorption_coefficient(jaff_props.get("absorption_coefficient"))
         self.thermodynamics: Thermodynamics = Thermodynamics(
             self, jaff_props.get("dEdt_extra")
         )
@@ -333,8 +346,6 @@ class Network:
         self.check_isomers(errors)
 
         self.__generate_reaction_matrices()
-
-        self.elements: Elements = Elements(self.species._list)
 
         self.logger.info("[green]Network loaded successfully![/]")
 
@@ -350,12 +361,17 @@ class Network:
         assert self.spec.label is not None
         return self.spec.label
 
-    def __load_network(self):
-        """Parse the network file and build species, reactions, and auxiliary quantities."""
+    def __load_network(self) -> list[Parser]:
+        """Parse the network file and build species, reactions, and auxiliary quantities.
+
+        Returns
+        -------
+        list[Parser]
+            The parsers that produced reactions, for :meth:`__post_process`.
+        """
         specie_names = set()
         special_species: dict[str, Specie] = {}
 
-        n_photo = 0
         default_tcutoff: str = "clip"
         config = self.spec.config
         reactions_config: dict = config.get("reactions", {})
@@ -365,6 +381,7 @@ class Network:
 
         with NetworkParser(self.spec.fname, self.logger) as netp:
             reactions_list, global_vars = netp.get_parsed()
+            parsers = netp.get_parsers()
 
         aux_funcs = self.spec.aux_funcs
 
@@ -389,8 +406,6 @@ class Network:
             rate: str = reaction["rate"]
             si = reaction["source_index"]
             aux_chem_rate = f"chemrate{si}"
-            aux_delta_rad = f"deltarad{si}"
-            aux_delta_e = f"deltae{si}"
 
             for s in reactants + products:
                 if s in specie_names:
@@ -425,9 +440,7 @@ class Network:
                     f"valid cutoffs are: {','.join(self._valid_tcutoffs)}"
                 )
 
-            rate_expr, n_photo = self.__parse_rate(
-                aux_chem_rate, rate, aux_funcs, global_vars, n_photo
-            )
+            rate_expr = self.__parse_rate(aux_chem_rate, rate, aux_funcs, global_vars)
             rate_expr = resolve_dependencies(rate_expr, local_subs_dict, aux_funcs)
 
             rtype = reaction.get("type", "unknown")
@@ -467,78 +480,73 @@ class Network:
                 rea.rate_segments.add(RateSegment(rate_expr, tmin, tmax))
                 continue
 
-            # deltarad{si}: radiation energy emission per photon energy (eV)
-            # per reaction added to the moment-0 equations at codegen time
-            deltaRad: Basic = Float(0.0)
-            if aux_delta_rad in aux_funcs:
-                deltaRad = aux_funcs[aux_delta_rad]["def"]
-
-            # deltae{si}: chemical energy change per reaction, accumulates into
-            # thermodynamics.dEdt_chemical
-            deltaE: Basic = Float(0.0)
-            if aux_delta_e in aux_funcs:
-                deltaE = aux_funcs[aux_delta_e]["def"]
-
-            rea = Reaction(
-                reactants=rr,
-                products=pp,
-                rate=rate_expr,
-                tmin=tmin,
-                tmax=tmax,
-                dE=deltaE,
-                dRad=deltaRad,
-                original_string=reaction["string"],
-                index=si,
-                type=rtype,
-                t_cutoff=local_tcutoff,
-                errors=self.spec.errors,
-            )
-            if "reaction_props" in self.spec._metadata:
-                self.__parse_reaction_metadata(rea)
-
-            self.reactions.add(rea)
-
             # Per-reaction photoionization database: jaffgen.toml wins over jaff.toml.
             pi_db = reaction_props.get(srxn, {}).get("pi_database")
             if pi_db is None:
                 pi_db = reactions_config.get(srxn, {}).get("pi_database")
+
             if pi_db is not None:
-                if rea.type != "photo":
+                if rtype != "photo":
                     raise ParserError(
                         f"pi_database is only valid for photo reactions: {srxn}"
                     )
-                rea.pi_database = validate_pi_database(pi_db)
 
-            if rea.type == "photo":
-                if self.__photochemistry is None:
-                    self.__photochemistry = Photochemistry(self)
+                pi_db = validate_pi_database(pi_db)
 
-                # A cross section is mandatory only when radiation sets the rate.
-                rea.xsecs_dict = self.__photochemistry.get_xsec(
-                    rea,
-                    required=self.radiation is not None
-                    and aux_chem_rate not in aux_funcs,
+            # Per-reaction override flags: jaffgen.toml wins over jaff.toml.
+            overrides: dict[str, bool | None] = {}
+            for key, validate in (
+                ("override_custom_rate", validate_override_custom_rate),
+                ("override_custom_cross_section", validate_override_custom_cross_section),
+            ):
+                value = reaction_props.get(srxn, {}).get(key)
+                if value is None:
+                    value = reactions_config.get(srxn, {}).get(key)
+
+                if value is not None:
+                    if rtype != "photo":
+                        raise ParserError(
+                            f"{key} is only valid for photo reactions: {srxn}"
+                        )
+
+                    value = validate(value)
+
+                overrides[key] = value
+
+            rea = Reaction(
+                self,
+                reactants=rr,
+                products=pp,
+                rate_coefficient=rate_expr,
+                tmin=tmin,
+                tmax=tmax,
+                original_string=reaction["string"],
+                index=si,
+                type=rtype,
+                t_cutoff=local_tcutoff,
+                photo=PhotoReactionProps(
+                    pi_database=pi_db,
+                    override_custom_rate=overrides["override_custom_rate"],
+                    override_custom_cross_section=overrides[
+                        "override_custom_cross_section"
+                    ],
                 )
+                if rtype == "photo"
+                else None,
+                format=reaction.get("format"),
+                metadata=reaction.get("metadata"),
+            )
+            self.reactions.add(rea)
 
-            if rea.type == "photo" and self.radiation is not None:
-                if aux_chem_rate not in aux_funcs:
-                    self.radiation.set_reaction_rate_coefficient(rea)
-                elif aux_chem_rate in aux_funcs and aux_delta_rad:
-                    rea.custom_rad_rate = True
-                    self.radiation.set_custom_rate(rea)
-                else:
-                    raise ParserError(
-                        "If radiation is enabled and a custom rate is supplied\n"
-                        "for a photo reaction, the auxilary deltaRad function is\n"
-                        "necessary to weigh the first moment radiation equations\n"
-                        f"Please add a custom deltaRad function for reaction {si}"
-                    )
-
-        if self.__photochemistry is not None:
-            self.__photochemistry.log_fallback_summary()
+        if self._photochemistry is not None:
+            self._photochemistry.log_fallback_summary()
 
         self.logger.info(f"Loaded {self.reactions.count} reactions")
-        self.logger.info(f"Loaded {n_photo} photo-chemistry reactions")
+        self.logger.info(
+            f"Loaded {len(self.reactions.with_type('photo'))} photo-chemistry reactions"
+        )
+
+        return parsers
 
     def __load_network_from_jaff_file(self, jaff_props: JaffProps):
         """Restore species, reactions, and radiation state from a ``.jaff`` file payload.
@@ -552,22 +560,33 @@ class Network:
         self.species = jaff_props["species"]
 
         for i, reaction in enumerate(jaff_props["reactions"]):
+            rtype = reaction.get("reaction_type", "unknown")
+            shielding = reaction.get("shielding")
+
             rea = Reaction(
+                self,
                 reactants=reaction["reactants"],
                 products=reaction["products"],
-                rate=reaction["rate"],
+                rate_coefficient=reaction["rate"],
                 dE=reaction["dE"],
-                dRad=reaction["dRad"],
                 tmin=reaction["tmin"],
                 tmax=reaction["tmax"],
                 t_cutoff=reaction.get("t_cutoff", "clip"),
                 original_string=reaction["original_string"],
-                index=i,
-                type=reaction.get("reaction_type", "unknown"),
-                errors=self.spec.errors,
+                index=reaction.get("index", i),
+                type=rtype,
+                format=reaction.get("format"),
+                photo=PhotoReactionProps(
+                    xsec=reaction.get("xsec_props"),
+                    pi_database=reaction.get("pi_database"),
+                    custom_rad_rate=bool(reaction.get("custom_rad_rate")),
+                    shielding=ShieldingProps(**shielding) if shielding else None,
+                )
+                if rtype == "photo"
+                else None,
+                rad=ReactionRadiationProps(spectral_yield=reaction.get("spectral_yield")),
             )
-            rea.custom_rad_rate = bool(reaction.get("custom_rad_rate"))
-            rea.pi_database = reaction.get("pi_database")
+
             segments = reaction.get("rate_segments")
             if segments:
                 rea.rate_segments = RateSegments(
@@ -576,30 +595,33 @@ class Network:
                 )
             self.reactions.add(rea)
 
-            if rea.type == "photo":
-                if self.__photochemistry is None:
-                    self.__photochemistry = Photochemistry(self)
-                rea.xsecs_dict = self.__photochemistry.get_xsec(
-                    rea,
-                    required=self.radiation is not None and not rea.custom_rad_rate,
-                ) or reaction.get("xsecs_dict")
+        if self._photochemistry is not None:
+            self._photochemistry.log_fallback_summary()
 
-            if rea.type == "photo" and self.radiation is not None:
-                if rea.custom_rad_rate:
-                    self.radiation.set_custom_rate(rea)
-                    continue
+    def __post_process(self, parsers: list[Parser]) -> None:
+        """Freeze the catalogues and run each parser's ``post_process`` hook.
 
-                self.radiation.set_reaction_rate_coefficient(rea)
+        Species and reactions are final from here on: hooks may change
+        reactions but not add any (``add()`` raises once frozen).  Runs before
+        :meth:`__normalize_network_extras`, so whatever a hook writes is
+        standardised like every other rate.
 
-        if self.__photochemistry is not None:
-            self.__photochemistry.log_fallback_summary()
+        Parameters
+        ----------
+        parsers : list[Parser]
+            Parsers that produced reactions; empty for a ``.jaff`` network.
+        """
+        self.reactions._freeze()
+        self.species._freeze()
+
+        for parser in parsers:
+            parser.post_process(self)
 
     def __normalize_network_extras(self, loaded_from_jaff: bool = False):
         """Standardize convenience symbols in all rate and auxiliary expressions.
 
         Replaces shorthand symbols (``n_X``, ``n_X_nuc``, ``n_e``, ``ntot``, …) with
-        ``nden[i]`` references in every reaction rate and the extra radiation
-        source term :attr:`dRad_dt_extra`.
+        ``nden[i]`` references in every reaction rate.
 
         Parameters
         ----------
@@ -610,41 +632,103 @@ class Network:
             wrap the already-collapsed rate in a second piecewise, so the stored
             rate is used as-is instead.
         """
-        nden = self.symbols.ndens
         for r in self.reactions:
             if loaded_from_jaff:
-                r.rate = self.symbols.standardize(r.rate)
+                r.rate_coefficient = self.symbols.standardize(r.rate_coefficient)
             elif r.type == "photo" and self.radiation is not None:
-                r.rate = self.symbols.standardize(r.rate)
-                r.rate_segments[0].rate = r.rate
+                r.rate_coefficient = self.symbols.standardize(r.rate_coefficient)
+                r.rate_segments[0].rate = r.rate_coefficient
             else:
                 for seg in r.rate_segments:
                     seg.rate = self.symbols.standardize(seg.rate)
-                r.rate = r.rate_segments.sort().evaluate_equivalent_rate(r)
+                r.rate_coefficient = r.rate_segments.sort().evaluate_equivalent_rate(r)
 
             r.tmin, r.tmax = r.rate_segments[0].tmin, r.rate_segments[-1].tmax
-            dRad_dt = r.dRad * r.rate
-            for s in r.reactants.core:
-                dRad_dt *= nden[self.species[s.name].index]
-            self.dRad_dt_extra += dRad_dt
-        self.dRad_dt_extra = self.symbols.standardize(self.dRad_dt_extra)
+            if r.rad.group_yields is not None:
+                r.rad.group_yields = [
+                    self.symbols.standardize(g) for g in r.rad.group_yields
+                ]
+            if r.photo is not None:
+                self.__standardize_photo_band_data(r.photo)
+
+    def __standardize_photo_band_data(self, photo: PhotoReactionProps) -> None:
+        """Standardize a photo reaction's band data, as its rate already is.
+
+        A symbolic ``photoCrossSection`` (e.g. one using ``n_X``) leaves those
+        symbols in the band-averaged cross sections and rate coefficients that
+        :func:`~jaff.physics._equations.get_sradodes` builds the equations from.
+        """
+        if photo.xsec is not None and isinstance(photo.xsec.total, Basic):
+            photo.xsec.total = self.symbols.standardize(photo.xsec.total)
+
+        for band in photo.rgrouped or []:
+            band.k = self.symbols.standardize(band.k)
+            if isinstance(band.xsec, Basic):
+                band.xsec = self.symbols.standardize(band.xsec)
+
+    def __set_emissivity(self, stored: Expr | None) -> None:
+        """Integrate the ``globalEmissivity`` over the radiation groups.
+
+        Stores the spectrum on ``radiation.emissivity`` and its standardized
+        per-group integrals on each ``group.emissivity``.  The ``.jfunc``
+        ``globalEmissivity`` function wins over the expression *stored* in a ``.jaff``
+        file.  Does nothing without radiation or without an emissivity.
+        """
+        if self.radiation is None:
+            return
+
+        aux = self.spec.aux_funcs.get("globalemissivity")
+        emissivity = cast(Expr, aux.expr) if aux is not None else stored
+        if emissivity is None:
+            return
+
+        self.radiation.emissivity = emissivity
+        groups = self.radiation.groups
+        for group, value in zip(
+            groups, self.radiation.integrate_over_groups(emissivity), strict=True
+        ):
+            group.emissivity = self.symbols.standardize(value)
+
+    def __set_absorption_coefficient(self, stored: Expr | None) -> None:
+        """Average the ``globalAbsorptionCoefficient`` over the radiation groups.
+
+        Stores the spectrum on ``radiation.absorption_coefficient`` and its
+        standardized per-group averages on each ``group.absorption_coefficient``.
+        The ``.jfunc`` function wins over the expression *stored* in a ``.jaff``
+        file.  Does nothing without radiation or without a coefficient.
+        """
+        if self.radiation is None:
+            return
+
+        aux = self.spec.aux_funcs.get("globalabsorptioncoefficient")
+        coefficient = cast(Expr, aux.expr) if aux is not None else stored
+        if coefficient is None:
+            return
+
+        self.radiation.absorption_coefficient = coefficient
+        groups = self.radiation.groups
+        for group, value in zip(
+            groups, self.radiation.average_over_groups(coefficient), strict=True
+        ):
+            group.absorption_coefficient = self.symbols.standardize(value)
 
     @staticmethod
     def __parse_rate(
         aux_chem_rate: str,
         rate: str,
-        aux_funcs: dict[str, AuxiliaryFunctionsDict],
+        aux_funcs: dict[str, AuxiliaryFunctionProps],
         global_vars: dict[str, Expr],
-        n_photo: int,
-    ) -> tuple[Expr, int]:
+    ) -> Expr:
         """Convert a raw rate string to a SymPy expression.
 
         Checks, in priority order:
 
         1. Whether an auxiliary function named *aux_chem_rate* exists (custom rate).
         2. Whether *rate* is a global variable name.
-        3. Whether *rate* describes a photo-reaction (contains ``"photo"``).
-        4. Falls back to ``sympy.parse_expr``.
+        3. Falls back to ``sympy.parse_expr``.
+
+        Format-specific rates (e.g. photo rates) arrive as placeholder calls that
+        the producing parser resolves in its ``post_process`` hook.
 
         Parameters
         ----------
@@ -652,73 +736,27 @@ class Network:
             Key for the optional custom-rate auxiliary function (e.g. ``"chemrate0"``).
         rate : str
             Raw rate string from the network file.
-        aux_funcs : dict[str, AuxiliaryFunctionsDict]
-            Parsed auxiliary functions dictionary.
+        aux_funcs : dict[str, AuxiliaryFunctionProps]
+            Parsed auxiliary functions, keyed by name.
         global_vars : dict[str, Basic]
             Resolved global variable map from the network file.
-        n_photo : int
-            Running counter of photo-reactions seen so far.
 
         Returns
         -------
-        tuple[Expr, int]
-            ``(rate_expr, n_photo)`` where *n_photo* is
-            incremented by 1 for photo-reactions.
+        Expr
+            The rate expression.
         """
         if aux_chem_rate in aux_funcs:
-            rate_expr = aux_funcs[aux_chem_rate]["def"]
+            rate_expr = aux_funcs[aux_chem_rate].expr
         elif rate in global_vars:
             rate_expr = symbols(rate)
-        elif "photo" in rate.lower():
-            f = NetworkSymbols.photorates
-            n_photo += 1
-
-            match = re.match(r"(?i:photo)\((.*?)\)", rate)
-            if match:
-                args_str = match.group(1)
-                photo_args: list[str | float] = [
-                    arg.strip() for arg in args_str.split(",") if arg.strip()
-                ]
-                while len(photo_args) < 2:
-                    photo_args.append(1.0e99)
-
-                rate_expr = f(n_photo, photo_args[0], photo_args[1])
-            else:
-                photo_args: list[str | float] = [
-                    arg.strip() for arg in rate.split(",") if arg.strip()
-                ]
-                while len(photo_args) < 3:
-                    photo_args.append(1.0e99)
-
-                rate_expr = f(n_photo, photo_args[1], photo_args[2])
         else:
             rate_expr = _parse_rate_expr(rate)
 
         if not isinstance(rate_expr, Expr):
             raise ParserError(f"Rate expression is not an Expr: {rate_expr}")
 
-        return rate_expr, n_photo
-
-    def __parse_reaction_metadata(self, reaction: Reaction) -> None:
-        if reaction.serialized not in self.spec._metadata["reaction_props"]:
-            return
-
-        rprops = self.spec._metadata["reaction_props"][reaction.serialized]
-        if "shielding" in rprops:
-            if reaction.type != "photo":
-                raise ParserError(f"{reaction} is not a photo reaction")
-
-            shielding_props = rprops["shielding"]
-            if "type" not in shielding_props:
-                shielding_props["type"] = "leiden"
-
-            reaction._metadata["shielding"] = {
-                k: (v.lower() if isinstance(v, str) else v)
-                for k, v in shielding_props.items()
-            }
-            reaction._metadata["jaffgen"] = {
-                "jaffgen_object": self.spec._metadata["jaffgen_object"]
-            }
+        return rate_expr
 
     def to_jaff(self, filename: str | Path):
         """Serialise this network to a binary ``.jaff`` file.

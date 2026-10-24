@@ -34,10 +34,6 @@ $$
 
 where $\rho_i$ is the radiation energy or photon density in band $i$ and $k_i$ is a pre-computed rate coefficient for that band.
 
-<!-- prettier-ignore -->
-!!! tip "Radiation source terms"
-    If a reaction adds photons to the local radiation field, it can be specified using a custom `deltaRad<N>` function. Details are mentioned in [Auxiliary functions file](auxiliary-functions.md)
-
 ---
 
 ## Radiation Field Discretisation
@@ -104,6 +100,29 @@ $$
 
 where $\langle E\rangle_i$ is the photon-number–weighted average energy in the band.
 
+The rate counts photons, so it always uses the photon-number–weighted
+$\langle\sigma\rangle_i$ above: two photons the reaction is equally likely to absorb
+contribute equally, whatever their energies.
+
+### Radiation removed from the band
+
+Each reaction absorbs one photon, so in **photon-density mode** the band loses photons
+at the reaction rate. In **energy-density mode** the band loses the *energy* of the
+absorbed photons, and each takes its own energy $E$, not the band average. The energy
+loss therefore weights the cross section by photon energy:
+
+$$
+\frac{du_i}{dt} \supset -\,c\, u_i\, \langle\sigma\rangle_i^{(E)} \prod n^{\alpha},
+\qquad
+\langle\sigma\rangle_i^{(E)} = \frac{\displaystyle\int_{E_\text{lo}}^{E_\text{hi}} \sigma(E)\, E\, \dfrac{\partial n_\gamma}{\partial E}\, dE}{\displaystyle\int_{E_\text{lo}}^{E_\text{hi}} E\, \dfrac{\partial n_\gamma}{\partial E}\, dE}
+$$
+
+The two weightings agree for a flat $\sigma$ and differ when $\sigma$ varies across the
+band, e.g. at a threshold inside it, where the absorbed photons are more energetic than
+the band average. With a separate photo-absorption cross section, the absorption cross
+section is the one weighted. Each band's loss coefficient is stored as
+`reaction.photo.rgrouped[i].k` (see [`Radiation`](../../api/physics/radiation/index.md)).
+
 ---
 
 ## Generated Rate Expressions
@@ -137,7 +156,7 @@ serialized reaction key (`Reactant1.Reactant2__Product1.Product2`, the
 [serialized form of the reaction](../../api/core/reaction/index.md); photo
 reactions carry the `_PHOTON` agent, e.g. `H._PHOTON__H+.e-`) is looked
 up in `jaff.db`, and the cross-section arrays are attached to the reaction's
-[`xsecs_dict`](../working-with-networks/reactions.md).
+[`photo.xsec`](../working-with-networks/reactions.md).
 
 | Source                                                                                         | Processes                                           | Notes                        |
 | ---------------------------------------------------------------------------------------------- | --------------------------------------------------- | ---------------------------- |
@@ -170,7 +189,7 @@ queries at runtime (see [Codebase Structure](../../development/codebase-structur
   `photo_absorption` flag, a `decay_type` (`"ionization"` / `"dissociation"`)
   and a `file.hdf5::<group>` pointer into the Leiden or NORAD HDF5 file.
 - `verner_cross_sections` — the Verner analytic σ(E) expression as a
-  SymPy-parseable string (symbol `E`, photon energy in **eV**, σ in cm²).
+  SymPy-parseable string (symbol `ph_E`, photon energy in **eV**, σ in cm²).
 
 ### What lands on the reaction
 
@@ -181,17 +200,17 @@ lookup order is the chosen database, then NORAD, then Verner, then Leiden
 (duplicates skipped); any fallback is logged once as a summary after loading.
 Photodissociation always uses Leiden.
 
-For tabulated sources (Leiden / NORAD), `reaction.xsecs_dict` is an
-`XsecsProps` dict carrying the `photon_energy` grid (eV) plus `photo_absorption`
+For tabulated sources (Leiden / NORAD), `reaction.photo.xsec` is an
+`XsecProps` object carrying the `photon_energy` grid (eV) plus `photo_absorption`
 and the single `photodecay` channel (cm² arrays, or `None`);
-`_equations["decay_type"]` records whether that channel is ionization or
+`process.decay_type` records whether that channel is ionization or
 dissociation. The radiation integrator integrates these arrays numerically over
 each band.
 
-Verner fits are kept **symbolic**: the dict then carries the SymPy `Piecewise`
-in `xsecs_dict["photodecay_expr"]` (symbol `E`, eV, σ in cm²) and the arrays are
+Verner fits are kept **symbolic**: the object then carries the SymPy `Piecewise`
+in `photo.xsec.photodecay_expr` (symbol `ph_E`, eV, σ in cm²) and the arrays are
 `None`; the integrator integrates the expression analytically per band. The
-database actually used is recorded in `xsecs_dict["database"]`
+database actually used is recorded in `photo.xsec.database`
 (`"norad"`, `"verner"` or `"leiden"`).
 
 <!-- prettier-ignore -->
@@ -300,10 +319,12 @@ inputs are the H2 column density `ncol_H2` and velocity dispersion `vdisp`.
 
 <!-- prettier-ignore -->
 !!! note "Shielding is exposed programmatically too"
-    `jaff.physics.Photochemistry.shielding(reaction, network)` returns the
-    symbolic factor and caches it on
-    `reaction._metadata["shielding"]["value"]`; the radiation integrator reuses
-    that cached value across bands.
+    The settings are stored on the reaction as `rxn.photo.shielding`, with the
+    model in `.type` and the remaining keys in `.props`, and are saved in
+    `.jaff` files. `jaff.physics.Photochemistry.shielding(reaction, network)`
+    returns the symbolic factor; the radiation integrator evaluates it once per
+    reaction and multiplies it into every band. A `value` key in the TOML block
+    fixes $f_\text{sh}$ to that number instead of evaluating the model.
 
 ---
 
@@ -402,23 +423,27 @@ for rxn in photo:
 
 # Cross sections are attached at load time
 rxn = photo[0]
-rxn.xsecs_dict["photon_energy"]     # eV grid
-rxn.xsecs_dict["photodecay"]        # cm² array (or None)
-rxn.plot_xsecs()                    # visualise σ(E)
+rxn.photo.xsec.photon_energy       # eV grid
+rxn.photo.xsec.photodecay          # cm² array (or None)
+rxn.photo.xsec.total               # spectrum-averaged σ (cm²); None without radiation
+rxn.band_xsecs                     # per-band <σ> and fractions (DataFrame)
+rxn.rate_coefficient               # Σ_i k_i, with the radiation density symbols
+rxn.plot_xsecs()                   # visualise σ(E)
 
 # Symbolic radiation ODEs
 print(net.sradodes())
 ```
 
 Cross-section lookup is also exposed directly via the
-`jaff.physics.Photochemistry` class. Constructing it downloads the cross-section
-and line-shielding data files on first use (cached thereafter), so instantiate
-once and reuse:
+`jaff.physics.Photochemistry` class. It takes the network the reactions belong
+to (for the look-up key and the global `pi_database`). Constructing it downloads
+the cross-section and line-shielding data files on first use (cached
+thereafter), so instantiate once and reuse:
 
 ```python
 from jaff.physics import Photochemistry
 
-photo = Photochemistry()
-photo.get_xsec(rxn)         # XsecsProps from the tabulated databases
+photo = Photochemistry(net)
+photo.get_xsec(rxn)         # XsecProps from the tabulated databases
 photo.get_verner_xsec(rxn)  # analytic Verner σ(E) (sympy) or None
 ```

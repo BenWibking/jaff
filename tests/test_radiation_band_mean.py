@@ -9,8 +9,10 @@ import numpy as np
 import pytest
 import sympy as sp
 
+from jaff.core.reaction import PhotoReactionProps
 from jaff.physics import RadiationProps
 from jaff.physics.photo_reactions._radiation import Radiation
+from tests.xsec_props import make_xsec_props
 
 EV2ERG = u.eV.to(u.erg)
 
@@ -69,22 +71,14 @@ def test_eavg_independent_of_mode():
 
 
 class _FakeReaction:
-    """Minimal hashable reaction with a flat tabulated decay cross section."""
+    """Minimal reaction with a flat tabulated decay cross section."""
 
     def __init__(self):
         E = np.linspace(1.0, 3.0, 201)
         sigma = np.full_like(E, 1.0e-18)  # flat 1e-18 cm^2
-        self.xsecs_dict = {
-            "_equations": {"pa": False},
-            "photon_energy": E,
-            "photo_absorption": None,
-            "photodecay": sigma,
-        }
-        self.dRad = sp.Float(0.0)
-        self._metadata = {}
-        self.rad_groups = []
-        self.rad_xsecs = None
-        self.rate = None
+        self.photo = PhotoReactionProps(
+            xsec=make_xsec_props(photon_energy=E, photodecay=sigma)
+        )
 
 
 def test_photon_and_energy_modes_equivalent():
@@ -102,10 +96,8 @@ def test_photon_and_energy_modes_equivalent():
     rad_n = _radiation(bands, profile_index=2, mode="nph")
     rad_u = _radiation(bands, profile_index=2, mode="u")
 
-    rxn_n = _FakeReaction()
-    rxn_u = _FakeReaction()
-    rad_n.set_reaction_rate_coefficient(rxn_n)
-    rad_u.set_reaction_rate_coefficient(rxn_u)
+    k_n, _, _ = rad_n.get_reaction_rate_props(_FakeReaction())
+    k_u, _, _ = rad_u.get_reaction_rate_props(_FakeReaction())
 
     # Map radeden_i -> photden_i * <E>_i using the INDEPENDENT analytic mean
     # (converted to erg to match eavg's units).
@@ -114,8 +106,8 @@ def test_photon_and_energy_modes_equivalent():
         * (true_mean_eV[g.index] * EV2ERG)
         for g in rad_u.groups
     }
-    converted = rxn_u.rate.xreplace(subs)
-    assert sp.simplify(converted - rxn_n.rate) == 0
+    converted = k_u.xreplace(subs)
+    assert sp.simplify(converted - k_n) == 0
 
 
 def test_photden_tot_independent_of_band_count():

@@ -224,7 +224,7 @@ class TestNetworkEdgeCases:
 
             # Check that rates were parsed
             for reaction in network.reactions:
-                assert reaction.rate is not None
+                assert reaction.rate_coefficient is not None
         finally:
             os.unlink(temp_file)
 
@@ -346,7 +346,7 @@ class TestNetworkEdgeCases:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".dat", delete=False) as f:
             f.write("# Photochemistry without PHOTON\n")
             # Use a real photoreaction that has cross-section data
-            f.write("H -> H+ + e- [10,1000] photo(h_xsec, 13.6)\n")
+            f.write("H -> H+ + e- [10,1000] photo(13.6, 20)\n")
             temp_file = f.name
 
         try:
@@ -358,7 +358,7 @@ class TestNetworkEdgeCases:
 
             # Check that rate expression contains photorates function
             photo_reactions = [
-                r for r in network.reactions if "photorates" in str(r.rate)
+                r for r in network.reactions if "photorates" in str(r.rate_coefficient)
             ]
             assert len(photo_reactions) >= 1
         finally:

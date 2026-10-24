@@ -43,6 +43,9 @@ RadiationProps(
     c=constants.c.cgs.value,
     background_field="draine",
     pi_database="norad",
+    override_custom_rate=False,
+    override_custom_cross_section=False,
+    absorption_attenuates_flux=True,
 )
 ```
 
@@ -54,6 +57,9 @@ RadiationProps(
 | `c`                | `float` or `str`          | `constants.c.cgs.value` | Speed of light in cm/s. A string (e.g. `"c_hat"`) becomes a symbol, for a reduced speed of light                                                                                                                |
 | `background_field` | `str`                     | `"draine"`              | Reference field used to scale `chi_pe`: `bb_4000`, `bb_10000`, `bb_20000`, `draine`, `habing`, `mathis`, `solar`, `tw_hydra`                                                                                    |
 | `pi_database`      | `str`                     | `"norad"`               | Photoionization cross-section database: `norad`, `verner` or `leiden` (case-insensitive). Falls back `norad` → `verner` → `leiden` with one summary warning after loading; photodissociation always uses Leiden |
+| `override_custom_rate` | `bool`                | `False`                 | When `True`, a photo reaction with a `.jfunc` `chemRate<N>` has its rate recomputed from its cross sections instead. A reaction's own `override_custom_rate` (in `jaffgen.toml` / `jaff.toml`) takes precedence |
+| `override_custom_cross_section` | `bool`       | `False`                 | When `True`, a photo reaction with a `.jfunc` `photoCrossSection<N>` uses the database cross section instead. A reaction's own `override_custom_cross_section` takes precedence |
+| `absorption_attenuates_flux` | `bool`          | `True`                  | Whether the `globalAbsorptionCoefficient` also attenuates the flux equations ($-c\,\langle\alpha\rangle_i\,rflux_i$); `False` applies it to the density equations only |
 
 The arguments are validated at construction; the table of `ParserError` /
 `RuntimeError` conditions is in
@@ -79,10 +85,13 @@ Built by `Network` from `radiation_props`; available as `net.radiation`
 | `den`              | `sympy.IndexedBase`       | Band density variable, shape `(nbands,)`, named `photden` (`"nph"`) or `radeden` (`"u"`) |
 | `groups`           | `list[RadiationGroup]`    | One group per band, in ascending energy order                                            |
 | `background_field` | `BackgroundField`         | Reference field built from `RadiationProps.background_field`                             |
-| `E_sym`            | `sympy.Symbol`            | Photon-energy symbol `E` (eV) used in the profiles                                       |
+| `ph_E`             | `sympy.Symbol`            | Photon-energy symbol `ph_E` (eV) used in the profiles                                    |
 | `nph_profile`      | `sympy.Piecewise`         | Photon-number profile over all bands, `E**(α_i - 2)` in band _i_                         |
 | `energy_profile`   | `sympy.Piecewise`         | Energy-density profile over all bands, `E**(α_i - 1)` in band _i_                        |
 | `photden_tot`      | `float`                   | $\int n(E)\,dE$ over the full range, i.e. the sum of the groups' `photden`               |
+| `emissivity`       | `sympy.Expr` or `None`    | The network `.jfunc` `globalEmissivity`: the volume emissivity (erg cm⁻³ s⁻¹ eV⁻¹ in `ph_E`, integrated over solid angle), or `None` |
+| `total_emissivity` | `sympy.Expr` or `None`    | Property: the sum of the groups' `emissivity`, i.e. its integral over the whole band range |
+| `absorption_coefficient` | `sympy.Expr` or `None` | The network `.jfunc` `globalAbsorptionCoefficient` (cm⁻¹ as a function of `ph_E`), or `None` |
 
 In the piecewise profiles a point on an interior edge belongs to the band above
 it. Energies below `bands[0]` use the first band's profile and energies above
@@ -95,11 +104,15 @@ it. Energies below `bands[0]` use the first band's profile and energies above
 | `get_photden_profile(ph_energy)`          | `numpy.ndarray`   | Evaluates `E**(α_i - 2)` on an energy grid (eV), each point using the index of its band (same edge rules as above) |
 | `get_eden_profile(ph_energy)`             | `numpy.ndarray`   | `ph_energy * get_photden_profile(ph_energy)`, i.e. `E**(α_i - 1)`                                                  |
 | `ordered_index(idx, order)`               | `tuple[int, int]` | Positions `(density, flux)` of band `idx` in the flat radiation ODE array for layout `order` (0–3)                 |
-| `set_reaction_rate_coefficient(reaction)` | `None`            | Band-averages the reaction's tabulated cross section, fills `grp.props[reaction]` and sets `reaction.rate`         |
-| `set_custom_rate(reaction)`               | `None`            | Splits a user-supplied `reaction.rate` across bands in proportion to the band integral of `dRad`                   |
+| `integrate_over_groups(spectrum)`         | `list`            | Integrates an emitted spectrum in `ph_E` (a reaction's `spectralYield<N>`, or the network `globalEmissivity`) over each group, in the units of the group density: `∫ S dE` in `"u"` mode, `∫ S/E dE` (photons) in `"nph"` mode |
+| `average_over_groups(spectrum)`           | `list`            | Averages a coefficient defined at each photon energy (the `globalAbsorptionCoefficient`, cm⁻¹) over each group, weighted by $E\,n(E)$ in `\"u\"` mode and $n(E)$ in `\"nph\"` mode |
+| `get_group_average_cross_section(xsec, ph_E, group, ph_profile=None, energy_weighted=False)` | `float` | Mean of a tabulated or symbolic σ over one band, weighted by $n(E)$ (normalised by `photden`) or, with `energy_weighted`, by $E\,n(E)$ (normalised by `eden`) |
+| `get_total_average_cross_section(xsec, ph_E, ph_profile=None)` | `float` | Photon-number-weighted mean of σ over the whole band range |
+| `get_reaction_rate_props(reaction)`        | `tuple`           | Band-averages the reaction's cross section; returns `(k_tot, xsec_tot, grouped)`: the total rate coefficient, the spectrum-averaged cross section (cm²) and one `GroupedPhotoReactionProps` per band |
 
-`Network` calls the last two methods while building the network; you normally
-only read their results. The `order` layouts are:
+`Reaction` calls the last two methods while it is built and stores the results
+on `reaction.rate_coefficient`, `reaction.photo.xsec.total` and
+`reaction.photo.rgrouped`; you normally only read those. The `order` layouts are:
 
 | `order` | Layout                                     |
 | ------- | ------------------------------------------ |
@@ -125,17 +138,21 @@ One band, `[lower, upper]` in eV.
 | `nph_profile`    | `sympy.Expr`           | `E**(profile_idx - 2)`                                                                   |
 | `energy_profile` | `sympy.Expr`           | `E**(profile_idx - 1)`                                                                   |
 | `photden`        | `float`                | $\int_\text{lower}^\text{upper} n(E)\,dE$, the normalisation for band averages           |
+| `eden`           | `float`                | $\int_\text{lower}^\text{upper} E\,n(E)\,dE$ (eV), the normalisation for energy-weighted band averages |
 | `eavg`           | `float`                | Band-average photon energy $\langle E\rangle_i = \int E\,n\,dE / \int n\,dE$, in **erg** |
-| `props`          | `dict[Reaction, dict]` | Per-reaction band data, keys below                                                       |
+| `emissivity`     | `sympy.Expr` or `None` | The network `globalEmissivity` integrated over this band, in the band density's units (erg cm⁻³ s⁻¹ in `"u"` mode, photons cm⁻³ s⁻¹ in `"nph"`); added to its density equation |
+| `absorption_coefficient` | `sympy.Expr` or `None` | The network `globalAbsorptionCoefficient` averaged over this band (cm⁻¹), energy-weighted in `\"u\"` mode and photon-number weighted in `\"nph\"`; removed from its density equation as $c\,\langle\alpha\rangle_i\,den_i$ |
 
-`props[reaction]` keys:
+Per-reaction band data is not stored on the group: each photo reaction holds
+one `GroupedPhotoReactionProps` per band in `reaction.photo.rgrouped`, in the
+same order as `Radiation.groups` (`None` for a reaction with a `.jfunc`
+`chemRate<N>`, which is not coupled to the bands), with these attributes:
 
-| Key         | Description                                                                                                                                                                                                   |
+| Attribute   | Description                                                                                                                                                                                                   |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `k`         | Symbolic rate coefficient for this band                                                                                                                                                                       |
+| `k`         | Band loss coefficient: times the reactant densities, the radiation the reaction removes from the band per unit time. It is $c \cdot den_i \cdot \langle\sigma\rangle_i$ (with any shielding), with the absorption cross section photon-number weighted in `"nph"` mode and **energy** weighted in `"u"` mode. The reaction rate itself always uses the photon-number weighting |
 | `xsec`      | Photon-number-weighted band-average cross section $\langle\sigma\rangle_i$ (cm²); `None` for custom-rate reactions                                                                                            |
-| `xsec_frac` | Tabulated reactions: $\langle\sigma\rangle_i$ divided by the full-spectrum average (`reaction.rad_xsecs`), so values need not sum to 1. Custom-rate reactions: this band's share of the total `dRad` integral |
-| `delta_rad` | Band integral of `dRad`, the radiation energy added per reaction event (erg)                                                                                                                                  |
+| `xsec_frac` | Tabulated reactions: $\langle\sigma\rangle_i$ divided by the full-spectrum average (`reaction.photo.xsec.total`), so values need not sum to 1. |
 
 The same values per reaction are available as a table through
 [`Reaction.band_xsecs`](../../core/reaction/band_xsecs.md) (there `eavg` is in eV).

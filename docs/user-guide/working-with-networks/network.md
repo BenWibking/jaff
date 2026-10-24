@@ -117,7 +117,6 @@ net = Network(
 | `reactant_matrix` | `np.ndarray`      | Integer stoichiometry, shape `(n_reactions, n_species)` — reactant counts                                           |
 | `product_matrix`  | `np.ndarray`      | Integer stoichiometry, same shape — product counts                                                                  |
 | `thermodynamics`  | `Thermodynamics`  | Thermal equations: `eos`, `dEdt_chemical`, `dEdt_extra`, `dEdt_tot`, `dTdt_chemical`, `dTdt_extra`, `dTdt_tot`; see [thermodynamics](../../api/core/network/thermodynamics.md) |
-| `dRad_dt_extra`   | `sympy.Basic`     | Extra radiation-moment source terms from `@function` aux definitions (else `0`)                                     |
 | `radiation`       | `Radiation\|None` | Radiation field object; `None` when no `radiation_props` are configured                                             |
 | `mass_dict`       | `dict`            | Element mass dictionary used to build the species                                                                   |
 | `symbols`         | `NetworkSymbols`  | Canonical symbols, densities (`ndens`, `ntot`, `rho`, `n_hnuc`), introspection sets and `standardize`; see [symbols](../../api/core/network/symbols.md) |
@@ -189,7 +188,7 @@ atoms):
 
 ```python
 g = Network("networks/GOW/GOW.jet")
-g.reactions.with_type("cosmic_ray")[0].rate
+g.reactions.with_type("cosmic_ray")[0].rate_coefficient
 # crate*(1.5*nden[0, 0]/(nden[0, 0] + nden[1, 0] + 2*nden[3, 0] + ...) + ...)
 ```
 

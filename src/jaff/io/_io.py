@@ -26,12 +26,14 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+from dataclasses import asdict
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 import numpy as np
 from sympy import (
     Basic,
+    Expr,
     Float,
     Heaviside,
     Max,
@@ -59,6 +61,7 @@ if TYPE_CHECKING:
     from .. import Network, Reaction, Specie, Species
     from ..core._typing import ReactionProps
     from ..core.reaction import Reactions
+    from ..physics import XsecProps
 else:
     Specie = "Specie"
     Species = "Species"
@@ -182,8 +185,8 @@ def to_jaff_file(filename: str | Path, net: "Network"):
                 {
                     s
                     for r in net.reactions
-                    if isinstance(r.rate, Basic)
-                    for s in r.rate.free_symbols
+                    if isinstance(r.rate_coefficient, Basic)
+                    for s in r.rate_coefficient.free_symbols
                 }
                 | set(net.thermodynamics.dEdt_extra.volumetric.free_symbols),
                 key=lambda s: s.name,
@@ -193,7 +196,7 @@ def to_jaff_file(filename: str | Path, net: "Network"):
             {
                 "reactants": [s.name for s in r.reactants],
                 "products": [s.name for s in r.products],
-                "rate": encode_maybe_sympy(r.rate),
+                "rate": encode_maybe_sympy(r.rate_coefficient),
                 "tmin": r.tmin,
                 "tmax": r.tmax,
                 "t_cutoff": r.t_cutoff,
@@ -206,19 +209,85 @@ def to_jaff_file(filename: str | Path, net: "Network"):
                     for s in r.rate_segments
                 ],
                 "dE": encode_maybe_sympy(r.dE),
-                "dRad": encode_maybe_sympy(r.dRad),
-                "custom_rad_rate": r.custom_rad_rate,
+                "custom_rad_rate": r.photo is not None and r.photo.custom_rad_rate,
                 "original_string": r.original_string,
+                "index": r.index,
                 "type": r.type,
-                "pi_database": r.pi_database,
+                "format": r._format,
+                "pi_database": r.photo.pi_database if r.photo is not None else None,
+                "xsecs": _encode_custom_xsec_props(r, encode_maybe_sympy),
+                "spectral_yield": encode_maybe_sympy(r.rad.spectral_yield),
+                "shielding": (
+                    {"type": r.photo.shielding.type, "props": r.photo.shielding.props}
+                    if r.photo is not None and r.photo.shielding is not None
+                    else None
+                ),
             }
             for r in net.reactions
         ],
         "dEdt_extra": encode_maybe_sympy(net.thermodynamics.dEdt_extra.volumetric),
+        "emissivity": encode_maybe_sympy(
+            net.radiation.emissivity if net.radiation is not None else None
+        ),
+        "absorption_coefficient": encode_maybe_sympy(
+            net.radiation.absorption_coefficient if net.radiation is not None else None
+        ),
     }
 
     with gzip.open(filename, "wt", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, sort_keys=True)
+
+
+def _encode_custom_xsec_props(
+    reaction: Reaction, encode_expr: Callable[[Any], Any]
+) -> dict | None:
+    """JSON form of a ``photoCrossSection`` cross section, else ``None``.
+
+    Only custom cross sections are stored: database ones are looked up again
+    when the ``.jaff`` file is loaded, but a custom one would otherwise need the
+    ``.jfunc`` it came from.  *encode_expr* serializes the ``photodecay_expr``.
+    """
+    xsec = reaction.photo.xsec if reaction.photo is not None else None
+    if xsec is None or xsec.database != "custom":
+        return None
+
+    return {
+        "units": asdict(xsec.units),
+        "process": asdict(xsec.process),
+        "database": xsec.database,
+        "photodecay_expr": encode_expr(xsec.photodecay_expr),
+    }
+
+
+def _decode_xsec_props(
+    xsecs: dict, decode_expr: Callable[[Any], Expr | None]
+) -> XsecProps:
+    """Rebuild an :class:`XsecProps` from its JSON-serialized dict form.
+
+    Cross-section arrays are JSON-serialized as plain lists; restore them to
+    numpy arrays so the loaded XsecProps matches the in-memory type;
+    *decode_expr* restores the Verner ``photodecay_expr``.
+    """
+    from ..physics.photo_reactions._photochemistry import (
+        XsecProcess,
+        XsecProps,
+        XsecUnits,
+    )
+
+    def as_array(key: str) -> np.ndarray | None:
+        value = xsecs.get(key)
+
+        return None if value is None else np.asarray(value, dtype=float)
+
+    return XsecProps(
+        units=XsecUnits(**xsecs["units"]),
+        process=XsecProcess(**xsecs["process"]),
+        database=xsecs["database"],
+        photon_energy=as_array("photon_energy"),
+        photo_absorption=as_array("photo_absorption"),
+        photodecay=as_array("photodecay"),
+        photodecay_expr=decode_expr(xsecs.get("photodecay_expr")),
+    )
 
 
 def from_jaff_file(filename: str | Path, errors=False):
@@ -429,7 +498,6 @@ def from_jaff_file(filename: str | Path, errors=False):
 
         rate = decode_maybe_sympy(rj.get("rate"))
         dE = decode_maybe_sympy(rj.get("dE"))
-        dRad_dt = decode_maybe_sympy(rj.get("dRad"))
         custom_rad_rate = rj.get("custom_rad_rate")
         tmin = rj.get("tmin")
         tmax = rj.get("tmax")
@@ -450,18 +518,13 @@ def from_jaff_file(filename: str | Path, errors=False):
         original_string = rj.get("original_string") or ""
         reaction_type = rj.get("type") or "unknown"
         pi_database = rj.get("pi_database")
+        shielding = rj.get("shielding")
         xsecs = rj.get("xsecs")
-
-        # Cross-section arrays are JSON-serialized as plain lists; restore them
-        # to numpy arrays so the loaded XsecsProps matches the in-memory type.
-        if isinstance(xsecs, dict):
-            for key in (
-                "photon_energy",
-                "photo_absorption",
-                "photodecay",
-            ):
-                if xsecs.get(key) is not None:
-                    xsecs[key] = np.asarray(xsecs[key], dtype=float)
+        xsec_props = (
+            _decode_xsec_props(xsecs, decode_maybe_sympy)
+            if isinstance(xsecs, dict)
+            else None
+        )
 
         reactions_out.append(
             cast(
@@ -471,16 +534,19 @@ def from_jaff_file(filename: str | Path, errors=False):
                     "products": products,
                     "rate": rate,
                     "dE": dE,
-                    "dRad": dRad_dt,
                     "custom_rad_rate": custom_rad_rate,
                     "tmin": tmin,
                     "tmax": tmax,
                     "t_cutoff": t_cutoff,
                     "rate_segments": rate_segments,
                     "original_string": original_string,
+                    **({"index": rj["index"]} if "index" in rj else {}),
                     "reaction_type": reaction_type,
+                    "format": rj.get("format"),
                     "pi_database": pi_database,
-                    "xsecs_dict": xsecs,
+                    "shielding": shielding,
+                    "xsec_props": xsec_props,
+                    "spectral_yield": decode_maybe_sympy(rj.get("spectral_yield")),
                 },
             )
         )
@@ -489,6 +555,14 @@ def from_jaff_file(filename: str | Path, errors=False):
 
     if "dEdt_extra" in payload:
         net_data["dEdt_extra"] = decode_maybe_sympy(payload.get("dEdt_extra"))
+
+    if payload.get("emissivity") is not None:
+        net_data["emissivity"] = decode_maybe_sympy(payload["emissivity"])
+
+    if payload.get("absorption_coefficient") is not None:
+        net_data["absorption_coefficient"] = decode_maybe_sympy(
+            payload["absorption_coefficient"]
+        )
 
     return net_data
 

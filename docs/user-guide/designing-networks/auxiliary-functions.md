@@ -126,7 +126,7 @@ runtime-supplied symbol.)
 Inside a custom `@function` body you can reference the auto-generated rate
 coefficient of another reaction by index with the reserved symbol `rc_<N>`,
 where `N` is the 0-based reaction index. JAFF resolves `rc_<N>` to the computed
-rate coefficient (the `rate` of `network.reactions[N]`), so you can build one
+rate coefficient (the `rate_coefficient` of `network.reactions[N]`), so you can build one
 reaction's rate or energy term out of another's without restating its Arrhenius
 expression.
 
@@ -144,7 +144,7 @@ offending symbol and the `.jfunc` file it came from.
 Inside a custom `@function` body you can reference the auto-generated rate
 coefficient of another reaction by index with the reserved symbol `rc_<N>`,
 where `N` is the 0-based reaction index. JAFF resolves `rc_<N>` to the computed
-rate coefficient (the `rate` of `network.reactions[N]`), so you can build one
+rate coefficient (the `rate_coefficient` of `network.reactions[N]`), so you can build one
 reaction's rate or energy term out of another's without restating its Arrhenius
 expression.
 
@@ -161,13 +161,16 @@ offending symbol and the `.jfunc` file it came from.
 
 ## Reserved Function Names
 
-JAFF recognises four reserved naming conventions:
+JAFF recognises seven reserved naming conventions:
 
 | Pattern              | Role                                                                                                                                                                                                                                         |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `chemRate<N>`        | Custom rate coefficient for reaction index _N_ (0-based). Replaces the Arrhenius expression in the network file.                                                                                                                             |
 | `deltaE<N>`          | Change in gas thermal energy per occurrence of reaction _N_ (erg). Positive = exothermic.                                                                                                                                                    |
-| `deltaRad<N>`        | Radiation energy source/sink term for photo-reaction _N_, as a function of photon energy `E`. Integrated over each radiation band to weigh the radiation moment equations (see [Radiation Source Terms](#radiation-source-terms-deltaradn)). |
+| `photoCrossSection<N>` | Photodecay cross section (cm²) of photo-reaction _N_ as a function of photon energy `ph_E` (eV). Replaces the database cross section (see [Custom cross sections](#custom-cross-sections-photocrosssectionn)). |
+| `spectralYield<N>`   | Radiation energy (erg) reaction _N_ adds to the field per event per unit photon energy `ph_E` (eV), integrated over solid angle (see [Spectral yield](#spectral-yield-spectralyieldn)). |
+| `globalEmissivity`   | **Volume** emissivity: radiation energy emitted per unit volume, time and photon energy `ph_E` (erg cm⁻³ s⁻¹ eV⁻¹) by processes not tied to a reaction, integrated over solid angle (see [Global emissivity](#global-emissivity-globalemissivity)). |
+| `globalAbsorptionCoefficient` | Absorption coefficient of the medium: fraction of the radiation absorbed per unit path length (cm⁻¹) as a function of photon energy `ph_E` (eV) (see [Global absorption coefficient](#global-absorption-coefficient-globalabsorptioncoefficient)). |
 | `heatingCoolingRate` | Net gas heating minus cooling rate from all non-chemical radiative processes (erg s⁻¹ cm⁻³).                                                                                                                                                 |
 | Any other name       | Helper function — substituted symbolically into the bodies that call it.                                                                                                                                                                     |
 
@@ -250,6 +253,8 @@ Reactions whose rate cannot be written as a simple Arrhenius expression get a `c
         (d2g / d2g_solar) * n_H_nuc / n_e
 ```
 
+With radiation transport enabled, a photo reaction with a `chemRate<N>` keeps that rate but is **not coupled** to the radiation bands (it removes no photons), because a custom rate does not depend on the transported field. JAFF logs a warning naming each such reaction. To couple it, supply a [`photoCrossSection<N>`](#custom-cross-sections-photocrosssectionn) instead, or set [`override_custom_rate`](../working-with-networks/jaff-toml.md#custom-photo-rates-under-radiation) to use the database cross sections without editing the `.jfunc`. A reaction cannot have both a `chemRate<N>` and a `photoCrossSection<N>`.
+
 ### Thermal energy change — `deltaE<N>`
 
 Functions labeled by `deltaE<N>` are used for representing the internal energy change per reaction. `N` represents the 0-indexed reaction number. The expression returned by these functions are multiplied with the reaction rate and added together to obtain the rate of internal energy change.
@@ -273,6 +278,39 @@ where $R_i$ represents the rate of the $i^{th}$ reaction and $\Delta E_i$ repres
     @return (0.4 + 8 * 2 * f) * eV
 ```
 
+### Custom cross sections — `photoCrossSection<N>`
+
+A `photoCrossSection<N>` function replaces the database cross section of photo-reaction _N_. Its body is the photodecay cross section in cm² as a function of the photon-energy symbol `ph_E` in eV (a bare `E` is Euler's number to SymPy):
+
+```text
+@function photoCrossSection5()
+    # Reaction 5: flat 1e-18 cm^2 above 11.26 eV
+    @return Piecewise((1e-18, ph_E >= 11.26), (0, True))
+```
+
+The reaction stores it as `photo.xsec` with `database = "custom"` and no photo-absorption cross section. With radiation enabled it is averaged over each band and over the whole spectrum exactly like a Verner fit, and the band averages set the photo rate. A reaction cannot have both a `chemRate<N>` and a `photoCrossSection<N>` (`ParserError`), nor a per-reaction `pi_database` while its custom cross section is in use.
+
+Setting `override_custom_cross_section = true` (globally in [`jaffgen.toml`](../code-generation/jaffgen-toml.md#networkradiation-section) or `RadiationProps`, or per reaction in `jaffgen.toml` / [`jaff.toml`](../working-with-networks/jaff-toml.md#custom-photo-cross-sections)) ignores the function and uses the database cross section instead. A per-reaction value applies with or without radiation. A `.jaff` file stores the custom cross section, so it survives a reload without the `.jfunc`.
+
+### Spectral yield — `spectralYield<N>`
+
+A `spectralYield<N>` function gives the radiation that reaction _N_ emits: the energy (erg) added to the radiation field per reaction event per unit photon energy, as a function of the photon-energy symbol `ph_E` (eV), so its units are erg eV⁻¹. Supply it already **integrated over solid angle**: the emission is treated as isotropic. Any reaction may have one, photo or not, e.g. radiative recombination:
+
+```text
+@function spectralYield7()
+    # Reaction 7: H+ + e- -> H, a recombination line near 13.6 eV
+    @return Piecewise((2.2e-11 / 0.2, (ph_E >= 13.6) & (ph_E <= 13.8)), (0, True))
+```
+
+With radiation transport enabled, JAFF integrates the yield over each radiation group and stores the result on `rxn.rad.group_yields`, in the units of the group density per event:
+
+| `RadiationProps.mode` | Group yield                                  | Units  |
+| --------------------- | -------------------------------------------- | ------ |
+| `"u"`                 | $\int_\text{group} Y(E)\,dE$                  | erg    |
+| `"nph"` (default)     | $\int_\text{group} Y(E)\,/\,E\;dE$ (`E` in erg) | photons |
+
+Each group yield times the reaction rate is added to that group's **density** equation only; isotropic emission carries no net flux, so the flux equations are unchanged. The yield may use other symbols (e.g. `tgas`); such a yield is integrated analytically, so those symbols stay in the generated equations, and it must have a closed-form integral over every group (else `ValueError`). The same holds for a `photoCrossSection<N>`. Energy emitted outside the group range is dropped. Without radiation the yield is stored on `rxn.rad.spectral_yield` but has no effect. A `.jaff` file stores the yield.
+
 ### Heating / cooling function
 
 The heating cooling function is used to add any non-chemical heating and cooling rates to the reaction network. The returned `expression` must be in terms of rate of internal energy change in units of $erg\ s^{-1}\ cm^{-3}$
@@ -291,19 +329,74 @@ The heating cooling function is used to add any non-chemical heating and cooling
         - cooling_dust_rec(chi, av, d2g, tgas, n_e)
 ```
 
----
+### Global emissivity — `globalEmissivity`
 
-## Radiation Source Terms — `deltaRad<N>`
+The `globalEmissivity` function is the network-wide counterpart of `spectralYield<N>`: radiation emitted by processes that are not one reaction (e.g. free-free or dust emission). Its body is the **volume emissivity**: the energy emitted per unit volume, per unit time, per unit photon energy, as a function of the photon-energy symbol `ph_E` (eV), in erg cm⁻³ s⁻¹ eV⁻¹, already **integrated over solid angle** (isotropic emission). There is one per network, with no `<N>`:
 
-When a network is loaded with radiation transport enabled (by passing `radiation_props=RadiationProps(bands=...)` to `Network`), JAFF builds a set of **radiation moment equations** alongside the chemical ODEs. A `deltaRad<N>` function supplies the radiation energy (in ergs) per photon energy (in eV) that photo-reaction _N_ adds to the local field, expressed in ergs/eV.
+<!-- prettier-ignore -->
+!!! warning "Which emissivity?"
+    "Emissivity" means different things in different sources. JAFF expects the
+    volume emissivity per unit **photon energy in eV**, integrated over solid angle.
+    Convert other conventions first (2.418 × 10¹⁴ Hz eV⁻¹ is $d\nu/dE = 1/h$):
+
+    | Convention                                  | Usual units                       | JAFF `globalEmissivity`                                 |
+    | ------------------------------------------- | --------------------------------- | ------------------------------------------------------- |
+    | Emission coefficient $j_\nu$, per steradian | erg cm⁻³ s⁻¹ sr⁻¹ Hz⁻¹             | $4\pi\, j_\nu \times 2.418\times10^{14}$               |
+    | Angle-integrated $\varepsilon_\nu = 4\pi j_\nu$ | erg cm⁻³ s⁻¹ Hz⁻¹                  | $\varepsilon_\nu \times 2.418\times10^{14}$            |
+    | Mass (specific) emissivity                  | erg g⁻¹ s⁻¹ Hz⁻¹                   | $\rho\,\varepsilon_\text{mass} \times 2.418\times10^{14}$ ($\rho$ in g cm⁻³) |
+    | Per reaction event                          | erg eV⁻¹                          | not this: use [`spectralYield<N>`](#spectral-yield-spectralyieldn) |
+    | Dimensionless (0–1, grey body)               | —                                 | a surface property, not this quantity                   |
+
+    The example below starts from Rybicki & Lightman's angle-integrated free-free
+    $\varepsilon_\nu$ (erg cm⁻³ s⁻¹ Hz⁻¹), hence its factor `2.418e14`.
 
 ```text
-@function deltaRad5()
-    # Reaction 5: local radiation energy source as a function of photon energy E
-    @return some_expression_in_E
+@function globalEmissivity(n_e, n_Hj, tgas)
+    # Free-free emission of an ionised hydrogen plasma (Gaunt factor 1)
+    @return 6.8e-38 * 2.418e14 * n_e * n_Hj * tgas**-0.5 * exp(-ph_E / (8.617e-5 * tgas))
 ```
 
-The body must be a function of the photon-energy symbol `E`. JAFF integrates it over each radiation band, so the value represents an energy density. A reaction without a `deltaRad<N>` function contributes no radiation source to the local radiation field.
+With radiation transport enabled, JAFF integrates it over each radiation group, with the same units rule as the spectral yield (erg cm⁻³ s⁻¹ in `"u"` mode, photons cm⁻³ s⁻¹ in `"nph"` mode), and adds each group's value to that group's **density** equation only. The spectrum is stored on `net.radiation.emissivity`, the group values on `group.emissivity` (with `n_X` symbols resolved to the species densities), and their sum on `net.radiation.total_emissivity`. Other symbols such as `tgas` stay symbolic, which needs a closed-form integral over every group (else `ValueError`). Without radiation it has no effect. A `.jaff` file stores it.
+
+### Global absorption coefficient — `globalAbsorptionCoefficient`
+
+The `globalAbsorptionCoefficient` function gives absorption by the medium itself, beyond the photo reactions (e.g. a grey dust opacity). Its body is the **absorption coefficient** $\alpha$: the fraction of the radiation absorbed per unit path length, in **cm⁻¹**, as a function of the photon-energy symbol `ph_E` (eV). Unlike the emissivity, $\alpha$ is a value *at* each photon energy, not a density per eV. There is one per network, with no `<N>`:
+
+```text
+@function globalAbsorptionCoefficient(n_H_nuc)
+    # Grey dust absorption: 1e-21 cm^2 per H nucleus at every photon energy
+    @return 1e-21 * n_H_nuc
+```
+
+<!-- prettier-ignore -->
+!!! note "Converting to an absorption coefficient"
+    | Given                                  | Units      | $\alpha$                 |
+    | -------------------------------------- | ---------- | ------------------------ |
+    | Cross section $\sigma$ per absorber    | cm²        | $n\,\sigma$ ($n$ in cm⁻³) |
+    | Mass opacity $\kappa$                  | cm² g⁻¹    | $\rho\,\kappa$ ($\rho$ in g cm⁻³) |
+    | Optical depth per path length          | cm⁻¹       | $d\tau/ds$               |
+
+With radiation transport enabled, JAFF averages $\alpha$ over each radiation group, weighted by the group's assumed spectrum, and removes the absorbed radiation from that group's density and flux equations:
+
+$$
+\frac{d\,den_i}{dt} \supset -\,c\,\langle\alpha\rangle_i\, den_i,
+\qquad
+\frac{d\,F_i}{dt} \supset -\,c\,\langle\alpha\rangle_i\, F_i,
+\qquad
+\langle\alpha\rangle_i = \frac{\int_\text{group} \alpha(E)\, w(E)\, dE}{\int_\text{group} w(E)\, dE}
+$$
+
+with $w(E) = E\,n(E)$ in `"u"` mode (the energy density loses each photon's energy) and $w(E) = n(E)$ in `"nph"` mode (the photon density loses photons). The averages are stored on `group.absorption_coefficient` (with `n_X` symbols resolved to the species densities) and the spectrum on `net.radiation.absorption_coefficient`. Absorption removes radiation from every direction in proportion to the intensity, so it also attenuates the flux $F_i$ (`rflux[i]`), with the same $\langle\alpha\rangle_i$. Set `absorption_attenuates_flux = false` (in `[network.radiation]` of [`jaffgen.toml`](../code-generation/jaffgen-toml.md#networkradiation-section), or `RadiationProps(..., absorption_attenuates_flux=False)`) to apply it to the density equations only. Other symbols such as `tgas` stay symbolic, which needs a closed-form integral over every group (else `ValueError`). Without radiation it has no effect. A `.jaff` file stores it.
+
+<!-- prettier-ignore -->
+!!! warning "Dust module"
+    With the [dust module](../code-generation/jaffgen-toml.md#networkdust-section) enabled, dust absorption is already applied to the radiation field. Do not put a dust opacity in `globalAbsorptionCoefficient` as well, or dust absorbs twice.
+
+---
+
+## Radiation Moment Equations
+
+When a network is loaded with radiation transport enabled (by passing `radiation_props=RadiationProps(bands=...)` to `Network`), JAFF builds a set of **radiation moment equations** alongside the chemical ODEs. Photo-reactions remove radiation from each band they absorb in.
 
 ### Radiation density variable — `radeden` / `photden`
 
@@ -314,18 +407,9 @@ Each radiation band carries one density unknown in the generated equations. Its 
 | `"u"`                 | `radeden[i]`     | Radiation energy density | erg cm⁻³ |
 | `"nph"` (default)     | `photden[i]`     | Photon number density    | cm⁻³     |
 
-Here `i` indexes the radiation band. The photo-reaction rate coefficient for band $i$ is $k_i = c \cdot den_i \cdot {\langle \sigma \rangle}_i$, where ${\langle \sigma \rangle}_i$ is the band-averaged photoionisation cross section and `c` is the speed of light. In energy-density mode (`mode="u"`) the `deltaRad` contribution is divided by the band-average photon energy to convert it to the matching units.
+Here `i` indexes the radiation band. The photo-reaction rate coefficient for band $i$ is $k_i = c \cdot den_i \cdot {\langle \sigma \rangle}_i$, where ${\langle \sigma \rangle}_i$ is the band-averaged photoionisation cross section and `c` is the speed of light.
 
-### Custom rates and `deltaRad`
-
-If a photo-reaction has **both** radiation transport enabled and a custom `chemRate<N>` rate, a matching `deltaRad<N>` is **required**. JAFF cannot derive the spectral weighing for the reaction rate across bands from a cross-section in that case, so it uses `deltaRad<N>` to weigh the supplied rate across the bands for radiation energy density contribution.
-
-Thus, the reaction rate per band is weighed by
-
-<!-- prettier-ignore -->
-$$ \dfrac{\Delta rad_{band}}{\Delta rad_{spectrum}} $$
-
-The radiation moment equations themselves are available through [`Network.sradodes()`](../../api/core/network/sradodes.md).
+Reactions with a [`spectralYield<N>`](#spectral-yield-spectralyieldn) and the network [`globalEmissivity`](#global-emissivity-globalemissivity) add their emission to the density equations, and the network [`globalAbsorptionCoefficient`](#global-absorption-coefficient-globalabsorptioncoefficient) removes the absorbed radiation from them. The radiation moment equations themselves are available through [`Network.sradodes()`](../../api/core/network/sradodes.md).
 
 ---
 

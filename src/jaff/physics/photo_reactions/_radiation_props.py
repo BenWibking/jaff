@@ -27,6 +27,54 @@ def validate_pi_database(value: object) -> str:
     return value.lower()
 
 
+def validate_override_custom_rate(value: object) -> bool:
+    """Validate an ``override_custom_rate`` flag and return it.
+
+    Raises
+    ------
+    ParserError
+        If *value* is not a bool.
+    """
+    if not isinstance(value, bool):
+        raise ParserError(
+            f"Invalid override_custom_rate {value!r}. It must be true or false"
+        )
+
+    return value
+
+
+def validate_override_custom_cross_section(value: object) -> bool:
+    """Validate an ``override_custom_cross_section`` flag and return it.
+
+    Raises
+    ------
+    ParserError
+        If *value* is not a bool.
+    """
+    if not isinstance(value, bool):
+        raise ParserError(
+            f"Invalid override_custom_cross_section {value!r}. It must be true or false"
+        )
+
+    return value
+
+
+def validate_absorption_attenuates_flux(value: object) -> bool:
+    """Validate an ``absorption_attenuates_flux`` flag and return it.
+
+    Raises
+    ------
+    ParserError
+        If *value* is not a bool.
+    """
+    if not isinstance(value, bool):
+        raise ParserError(
+            f"Invalid absorption_attenuates_flux {value!r}. It must be true or false"
+        )
+
+    return value
+
+
 class RadiationProps:
     """Radiation-field configuration passed to :class:`Network` / :class:`Radiation`.
 
@@ -57,6 +105,15 @@ class RadiationProps:
         Validated background-field name (lower-cased).
     pi_database : str
         Validated photoionization database name (lower-cased).
+    override_custom_rate : bool
+        When ``True``, a photo reaction with a ``.jfunc`` ``chemRate`` has its
+        rate recomputed from its cross sections instead.
+    override_custom_cross_section : bool
+        When ``True``, a photo reaction with a ``.jfunc`` ``photoCrossSection``
+        uses the database cross sections instead.
+    absorption_attenuates_flux : bool
+        When ``True``, the ``globalAbsorptionCoefficient`` also removes
+        radiation from the flux equations, not only the density equations.
     """
 
     # Vaiid modes
@@ -83,6 +140,9 @@ class RadiationProps:
         c: float | str = constants.c.cgs.value,
         background_field: str = "draine",
         pi_database: str = "norad",
+        override_custom_rate: bool = False,
+        override_custom_cross_section: bool = False,
+        absorption_attenuates_flux: bool = True,
     ):
         """Validate and store the radiation-field configuration.
 
@@ -112,6 +172,22 @@ class RadiationProps:
             dissociation always uses Leiden.  See
             :meth:`~jaff.physics.photo_reactions._photochemistry.Photochemistry.get_xsec`
             for the fallback order.
+        override_custom_rate : bool, optional
+            When ``True``, a photo reaction with a ``.jfunc`` ``chemRate``
+            has its rate recomputed from its cross sections, ignoring the
+            ``chemRate`` (default ``False``: the ``chemRate`` is kept).  A
+            reaction's own ``override_custom_rate`` in ``jaffgen.toml`` /
+            ``jaff.toml`` takes precedence.
+        override_custom_cross_section : bool, optional
+            When ``True``, a photo reaction with a ``.jfunc``
+            ``photoCrossSection`` uses the database cross sections, ignoring the
+            ``photoCrossSection`` (default ``False``: it is used).  A reaction's
+            own ``override_custom_cross_section`` in ``jaffgen.toml`` /
+            ``jaff.toml`` takes precedence.
+        absorption_attenuates_flux : bool, optional
+            Whether the ``globalAbsorptionCoefficient`` also attenuates the
+            radiation flux, ``c <α>_i rflux_i`` per group (default ``True``);
+            ``False`` applies it to the density equations only.
 
         Raises
         ------
@@ -127,6 +203,15 @@ class RadiationProps:
         self.c: float | str = self._validate_c(c)
         self.background_field: str = self._validate_field(background_field)
         self.pi_database: str = validate_pi_database(pi_database)
+        self.override_custom_rate: bool = validate_override_custom_rate(
+            override_custom_rate
+        )
+        self.override_custom_cross_section: bool = validate_override_custom_cross_section(
+            override_custom_cross_section
+        )
+        self.absorption_attenuates_flux: bool = validate_absorption_attenuates_flux(
+            absorption_attenuates_flux
+        )
 
     def _validate_c(self, c) -> float | str:
         if isinstance(c, (float, int, str)):

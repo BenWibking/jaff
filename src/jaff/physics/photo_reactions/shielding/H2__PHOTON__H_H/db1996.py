@@ -31,14 +31,16 @@ class DB1996(ShieldingFunction):
 
         Thin wrapper over :func:`shielding` with ``alpha = 2.0``.  Reads the
         optional floors ``shielding.min_ncol`` (cm^-2) and
-        ``shielding.min_vdisp`` (cm/s) from the reaction metadata.
+        ``shielding.min_vdisp`` (cm/s) from ``reaction.photo.shielding.props``.
 
         Raises
         ------
         ParserError
             If ``min_ncol`` or ``min_vdisp`` is set to a non-numeric value.
         """
-        sprops: dict[str, Any] = reaction._metadata["shielding"]
+        assert reaction.photo is not None and reaction.photo.shielding is not None
+        sprops: dict[str, Any] = reaction.photo.shielding.props
+
         if "min_ncol" in sprops and not isinstance(sprops["min_ncol"], (float, int)):
             raise ParserError(
                 f"Minimum column density must be a float or int for: {reaction}"
